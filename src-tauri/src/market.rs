@@ -90,6 +90,17 @@ fn with<T>(vault: Shared, f: impl FnOnce(&mut Vault) -> Result<T, String>) -> Re
     f(v)
 }
 
+/// Data e hora ISO (UTC) no fuso do computador: "14/10/2026 às 18:37".
+fn local_stamp(iso: &str) -> String {
+    chrono::DateTime::parse_from_rfc3339(iso)
+        .map(|d| {
+            d.with_timezone(&chrono::Local)
+                .format("%d/%m/%Y às %H:%M")
+                .to_string()
+        })
+        .unwrap_or_else(|_| iso.to_string())
+}
+
 fn month_key(year: i32, month: u32) -> String {
     format!("{year}-{month:02}")
 }
@@ -177,18 +188,16 @@ pub fn update_all(
                 .map_err(|e| e.to_string())?;
             let count = v.asset_count_in(market).map_err(|e| e.to_string())?;
             let last_date = last
+                .as_deref()
                 .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
                 .map(|d| d.date_naive());
             let stale = count < 100
                 || last_date
                     .map(|d| (today - d).num_days() >= CATALOG_MAX_AGE_DAYS)
                     .unwrap_or(true);
-            let info = last_date.map(|d| {
-                format!(
-                    "em dia: {count} ativos, atualizado em {}",
-                    d.format("%d/%m/%Y")
-                )
-            });
+            let info = last
+                .as_deref()
+                .map(|iso| format!("em dia: {count} ativos, atualizado em {}", local_stamp(iso)));
             Ok((stale, info))
         })
     };
@@ -223,9 +232,10 @@ pub fn update_all(
                     .collect();
                 let quotes = closes_for(&records, &all_tickers);
                 let msg = format!(
-                    "{} ativos do pregão de {}",
+                    "{} ativos do pregão de {}, atualizado em {}",
                     assets.len(),
-                    day.format("%d/%m/%Y")
+                    day.format("%d/%m/%Y"),
+                    chrono::Local::now().format("%d/%m/%Y às %H:%M")
                 );
                 with(vault, |v| {
                     v.upsert_assets(&assets).map_err(|e| e.to_string())?;
@@ -283,7 +293,11 @@ pub fn update_all(
                         source: nasdaq::SOURCE.into(),
                     })
                     .collect();
-                let msg = format!("{} ações e ETFs listados nos EUA", assets.len());
+                let msg = format!(
+                    "{} ações e ETFs listados nos EUA, atualizado em {}",
+                    assets.len(),
+                    chrono::Local::now().format("%d/%m/%Y às %H:%M")
+                );
                 with(vault, |v| {
                     v.upsert_assets(&assets).map_err(|e| e.to_string())?;
                     v.record_quote_update(
