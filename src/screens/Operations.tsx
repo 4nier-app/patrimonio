@@ -22,6 +22,7 @@ import {
   quantity,
   toCashMask,
 } from "../format";
+import { currencyOfAsset } from "../currency";
 
 type Form = {
   id: string;
@@ -38,6 +39,8 @@ type Form = {
   note: string;
   /** Moeda escolhida para uma conta nova. */
   newCurrency: Currency;
+  /** O usuário escolheu a moeda à mão; não deduzir mais pelo ativo. */
+  currencyTouched: boolean;
   fromAccount: string;
   residue: string;
 };
@@ -60,6 +63,7 @@ const EMPTY: Form = {
   fees: "",
   note: "",
   newCurrency: "BRL",
+  currencyTouched: false,
   fromAccount: "",
   residue: "",
 };
@@ -181,6 +185,13 @@ export default function Operations() {
 
   const existing = accounts.find((a) => a.name === form.account.trim());
   const currency: Currency = existing?.currency ?? form.newCurrency;
+
+  // Conta nova: a moeda vem do ativo (catálogo dos EUA → dólar; B3 → reais).
+  useEffect(() => {
+    if (existing || form.currencyTouched || form.id) return;
+    const guess = currencyOfAsset(form.asset, suggestions);
+    if (guess && guess !== form.newCurrency) setForm((f) => ({ ...f, newCurrency: guess }));
+  }, [existing, form.asset, form.currencyTouched, form.id, form.newCurrency, suggestions]);
   const transfer = form.side === "TRANSFERENCIA";
   const draft = useMemo(() => toOperation(form, currency), [form, currency]);
 
@@ -254,6 +265,7 @@ export default function Operations() {
       fees: o.manual_fees != null ? toCashMask(o.manual_fees, 2, cur).text : "",
       note: o.note ?? "",
       newCurrency: cur,
+      currencyTouched: true,
       fromAccount: o.from_account ?? "",
       residue: o.residue ? maskDecimal(o.residue, "quantity") : "",
     });
@@ -316,7 +328,10 @@ export default function Operations() {
             {existing || !form.account.trim() ? (
               <input value={currency === "USD" ? "Dólar (exterior)" : "Reais (B3)"} disabled />
             ) : (
-              <select value={form.newCurrency} onChange={(e) => set("newCurrency", e.target.value as Currency)}>
+              <select
+                value={form.newCurrency}
+                onChange={(e) => setForm((f) => ({ ...f, newCurrency: e.target.value as Currency, currencyTouched: true }))}
+              >
                 <option value="BRL">Reais (B3)</option>
                 <option value="USD">Dólar (exterior)</option>
               </select>

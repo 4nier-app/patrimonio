@@ -9,8 +9,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [0.3.0] - Não lançada
 
 ### Adicionado
-- Contas em dólar (exterior): cada corretora tem a sua moeda, escolhida na
-  primeira vez que ela é usada.
+- Contas em dólar (exterior): cada corretora tem a sua moeda, definida no
+  primeiro lançamento pelo ativo (ação dos EUA → dólar; da B3 → reais), com
+  opção de corrigir.
 - Catálogo de ações e ETFs dos EUA (Nasdaq Trader) e cotações pelo Yahoo
   Finance desde a primeira compra.
 - PTAX de venda de fechamento do Banco Central, baixada automaticamente desde a
