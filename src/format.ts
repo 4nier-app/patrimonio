@@ -24,21 +24,26 @@ export function passwordStrength(password: string): number {
 // Valores chegam do núcleo como texto decimal exato ("1234.5"); a conversão
 // para número aqui serve só para exibir, nunca para calcular.
 const brlFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const usdFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const qtyFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 8 });
 const pctFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const priceFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 8 });
 
-export function money(v: string | null | undefined): string {
-  return v == null ? "—" : brlFmt.format(Number(v));
+export type Currency = "BRL" | "USD";
+const SYMBOL: Record<Currency, string> = { BRL: "R$", USD: "US$" };
+
+export function money(v: string | null | undefined, currency: Currency = "BRL"): string {
+  if (v == null) return "—";
+  return currency === "USD" ? `US$ ${usdFmt.format(Number(v))}` : brlFmt.format(Number(v));
 }
 
 /** Preço médio: 2 casas, como nas corretoras (o valor exato fica na dica). */
-export function averagePrice(v: string | null | undefined): string {
-  return v == null ? "—" : brlFmt.format(Number(v));
+export function averagePrice(v: string | null | undefined, currency: Currency = "BRL"): string {
+  return money(v, currency);
 }
 
-export function price(v: string | null | undefined): string {
-  return v == null ? "—" : `R$ ${priceFmt.format(Number(v))}`;
+export function price(v: string | null | undefined, currency: Currency = "BRL"): string {
+  return v == null ? "—" : `${SYMBOL[currency]} ${priceFmt.format(Number(v))}`;
 }
 
 export function quantity(v: string | null | undefined): string {
@@ -85,9 +90,6 @@ export function parseDecimalInput(raw: string): string | null {
  * "1500" → "1.500" (quantidade). Trabalha só com texto, sem arredondar.
  * Texto inválido volta como foi digitado, para o usuário corrigir.
  */
-export type Currency = "BRL" | "USD";
-const SYMBOL: Record<Currency, string> = { BRL: "R$", USD: "US$" };
-
 export function maskDecimal(raw: string, kind: "money" | "quantity", currency: Currency = "BRL"): string {
   const dec = parseDecimalInput(raw);
   if (dec == null) return raw;
@@ -100,4 +102,32 @@ export function maskDecimal(raw: string, kind: "money" | "quantity", currency: C
 /** Deixa passar só o que pode compor um número: dígitos, vírgula, ponto e o símbolo da moeda. */
 export function keepNumberChars(raw: string): string {
   return raw.replace(/[^\d.,RUS$\s]/g, "");
+}
+
+/** Casas decimais do preço digitado: reais com 2, dólar com 4 (notas da Nomad). */
+export function priceDecimals(currency: Currency): number {
+  return currency === "USD" ? 4 : 2;
+}
+
+/**
+ * Máscara de caixa: só aceita dígitos e preenche da direita para a esquerda.
+ * Com 2 casas, "1" → "R$ 0,01" e "1234" → "R$ 12,34". Com 4 casas,
+ * "1" → "US$ 0,0001". Campo sem dígitos fica vazio.
+ */
+export function cashMask(raw: string, decimals: number, currency: Currency = "BRL"): string {
+  const digits = raw.replace(/\D/g, "").replace(/^0+/, "");
+  if (!digits) return "";
+  const padded = digits.padStart(decimals + 1, "0");
+  const intPart = padded.slice(0, padded.length - decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${SYMBOL[currency]} ${intPart},${padded.slice(padded.length - decimals)}`;
+}
+
+/**
+ * Valor exato ("12.5") na máscara de caixa, para alterar um lançamento.
+ * Usa mais casas se o valor gravado tiver mais que o padrão.
+ */
+export function toCashMask(dec: string, decimals: number, currency: Currency = "BRL"): { text: string; decimals: number } {
+  const [intPart, frac = ""] = dec.split(".");
+  const d = Math.max(decimals, frac.replace(/0+$/, "").length);
+  return { text: cashMask(intPart + frac.padEnd(d, "0").slice(0, d), d, currency), decimals: d };
 }

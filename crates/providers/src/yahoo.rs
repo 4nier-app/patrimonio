@@ -17,9 +17,22 @@ pub fn b3_symbol(ticker: &str) -> String {
     format!("{ticker}.SA")
 }
 
+/// Ativos dos EUA usam o próprio código, com "-" no lugar de "." (BRK.B → BRK-B).
+pub fn us_symbol(ticker: &str) -> String {
+    ticker.replace('.', "-")
+}
+
 pub fn chart_url(symbol: &str, from: NaiveDate, to: NaiveDate) -> String {
-    let p1 = from.and_hms_opt(0, 0, 0).expect("meia-noite").and_utc().timestamp();
-    let p2 = to.and_hms_opt(23, 59, 59).expect("fim do dia").and_utc().timestamp();
+    let p1 = from
+        .and_hms_opt(0, 0, 0)
+        .expect("meia-noite")
+        .and_utc()
+        .timestamp();
+    let p2 = to
+        .and_hms_opt(23, 59, 59)
+        .expect("fim do dia")
+        .and_utc()
+        .timestamp();
     format!("https://{{host}}/v8/finance/chart/{symbol}?period1={p1}&period2={p2}&interval=1d")
 }
 
@@ -79,7 +92,8 @@ fn local_date(ts: i64, offset: i64) -> Result<NaiveDate> {
 
 /// Interpreta a resposta: fechamentos por dia, incluindo o último preço.
 pub fn parse_chart(json: &[u8]) -> Result<Vec<(NaiveDate, Decimal)>> {
-    let env: Envelope = serde_json::from_slice(json).map_err(|e| ProviderError::Format(e.to_string()))?;
+    let env: Envelope =
+        serde_json::from_slice(json).map_err(|e| ProviderError::Format(e.to_string()))?;
     if let Some(err) = env.chart.error.filter(|e| !e.is_null()) {
         return Err(ProviderError::NotFound(err.to_string()));
     }
@@ -89,14 +103,23 @@ pub fn parse_chart(json: &[u8]) -> Result<Vec<(NaiveDate, Decimal)>> {
         .and_then(|r| r.into_iter().next())
         .ok_or_else(|| ProviderError::Format("resposta sem resultado".into()))?;
     let offset = result.meta.gmtoffset;
-    let closes = result.indicators.quote.into_iter().next().map(|q| q.close).unwrap_or_default();
+    let closes = result
+        .indicators
+        .quote
+        .into_iter()
+        .next()
+        .map(|q| q.close)
+        .unwrap_or_default();
     let mut out: Vec<(NaiveDate, Decimal)> = Vec::new();
     for (ts, close) in result.timestamp.iter().zip(closes) {
         if let Some(c) = close {
             out.push((local_date(*ts, offset)?, to_cents(c)?));
         }
     }
-    if let (Some(p), Some(t)) = (result.meta.regular_market_price, result.meta.regular_market_time) {
+    if let (Some(p), Some(t)) = (
+        result.meta.regular_market_price,
+        result.meta.regular_market_time,
+    ) {
         let d = local_date(t, offset)?;
         let p = to_cents(p)?;
         match out.last_mut() {
@@ -109,7 +132,11 @@ pub fn parse_chart(json: &[u8]) -> Result<Vec<(NaiveDate, Decimal)>> {
     Ok(out)
 }
 
-pub fn fetch_closes(symbol: &str, from: NaiveDate, to: NaiveDate) -> Result<Vec<(NaiveDate, Decimal)>> {
+pub fn fetch_closes(
+    symbol: &str,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<Vec<(NaiveDate, Decimal)>> {
     let template = chart_url(symbol, from, to);
     let mut last = ProviderError::Network("Yahoo indisponível".into());
     for host in HOSTS {

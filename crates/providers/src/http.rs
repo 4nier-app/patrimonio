@@ -23,7 +23,10 @@ fn agent() -> ureq::Agent {
 }
 
 pub fn get_bytes(url: &str) -> Result<Vec<u8>> {
-    let mut resp = agent().get(url).call().map_err(|e| ProviderError::Network(e.to_string()))?;
+    let mut resp = agent()
+        .get(url)
+        .call()
+        .map_err(|e| ProviderError::Network(e.to_string()))?;
     match resp.status().as_u16() {
         200 => {}
         404 => return Err(ProviderError::NotFound(url.to_string())),

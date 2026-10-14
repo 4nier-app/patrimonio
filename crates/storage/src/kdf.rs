@@ -21,14 +21,22 @@ pub struct KdfParams {
 impl Default for KdfParams {
     /// 64 MiB, 3 passagens: leva por volta de meio segundo num computador comum.
     fn default() -> Self {
-        KdfParams { memory_kib: 64 * 1024, iterations: 3, parallelism: 1 }
+        KdfParams {
+            memory_kib: 64 * 1024,
+            iterations: 3,
+            parallelism: 1,
+        }
     }
 }
 
 impl KdfParams {
     /// Parâmetros leves, só para testes automatizados.
     pub fn fast_for_tests() -> Self {
-        KdfParams { memory_kib: 8, iterations: 1, parallelism: 1 }
+        KdfParams {
+            memory_kib: 8,
+            iterations: 1,
+            parallelism: 1,
+        }
     }
 }
 
@@ -47,7 +55,12 @@ impl VaultHeader {
     pub fn new(params: KdfParams) -> Result<Self> {
         let mut salt = [0u8; 16];
         getrandom::getrandom(&mut salt).map_err(|e| VaultError::Kdf(e.to_string()))?;
-        Ok(VaultHeader { formato: 1, kdf: "argon2id".into(), params, sal: hex::encode(salt) })
+        Ok(VaultHeader {
+            formato: 1,
+            kdf: "argon2id".into(),
+            params,
+            sal: hex::encode(salt),
+        })
     }
 
     pub fn params(&self) -> KdfParams {
@@ -56,11 +69,20 @@ impl VaultHeader {
 
     pub fn derive_key(&self, password: &str) -> Result<Zeroizing<[u8; 32]>> {
         if self.formato != 1 || self.kdf != "argon2id" {
-            return Err(VaultError::InvalidVaultFile(format!("formato {} / {} não suportado", self.formato, self.kdf)));
+            return Err(VaultError::InvalidVaultFile(format!(
+                "formato {} / {} não suportado",
+                self.formato, self.kdf
+            )));
         }
-        let salt = hex::decode(&self.sal).map_err(|e| VaultError::InvalidVaultFile(e.to_string()))?;
-        let params = Params::new(self.params.memory_kib, self.params.iterations, self.params.parallelism, Some(32))
-            .map_err(|e| VaultError::Kdf(e.to_string()))?;
+        let salt =
+            hex::decode(&self.sal).map_err(|e| VaultError::InvalidVaultFile(e.to_string()))?;
+        let params = Params::new(
+            self.params.memory_kib,
+            self.params.iterations,
+            self.params.parallelism,
+            Some(32),
+        )
+        .map_err(|e| VaultError::Kdf(e.to_string()))?;
         let mut key = Zeroizing::new([0u8; 32]);
         Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
             .hash_password_into(password.as_bytes(), &salt, key.as_mut())
@@ -74,7 +96,8 @@ impl VaultHeader {
     }
 
     pub fn write(&self, path: &Path) -> Result<()> {
-        let text = serde_json::to_string_pretty(self).map_err(|e| VaultError::InvalidVaultFile(e.to_string()))?;
+        let text = serde_json::to_string_pretty(self)
+            .map_err(|e| VaultError::InvalidVaultFile(e.to_string()))?;
         fs::write(path, text)?;
         Ok(())
     }

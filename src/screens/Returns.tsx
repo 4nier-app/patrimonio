@@ -2,7 +2,33 @@ import { useEffect, useMemo, useState } from "react";
 import { errorMessage, market, type MonthResult, type ReturnsView, type ScopeReturns, type YearResult } from "../api";
 import { date, money, monthLabel, percent, tone } from "../format";
 
-type Selected = { scope: string; month?: MonthResult; year?: YearResult };
+type Selected = { scope: string; data: ScopeReturns; month?: MonthResult; year?: YearResult };
+
+/** Mesmo período em dólar e efeito do câmbio, para ativos no exterior. */
+function nativeOf(data: ScopeReturns, month?: MonthResult, year?: YearResult) {
+  const n = data.native;
+  if (!n) return null;
+  if (month) {
+    const i = data.months.indexOf(month);
+    return { usd: n.months.find((r) => r.year === month.year && r.month === month.month) ?? null, usdYear: null, fx: n.fx_months[i] ?? null };
+  }
+  if (year) {
+    const i = data.years.indexOf(year);
+    return { usd: null, usdYear: n.years.find((r) => r.year === year.year) ?? null, fx: n.fx_years[i] ?? null };
+  }
+  return null;
+}
+
+function Split({ data, month, year }: { data: ScopeReturns; month?: MonthResult; year?: YearResult }) {
+  const n = nativeOf(data, month, year);
+  if (!n) return null;
+  const usdRate = n.usd?.rate ?? n.usdYear?.rate ?? null;
+  return (
+    <div className="small muted" title="Rentabilidade em dólar · efeito do câmbio">
+      US$ {percent(usdRate)} · câmbio {percent(n.fx)}
+    </div>
+  );
+}
 
 export default function Returns() {
   const [view, setView] = useState<ReturnsView | null>(null);
@@ -34,7 +60,8 @@ export default function Returns() {
           <p className="muted">
             O capital conta a partir do dia exato da compra e deixa de contar no dia exato da venda. Cada mês usa o método
             Modified Dietz com peso diário; o ano encadeia os meses. Clique num valor para ver a memória de cálculo.
-            Proventos não entram no cálculo.
+            Proventos não entram no cálculo. Tudo em reais: ativos no exterior são convertidos pela PTAX e mostram também
+            o resultado em dólar e o efeito do câmbio.
           </p>
         </div>
         {years.length > 0 && (
@@ -83,12 +110,13 @@ export default function Returns() {
                         <td
                           key={i}
                           className={`num cell ${m ? "clickable " + tone(m.rate) : ""}`}
-                          onClick={() => m && setSelected({ scope: label, month: m })}
+                          onClick={() => m && setSelected({ scope: label, data, month: m })}
                         >
                           {m ? (
                             <>
                               {percent(m.rate)}
                               <div className="small muted">{money(m.profit)}</div>
+                              <Split data={data} month={m} />
                             </>
                           ) : (
                             ""
@@ -98,12 +126,13 @@ export default function Returns() {
                     })}
                     <td
                       className={`num cell ${y ? "clickable " + tone(y.rate) : ""}`}
-                      onClick={() => y && setSelected({ scope: label, year: y })}
+                      onClick={() => y && setSelected({ scope: label, data, year: y })}
                     >
                       {y && (
                         <>
                           <strong>{percent(y.rate)}</strong>
                           <div className="small muted">{money(y.profit)}</div>
+                          <Split data={data} year={y} />
                         </>
                       )}
                     </td>
@@ -138,9 +167,10 @@ export default function Returns() {
                   <li key={i}>{l}</li>
                 ))}
               </ol>
+              <FxMemo selected={selected} />
               {selected.month.rate == null && (
                 <p className="warning">
-                  Falta cotação para algum ativo nesta data. Use “Atualizar cotações” na aba Carteira.
+                  Falta cotação ou PTAX para algum ativo nesta data. Use “↻ Atualizar cotações” no topo.
                 </p>
               )}
             </>
@@ -150,10 +180,38 @@ export default function Returns() {
               <p>Rentabilidade do ano = produto de (1 + rentabilidade de cada mês) − 1</p>
               <p className="mono">{selected.year.explanation}</p>
               <p>Lucro do ano = soma dos lucros mensais = {money(selected.year.profit)}</p>
+              <FxMemo selected={selected} />
             </>
           )}
         </div>
       )}
     </section>
+  );
+}
+
+/** Decomposição em ativo (dólar) e câmbio: (1 + em reais) = (1 + em dólar) × (1 + câmbio). */
+function FxMemo({ selected }: { selected: Selected }) {
+  const n = nativeOf(selected.data, selected.month, selected.year);
+  if (!n) return null;
+  const brl = selected.month?.rate ?? selected.year?.rate ?? null;
+  const usd = n.usd?.rate ?? n.usdYear?.rate ?? null;
+  return (
+    <div className="spaced">
+      <h4>Em dólar e efeito do câmbio</h4>
+      <p className="mono">
+        (1 + {percent(brl)} em reais) = (1 + {percent(usd)} em dólar) × (1 + {percent(n.fx)} de câmbio)
+      </p>
+      {n.usd && (
+        <details>
+          <summary>Memória de cálculo em dólar</summary>
+          <ol className="memo-lines">
+            {n.usd.explanation.map((l, i) => (
+              <li key={i}>{l}</li>
+            ))}
+          </ol>
+        </details>
+      )}
+      {n.usdYear && <p className="mono">{n.usdYear.explanation}</p>}
+    </div>
   );
 }

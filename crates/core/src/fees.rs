@@ -44,9 +44,27 @@ pub fn default_rules() -> Vec<FeeRule> {
     let from = NaiveDate::from_ymd_opt(2024, 1, 1).expect("data válida");
     let src = "Tabela de tarifas B3, pessoa física, à vista, operação normal".to_string();
     vec![
-        FeeRule { id: "b3-liq-2024".into(), kind: FeeKind::Liquidacao, rate: Decimal::new(224, 6), valid_from: from, source: src.clone() },
-        FeeRule { id: "b3-emol-2024".into(), kind: FeeKind::Emolumentos, rate: Decimal::new(5, 5), valid_from: from, source: src.clone() },
-        FeeRule { id: "b3-transf-2024".into(), kind: FeeKind::Transferencia, rate: Decimal::new(26, 6), valid_from: from, source: src },
+        FeeRule {
+            id: "b3-liq-2024".into(),
+            kind: FeeKind::Liquidacao,
+            rate: Decimal::new(224, 6),
+            valid_from: from,
+            source: src.clone(),
+        },
+        FeeRule {
+            id: "b3-emol-2024".into(),
+            kind: FeeKind::Emolumentos,
+            rate: Decimal::new(5, 5),
+            valid_from: from,
+            source: src.clone(),
+        },
+        FeeRule {
+            id: "b3-transf-2024".into(),
+            kind: FeeKind::Transferencia,
+            rate: Decimal::new(26, 6),
+            valid_from: from,
+            source: src,
+        },
     ]
 }
 
@@ -93,7 +111,11 @@ impl NoteFees {
 
     /// Soma das taxas atribuídas a uma operação.
     pub fn fees_of(&self, operation_index: usize) -> Decimal {
-        self.shares.iter().filter(|s| s.operation_index == operation_index).map(|s| s.amount).sum()
+        self.shares
+            .iter()
+            .filter(|s| s.operation_index == operation_index)
+            .map(|s| s.amount)
+            .sum()
     }
 }
 
@@ -102,7 +124,6 @@ pub enum FeeError {
     NoOperations,
     MissingRule(FeeKind),
 }
-
 
 impl std::fmt::Display for FeeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -158,7 +179,11 @@ pub fn compute_note_fees(
 
     let mut fees = Vec::new();
     let mut shares = Vec::new();
-    for kind in [FeeKind::Liquidacao, FeeKind::Emolumentos, FeeKind::Transferencia] {
+    for kind in [
+        FeeKind::Liquidacao,
+        FeeKind::Emolumentos,
+        FeeKind::Transferencia,
+    ] {
         let rule = rule_for(rules, kind, trade_date).ok_or(FeeError::MissingRule(kind))?;
         let amount = trunc_cents(total * rule.rate);
         fees.push(NoteFee {
@@ -180,16 +205,28 @@ pub fn compute_note_fees(
             .iter()
             .enumerate()
             .map(|(i, v)| {
-                let part = if total.is_zero() { Decimal::ZERO } else { trunc_cents(amount * v / total) };
+                let part = if total.is_zero() {
+                    Decimal::ZERO
+                } else {
+                    trunc_cents(amount * v / total)
+                };
                 allocated += part;
-                FeeShare { operation_index: i, kind, amount: part }
+                FeeShare {
+                    operation_index: i,
+                    kind,
+                    amount: part,
+                }
             })
             .collect();
         kind_shares[largest].amount += amount - allocated;
         shares.extend(kind_shares);
     }
 
-    Ok(NoteFees { total_operations: total, fees, shares })
+    Ok(NoteFees {
+        total_operations: total,
+        fees,
+        shares,
+    })
 }
 
 #[cfg(test)]
@@ -207,7 +244,10 @@ mod tests {
         let amounts: Vec<_> = r.fees.iter().map(|f| f.amount).collect();
         assert_eq!(amounts, vec![dec!(22.40), dec!(5.00), dec!(2.60)]);
         assert_eq!(r.total_fees(), dec!(30.00));
-        assert_eq!(r.fees[0].formula, "trunca_centavo(R$ 100.000,00 × 0,0224%) = R$ 22,40");
+        assert_eq!(
+            r.fees[0].formula,
+            "trunca_centavo(R$ 100.000,00 × 0,0224%) = R$ 22,40"
+        );
     }
 
     #[test]
@@ -230,7 +270,12 @@ mod tests {
         let values = [dec!(150.01), dec!(48000.00), dec!(3333.33)];
         let r = compute_note_fees(&default_rules(), d(2026, 1, 15), &values).unwrap();
         for fee in &r.fees {
-            let sum: Decimal = r.shares.iter().filter(|s| s.kind == fee.kind).map(|s| s.amount).sum();
+            let sum: Decimal = r
+                .shares
+                .iter()
+                .filter(|s| s.kind == fee.kind)
+                .map(|s| s.amount)
+                .sum();
             assert_eq!(sum, fee.amount, "{:?}", fee.kind);
         }
         let all: Decimal = (0..values.len()).map(|i| r.fees_of(i)).sum();
@@ -257,6 +302,9 @@ mod tests {
 
     #[test]
     fn nota_vazia_e_erro() {
-        assert_eq!(compute_note_fees(&default_rules(), d(2026, 1, 1), &[]), Err(FeeError::NoOperations));
+        assert_eq!(
+            compute_note_fees(&default_rules(), d(2026, 1, 1), &[]),
+            Err(FeeError::NoOperations)
+        );
     }
 }

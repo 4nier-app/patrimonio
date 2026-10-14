@@ -1,6 +1,6 @@
 [package]
 name = "carteira-providers"
-description = "Fontes de dados externas: catálogo e cotações da B3 (COTAHIST) e último preço (Yahoo)."
+description = "Fontes de dados externas: B3 (COTAHIST), Yahoo, PTAX do Banco Central e catálogo dos EUA."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

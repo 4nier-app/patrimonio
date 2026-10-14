@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 pub enum Side {
     Compra,
     Venda,
+    /// Mudança de custodiante: a posição muda de conta sem compra nem venda.
+    /// Como operação do núcleo, representa só o resíduo baixado na migração.
+    Transferencia,
 }
 
 impl Side {
@@ -16,6 +19,7 @@ impl Side {
         match self {
             Side::Compra => "COMPRA",
             Side::Venda => "VENDA",
+            Side::Transferencia => "TRANSFERENCIA",
         }
     }
 
@@ -23,12 +27,20 @@ impl Side {
         match s {
             "COMPRA" => Some(Side::Compra),
             "VENDA" => Some(Side::Venda),
+            "TRANSFERENCIA" => Some(Side::Transferencia),
             _ => None,
         }
     }
 }
 
-/// Uma compra ou venda já com as taxas atribuídas, em reais.
+pub const BRL: &str = "BRL";
+pub const USD: &str = "USD";
+
+fn brl() -> String {
+    BRL.to_string()
+}
+
+/// Uma compra ou venda já com as taxas atribuídas, na moeda do ativo.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Trade {
     pub id: String,
@@ -41,6 +53,9 @@ pub struct Trade {
     pub gross: Decimal,
     /// Taxas atribuídas a esta operação.
     pub fees: Decimal,
+    /// Moeda de preço, valor e taxas: "BRL" ou "USD".
+    #[serde(default = "brl")]
+    pub currency: String,
 }
 
 impl Trade {
@@ -50,15 +65,31 @@ impl Trade {
         match self.side {
             Side::Compra => self.gross + self.fees,
             Side::Venda => -(self.gross - self.fees),
+            Side::Transferencia => Decimal::ZERO,
         }
     }
 
     pub fn signed_quantity(&self) -> Decimal {
         match self.side {
             Side::Compra => self.quantity,
-            Side::Venda => -self.quantity,
+            Side::Venda | Side::Transferencia => -self.quantity,
         }
     }
+}
+
+/// Taxa de câmbio usada num cálculo (PTAX venda de fechamento).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FxRate {
+    /// Data do boletim usado (último dia útil até a data pedida).
+    pub date: NaiveDate,
+    /// Reais por dólar.
+    pub rate: Decimal,
+    pub source: String,
+}
+
+/// Fonte de câmbio USD/BRL.
+pub trait FxSource {
+    fn usd_brl_on_or_before(&self, date: NaiveDate) -> Option<FxRate>;
 }
 
 /// Cotação de fechamento usada num cálculo.
