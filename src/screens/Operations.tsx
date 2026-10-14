@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { errorMessage, market, type Asset, type Operation, type Preview, type PricedOperation, type Side } from "../api";
-import { date, money, parseDecimalInput, price, quantity } from "../format";
+import { date, keepNumberChars, maskDecimal, money, parseDecimalInput, price, quantity } from "../format";
 
 type Form = {
   id: string;
@@ -22,8 +22,29 @@ function todayIso(): string {
 
 const EMPTY: Form = { id: "", account: "", asset: "", date: todayIso(), side: "COMPRA", quantity: "", price: "", manual: false, fees: "", note: "" };
 
-function toBr(dec: string): string {
-  return dec.replace(".", ",");
+function NumberInput({
+  value,
+  kind,
+  onChange,
+  placeholder,
+  required,
+}: {
+  value: string;
+  kind: "money" | "quantity";
+  onChange: (v: string) => void;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  return (
+    <input
+      inputMode="decimal"
+      value={value}
+      placeholder={placeholder}
+      required={required}
+      onChange={(e) => onChange(keepNumberChars(e.target.value))}
+      onBlur={() => onChange(maskDecimal(value, kind))}
+    />
+  );
 }
 
 /** Converte o formulário; devolve a mensagem do primeiro campo inválido. */
@@ -127,10 +148,10 @@ export default function Operations() {
       asset: o.asset,
       date: o.date,
       side: o.side,
-      quantity: toBr(o.quantity),
-      price: toBr(o.price),
+      quantity: maskDecimal(o.quantity, "quantity"),
+      price: maskDecimal(o.price, "money"),
       manual: o.manual_fees != null,
-      fees: o.manual_fees != null ? toBr(o.manual_fees) : "",
+      fees: o.manual_fees != null ? maskDecimal(o.manual_fees, "money") : "",
       note: o.note ?? "",
     });
     setReason("");
@@ -214,11 +235,11 @@ export default function Operations() {
           </label>
           <label>
             Quantidade
-            <input inputMode="decimal" value={form.quantity} onChange={(e) => set("quantity", e.target.value)} required />
+            <NumberInput kind="quantity" value={form.quantity} onChange={(v) => set("quantity", v)} required />
           </label>
           <label>
-            Preço unitário (R$)
-            <input inputMode="decimal" value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0,00" required />
+            Preço unitário
+            <NumberInput kind="money" value={form.price} onChange={(v) => set("price", v)} placeholder="R$ 0,00" required />
           </label>
         </div>
 
@@ -228,8 +249,8 @@ export default function Operations() {
         </label>
         {form.manual && (
           <label className="short">
-            Taxas deste lançamento (R$)
-            <input inputMode="decimal" value={form.fees} onChange={(e) => set("fees", e.target.value)} placeholder="0,00" />
+            Taxas deste lançamento
+            <NumberInput kind="money" value={form.fees} onChange={(v) => set("fees", v)} placeholder="R$ 0,00" />
           </label>
         )}
 

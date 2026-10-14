@@ -24,6 +24,7 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   cada valor.
 - Marca 4Nier: logo, ícone do aplicativo e visual renovado.
 - Botão "Atualizar cotações" no topo, disponível em qualquer aba.
+- Máscara nos campos de quantidade e preço ("1.500", "R$ 1.234,56").
 
 ## [0.1.0] - Não lançada
 

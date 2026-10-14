@@ -68,9 +68,31 @@ export function monthLabel(month: number): string {
  * "1.234,56" → "1234.56"; "12,5" → "12.5"; "12.5" → "12.5". Inválido → null.
  */
 export function parseDecimalInput(raw: string): string | null {
-  let s = raw.trim().replace(/\s/g, "").replace(/^R\$/, "");
+  let s = raw.trim().replace(/\s/g, "").replace(/^(R|US)\$/, "");
   if (!s) return null;
   if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
   else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
   return /^\d+(\.\d+)?$/.test(s) ? s : null;
+}
+
+/**
+ * Máscara aplicada ao sair do campo: "1234,5" → "R$ 1.234,50" (dinheiro) ou
+ * "1500" → "1.500" (quantidade). Trabalha só com texto, sem arredondar.
+ * Texto inválido volta como foi digitado, para o usuário corrigir.
+ */
+export type Currency = "BRL" | "USD";
+const SYMBOL: Record<Currency, string> = { BRL: "R$", USD: "US$" };
+
+export function maskDecimal(raw: string, kind: "money" | "quantity", currency: Currency = "BRL"): string {
+  const dec = parseDecimalInput(raw);
+  if (dec == null) return raw;
+  const [intPart, frac = ""] = dec.split(".");
+  const grouped = intPart.replace(/^0+(?=\d)/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  if (kind === "money") return `${SYMBOL[currency]} ${grouped},${frac.padEnd(2, "0")}`;
+  return frac ? `${grouped},${frac}` : grouped;
+}
+
+/** Deixa passar só o que pode compor um número: dígitos, vírgula, ponto e o símbolo da moeda. */
+export function keepNumberChars(raw: string): string {
+  return raw.replace(/[^\d.,RUS$\s]/g, "");
 }
