@@ -7,7 +7,9 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+carteira-core = { path = "../core" }
 carteira-ledger = { path = "../ledger" }
+rust_decimal.workspace = true
 rusqlite = { version = "0.37", features = ["bundled-sqlcipher-vendored-openssl"] }
 argon2 = "0.5"
 getrandom = "0.2"
@@ -20,3 +22,4 @@ chrono.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
+rust_decimal_macros.workspace = true

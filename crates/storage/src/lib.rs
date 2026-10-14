@@ -7,6 +7,7 @@
 
 mod kdf;
 mod migrations;
+mod records;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,6 +18,7 @@ use serde::Serialize;
 use zeroize::Zeroizing;
 
 pub use kdf::KdfParams;
+pub use records::{normalize_ticker, Asset, NewQuote, PriceTable, QuoteUpdate};
 
 pub const DB_FILE: &str = "carteira.db";
 pub const VAULT_FILE: &str = "cofre.json";
@@ -37,6 +39,8 @@ pub enum VaultError {
     Db(#[from] rusqlite::Error),
     #[error("erro de arquivo: {0}")]
     Io(#[from] std::io::Error),
+    #[error("{0}")]
+    Invalid(String),
     #[error("erro na derivação da chave: {0}")]
     Kdf(String),
 }
