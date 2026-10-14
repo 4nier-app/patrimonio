@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { api, type VaultStatus } from "../api";
+import { api, errorMessage, market, type UpdateLine, type VaultStatus } from "../api";
+import Logo from "../components/Logo";
 import Audit from "./Audit";
 import Operations from "./Operations";
 import Portfolio from "./Portfolio";
@@ -20,16 +21,43 @@ type Tab = (typeof TABS)[number]["id"];
 
 export default function Home({ status, onLocked }: { status: VaultStatus; onLocked: () => void }) {
   const [tab, setTab] = useState<Tab>("carteira");
+  const [updating, setUpdating] = useState(false);
+  const [report, setReport] = useState<UpdateLine[] | null>(null);
+  // Muda a cada atualização de cotações para as telas recarregarem.
+  const [refresh, setRefresh] = useState(0);
 
   async function lock() {
     await api.lock();
     onLocked();
   }
 
+  async function updateQuotes() {
+    setUpdating(true);
+    setReport(null);
+    try {
+      setReport(await market.updateQuotes());
+    } catch (e) {
+      setReport([{ source: "Cotações", ok: false, message: errorMessage(e) }]);
+    } finally {
+      setUpdating(false);
+      setRefresh((n) => n + 1);
+    }
+  }
+
   return (
     <div className="shell">
       <header className="topbar">
-        <strong>Carteira Auditável</strong>
+        <div className="topbar-row">
+          <Logo />
+          <div className="topbar-actions">
+            <button onClick={updateQuotes} disabled={updating} title="Busca os preços mais recentes na B3 e no Yahoo">
+              {updating ? "Atualizando…" : "↻ Atualizar cotações"}
+            </button>
+            <button className="secondary" onClick={lock}>
+              Bloquear
+            </button>
+          </div>
+        </div>
         <nav>
           {TABS.map((t) => (
             <button key={t.id} className={tab === t.id ? "tab active" : "tab"} onClick={() => setTab(t.id)}>
@@ -37,12 +65,27 @@ export default function Home({ status, onLocked }: { status: VaultStatus; onLock
             </button>
           ))}
         </nav>
-        <button className="secondary" onClick={lock}>Bloquear</button>
       </header>
+
+      {report && (
+        <div className="update-report" role="status">
+          <ul>
+            {report.map((l) => (
+              <li key={l.source} className={l.ok ? "ok" : "error"}>
+                <span className="dot" /> <strong>{l.source}:</strong> {l.message}
+              </li>
+            ))}
+          </ul>
+          <button className="link" onClick={() => setReport(null)} aria-label="Fechar">
+            ✕
+          </button>
+        </div>
+      )}
+
       <main className="content">
-        {tab === "carteira" && <Portfolio />}
+        {tab === "carteira" && <Portfolio refresh={refresh} />}
         {tab === "lancamentos" && <Operations />}
-        {tab === "rentabilidade" && <Returns />}
+        {tab === "rentabilidade" && <Returns key={refresh} />}
         {tab === "auditoria" && <Audit />}
         {tab === "sistema" && <SystemHistory status={status} />}
         {tab === "seguranca" && <Security status={status} />}

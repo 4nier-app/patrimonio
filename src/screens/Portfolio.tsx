@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { errorMessage, market, type PortfolioView, type UpdateLine } from "../api";
+import { errorMessage, market, type PortfolioView } from "../api";
 import { date, formatDateTime, money, percent, price, quantity, tone } from "../format";
 
 function ratio(a: string | null, b: string): string | null {
@@ -7,30 +7,13 @@ function ratio(a: string | null, b: string): string | null {
   return String(Number(a) / Number(b));
 }
 
-export default function Portfolio() {
+export default function Portfolio({ refresh }: { refresh: number }) {
   const [view, setView] = useState<PortfolioView | null>(null);
-  const [updating, setUpdating] = useState(false);
-  const [report, setReport] = useState<UpdateLine[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function load() {
+  useEffect(() => {
     market.portfolio().then(setView).catch((e) => setError(errorMessage(e)));
-  }
-  useEffect(load, []);
-
-  async function update() {
-    setUpdating(true);
-    setReport(null);
-    setError(null);
-    try {
-      setReport(await market.updateQuotes());
-      load();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setUpdating(false);
-    }
-  }
+  }, [refresh]);
 
   const open = view?.positions.filter((p) => Number(p.quantity) !== 0) ?? [];
   const closed = view?.positions.filter((p) => Number(p.quantity) === 0) ?? [];
@@ -46,20 +29,8 @@ export default function Portfolio() {
             {view?.last_update && <> Última atualização: {formatDateTime(view.last_update)}.</>}
           </p>
         </div>
-        <button onClick={update} disabled={updating}>
-          {updating ? "Atualizando…" : "Atualizar cotações"}
-        </button>
       </div>
 
-      {report && (
-        <ul className="report">
-          {report.map((l) => (
-            <li key={l.source} className={l.ok ? "ok" : "error"}>
-              <strong>{l.source}:</strong> {l.message}
-            </li>
-          ))}
-        </ul>
-      )}
       {error && <p className="error">{error}</p>}
 
       {view && (

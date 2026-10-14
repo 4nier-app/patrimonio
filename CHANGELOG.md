@@ -22,6 +22,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Rentabilidade mensal e anual por ativo e da carteira, pelo tempo real de
   exposição do capital (Modified Dietz diário), com a memória de cálculo de
   cada valor.
+- Marca 4Nier: logo, ícone do aplicativo e visual renovado.
+- Botão "Atualizar cotações" no topo, disponível em qualquer aba.
 
 ## [0.1.0] - Não lançada
 
