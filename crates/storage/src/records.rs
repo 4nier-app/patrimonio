@@ -127,6 +127,7 @@ fn row_to_op(r: &rusqlite::Row<'_>) -> rusqlite::Result<Operation> {
             .get::<_, Option<String>>(11)?
             .map(|s| dec(s, 11))
             .transpose()?,
+        total: None,
     })
 }
 
@@ -262,6 +263,7 @@ impl Vault {
     /// criada com a moeda informada) e, na transferência, a conta de origem
     /// precisa existir e ter a mesma moeda.
     fn prepare_operation(&mut self, op: &mut Operation) -> Result<()> {
+        op.apply_total();
         op.asset = normalize_ticker(&op.asset);
         op.account = op.account.trim().to_string();
         op.from_account = op
@@ -708,6 +710,7 @@ mod tests {
             currency: "BRL".into(),
             from_account: None,
             residue: None,
+            total: None,
         }
     }
 

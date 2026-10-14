@@ -43,6 +43,8 @@ type Form = {
   currencyTouched: boolean;
   fromAccount: string;
   residue: string;
+  /** Contas em dólar: valor total da operação (Gross Amount da nota). */
+  total: string;
 };
 
 function todayIso(): string {
@@ -66,6 +68,7 @@ const EMPTY: Form = {
   currencyTouched: false,
   fromAccount: "",
   residue: "",
+  total: "",
 };
 
 const SIDE_LABEL: Record<Side, string> = { COMPRA: "Compra", VENDA: "Venda", TRANSFERENCIA: "Transferência" };
@@ -126,7 +129,11 @@ function toOperation(f: Form, currency: Currency): Operation | string {
   const transfer = f.side === "TRANSFERENCIA";
   const q = parseDecimalInput(f.quantity);
   if (!q) return "Quantidade inválida.";
-  const p = transfer ? "0" : parseDecimalInput(f.price);
+  // No exterior digita-se o valor total; o núcleo calcula o preço exato.
+  const byTotal = !transfer && currency === "USD";
+  const total = byTotal ? parseDecimalInput(f.total) : null;
+  if (byTotal && !total) return "Valor total inválido.";
+  const p = transfer || byTotal ? "0" : parseDecimalInput(f.price);
   if (!p) return "Preço inválido.";
   let fees: string | null = null;
   if (f.manual && !transfer) {
@@ -152,6 +159,7 @@ function toOperation(f: Form, currency: Currency): Operation | string {
     currency,
     from_account: transfer ? f.fromAccount.trim() || null : null,
     residue,
+    total,
   };
 }
 
@@ -206,7 +214,13 @@ export default function Operations() {
         const dec = parseDecimalInput(v);
         return dec == null ? "" : toCashMask(dec, d, currency).text;
       };
-      return { ...f, priceDecimals: decimals, price: remask(f.price, decimals), fees: remask(f.fees, 2) };
+      return {
+        ...f,
+        priceDecimals: decimals,
+        price: remask(f.price, decimals),
+        fees: remask(f.fees, 2),
+        total: remask(f.total, 2),
+      };
     });
   }, [currency]);
 
@@ -267,6 +281,7 @@ export default function Operations() {
       newCurrency: cur,
       currencyTouched: true,
       fromAccount: o.from_account ?? "",
+      total: cur === "USD" && o.side !== "TRANSFERENCIA" ? toCashMask(p.gross, 2, cur).text : "",
       residue: o.residue ? maskDecimal(o.residue, "quantity") : "",
     });
     setReason("");
@@ -389,6 +404,11 @@ export default function Operations() {
             <label>
               Resíduo que ficou na origem (opcional)
               <NumberInput kind="quantity" value={form.residue} onChange={(v) => set("residue", v)} placeholder="Ex.: 0,0000012" />
+            </label>
+          ) : currency === "USD" ? (
+            <label>
+              Valor total (Gross Amount)
+              <CashInput value={form.total} decimals={2} currency="USD" onChange={(v) => set("total", v)} required />
             </label>
           ) : (
             <label>

@@ -70,6 +70,8 @@ export type Operation = {
   from_account: string | null;
   /** Transferência de custódia: quantidade que ficou na origem e sai da carteira. */
   residue: Dec | null;
+  /** Contas em dólar: valor total digitado; o núcleo calcula o preço e não grava este campo. */
+  total?: Dec | null;
 };
 
 export type PricedOperation = { operation: Operation; gross: Dec; fees: Dec; fee_origin: string };
