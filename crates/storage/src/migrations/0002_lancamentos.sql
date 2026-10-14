@@ -46,6 +46,8 @@ CREATE TABLE quote_updates (
     id           INTEGER PRIMARY KEY,
     started_at   TEXT NOT NULL,
     source       TEXT NOT NULL,
+    -- Arquivo ou período baixado (ex.: "2026-03"), para não baixar de novo.
+    ref_key      TEXT,
     ok           INTEGER NOT NULL,
     items        INTEGER NOT NULL,
     message      TEXT NOT NULL

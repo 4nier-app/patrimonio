@@ -292,12 +292,26 @@ impl Vault {
         Ok(table)
     }
 
-    pub fn record_quote_update(&mut self, source: &str, ok: bool, items: i64, message: &str) -> Result<()> {
+    pub fn record_quote_update(&mut self, source: &str, ref_key: Option<&str>, ok: bool, items: i64, message: &str) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO quote_updates (started_at, source, ok, items, message) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![now_iso(), source, ok, items, message],
+            "INSERT INTO quote_updates (started_at, source, ref_key, ok, items, message) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![now_iso(), source, ref_key, ok, items, message],
         )?;
         Ok(())
+    }
+
+    /// Data (ISO) da última atualização bem-sucedida da origem, opcionalmente
+    /// de um arquivo ou período específico.
+    pub fn last_successful_update(&self, source: &str, ref_key: Option<&str>) -> Result<Option<String>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT max(started_at) FROM quote_updates WHERE source = ?1 AND ok = 1 AND (?2 IS NULL OR ref_key = ?2)",
+                params![source, ref_key],
+                |r| r.get(0),
+            )
+            .optional()?
+            .flatten())
     }
 
     pub fn list_quote_updates(&self, limit: i64) -> Result<Vec<QuoteUpdate>> {
@@ -435,5 +449,11 @@ mod tests {
         assert_eq!(t.close_on_or_before("TEST3", d(15)).unwrap().close, dec!(11.50));
         assert!(t.close_on_or_before("TEST3", d(9)).is_none());
         assert!(v.has_quotes("TEST3", "B3-COTAHIST", d(1), d(28)).unwrap());
+        assert!(v.last_successful_update("B3-COTAHIST", Some("2026-02")).unwrap().is_none());
+        v.record_quote_update("B3-COTAHIST", Some("2026-02"), true, 1, "ok").unwrap();
+        v.record_quote_update("B3-COTAHIST", Some("2026-03"), false, 0, "falhou").unwrap();
+        assert!(v.last_successful_update("B3-COTAHIST", Some("2026-02")).unwrap().is_some());
+        assert!(v.last_successful_update("B3-COTAHIST", Some("2026-03")).unwrap().is_none());
+        assert!(v.last_successful_update("B3-COTAHIST", None).unwrap().is_some());
     }
 }

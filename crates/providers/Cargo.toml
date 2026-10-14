@@ -1,0 +1,19 @@
+[package]
+name = "carteira-providers"
+description = "Fontes de dados externas: catálogo e cotações da B3 (COTAHIST) e último preço (Yahoo)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rust_decimal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+ureq = "3"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+rust_decimal_macros.workspace = true

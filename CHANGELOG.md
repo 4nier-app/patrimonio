@@ -6,6 +6,23 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.2.0] - Não lançada
+
+### Adicionado
+- Lançamentos de compra e venda na B3, com alteração e remoção registradas na
+  Auditoria (estado antes e depois, e o motivo).
+- Taxas da B3 calculadas automaticamente por nota (mesma corretora, mesmo
+  pregão) e mostradas com a fórmula; opção de informar a taxa à mão.
+- Catálogo de ativos da B3 com busca pelo código ou nome.
+- Atualização de cotações sob demanda: fechamentos oficiais da B3 (arquivo
+  COTAHIST) para meses encerrados e Yahoo Finance para o mês corrente. Sem
+  internet, o app usa as últimas cotações gravadas.
+- Carteira: quantidade, preço médio, custo, valor de mercado, resultado em
+  aberto e resultado realizado.
+- Rentabilidade mensal e anual por ativo e da carteira, pelo tempo real de
+  exposição do capital (Modified Dietz diário), com a memória de cálculo de
+  cada valor.
+
 ## [0.1.0] - Não lançada
 
 ### Adicionado
