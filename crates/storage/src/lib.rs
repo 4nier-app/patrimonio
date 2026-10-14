@@ -1,0 +1,393 @@
+//! Cofre local da Carteira Auditável.
+//!
+//! O banco é um arquivo SQLite criptografado com SQLCipher. A chave é derivada
+//! da senha do usuário com Argon2id e um sal aleatório; a senha nunca é
+//! gravada. O sal e os parâmetros da derivação ficam em `cofre.json`, ao lado
+//! do banco. Sem a senha, o arquivo do banco é ilegível.
+
+mod kdf;
+mod migrations;
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use carteira_ledger::{self as ledger, Action, ChainError, Event, NewEvent};
+use rusqlite::{params, Connection, OptionalExtension};
+use serde::Serialize;
+use zeroize::Zeroizing;
+
+pub use kdf::KdfParams;
+
+pub const DB_FILE: &str = "carteira.db";
+pub const VAULT_FILE: &str = "cofre.json";
+
+#[derive(Debug, thiserror::Error)]
+pub enum VaultError {
+    #[error("já existe um cofre nesta pasta")]
+    AlreadyExists,
+    #[error("nenhum cofre encontrado nesta pasta")]
+    NotFound,
+    #[error("senha incorreta")]
+    WrongPassword,
+    #[error("a senha precisa ter pelo menos {0} caracteres")]
+    WeakPassword(usize),
+    #[error("arquivo do cofre inválido: {0}")]
+    InvalidVaultFile(String),
+    #[error("erro de banco de dados: {0}")]
+    Db(#[from] rusqlite::Error),
+    #[error("erro de arquivo: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("erro na derivação da chave: {0}")]
+    Kdf(String),
+}
+
+pub type Result<T> = std::result::Result<T, VaultError>;
+
+pub const MIN_PASSWORD_LEN: usize = 8;
+
+/// Resultado da verificação de integridade do histórico.
+#[derive(Debug, Clone, Serialize)]
+pub struct IntegrityReport {
+    pub ok: bool,
+    pub events_checked: usize,
+    pub problem: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct VersionEntry {
+    pub version: String,
+    pub installed_at: String,
+    pub changelog: String,
+}
+
+pub struct Vault {
+    conn: Connection,
+    dir: PathBuf,
+    app_version: String,
+}
+
+fn now_iso() -> String {
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+fn apply_key(conn: &Connection, key: &[u8]) -> Result<()> {
+    // Senha errada é um caso esperado; não precisa de log do SQLCipher no terminal.
+    let _ = conn.execute_batch("PRAGMA cipher_log_level = NONE;");
+    let hex_key = Zeroizing::new(hex::encode(key));
+    conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key.as_str()))?;
+    Ok(())
+}
+
+impl Vault {
+    /// Indica se já existe um cofre na pasta.
+    pub fn exists(dir: &Path) -> bool {
+        dir.join(VAULT_FILE).exists()
+    }
+
+    /// Cria um cofre novo, protegido pela senha.
+    pub fn create(dir: &Path, password: &str, app_version: &str) -> Result<Self> {
+        Self::create_with_params(dir, password, app_version, KdfParams::default())
+    }
+
+    pub fn create_with_params(dir: &Path, password: &str, app_version: &str, params: KdfParams) -> Result<Self> {
+        if password.chars().count() < MIN_PASSWORD_LEN {
+            return Err(VaultError::WeakPassword(MIN_PASSWORD_LEN));
+        }
+        if Self::exists(dir) || dir.join(DB_FILE).exists() {
+            return Err(VaultError::AlreadyExists);
+        }
+        fs::create_dir_all(dir)?;
+        let header = kdf::VaultHeader::new(params)?;
+        let key = header.derive_key(password)?;
+
+        let conn = Connection::open(dir.join(DB_FILE))?;
+        apply_key(&conn, key.as_slice())?;
+        migrations::run(&conn)?;
+        header.write(&dir.join(VAULT_FILE))?;
+
+        let mut vault = Vault { conn, dir: dir.to_path_buf(), app_version: app_version.to_string() };
+        vault.append_event("SISTEMA", "cofre", Action::Criada, None, Some(r#"{"evento":"cofre criado"}"#), None)?;
+        Ok(vault)
+    }
+
+    /// Abre um cofre existente. Senha errada resulta em [`VaultError::WrongPassword`].
+    pub fn open(dir: &Path, password: &str, app_version: &str) -> Result<Self> {
+        let vault_file = dir.join(VAULT_FILE);
+        if !vault_file.exists() {
+            return Err(VaultError::NotFound);
+        }
+        let header = kdf::VaultHeader::read(&vault_file)?;
+        let key = header.derive_key(password)?;
+        let conn = Connection::open(dir.join(DB_FILE))?;
+        apply_key(&conn, key.as_slice())?;
+        // Com a chave errada o SQLCipher só falha na primeira leitura.
+        if conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)).is_err() {
+            return Err(VaultError::WrongPassword);
+        }
+        migrations::run(&conn)?;
+        Ok(Vault { conn, dir: dir.to_path_buf(), app_version: app_version.to_string() })
+    }
+
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
+    /// Troca a senha: novo sal, nova chave, banco recriptografado.
+    pub fn change_password(&mut self, current: &str, new: &str) -> Result<()> {
+        if new.chars().count() < MIN_PASSWORD_LEN {
+            return Err(VaultError::WeakPassword(MIN_PASSWORD_LEN));
+        }
+        let vault_file = self.dir.join(VAULT_FILE);
+        let old_header = kdf::VaultHeader::read(&vault_file)?;
+        // Confere a senha atual antes de trocar.
+        let probe = Connection::open(self.dir.join(DB_FILE))?;
+        apply_key(&probe, old_header.derive_key(current)?.as_slice())?;
+        if probe.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get::<_, i64>(0)).is_err() {
+            return Err(VaultError::WrongPassword);
+        }
+        drop(probe);
+
+        let header = kdf::VaultHeader::new(old_header.params())?;
+        let key = header.derive_key(new)?;
+        let hex_key = Zeroizing::new(hex::encode(&*key));
+        self.conn.execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex_key.as_str()))?;
+        header.write(&vault_file)?;
+        self.append_event("SISTEMA", "cofre", Action::Alterada, None, Some(r#"{"evento":"senha alterada"}"#), None)?;
+        Ok(())
+    }
+
+    /// Acrescenta um evento ao fim da cadeia, numa transação.
+    pub fn append_event(
+        &mut self,
+        entity: &str,
+        entity_id: &str,
+        action: Action,
+        before: Option<&str>,
+        after: Option<&str>,
+        reason: Option<&str>,
+    ) -> Result<Event> {
+        let tx = self.conn.transaction()?;
+        let last = last_event(&tx)?;
+        let event = ledger::chain(
+            last.as_ref(),
+            NewEvent {
+                occurred_at: now_iso(),
+                entity: entity.to_string(),
+                entity_id: entity_id.to_string(),
+                action,
+                before: before.map(str::to_string),
+                after: after.map(str::to_string),
+                reason: reason.map(str::to_string),
+                app_version: self.app_version.clone(),
+            },
+        );
+        tx.execute(
+            "INSERT INTO event_log (seq, occurred_at, entity, entity_id, action, before_json, after_json, reason, app_version, prev_hash, hash)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![
+                event.seq,
+                event.data.occurred_at,
+                event.data.entity,
+                event.data.entity_id,
+                event.data.action.as_str(),
+                event.data.before,
+                event.data.after,
+                event.data.reason,
+                event.data.app_version,
+                event.prev_hash,
+                event.hash,
+            ],
+        )?;
+        tx.commit()?;
+        Ok(event)
+    }
+
+    /// Eventos do mais recente para o mais antigo.
+    pub fn list_events(&self, limit: i64, offset: i64) -> Result<Vec<Event>> {
+        let mut stmt = self.conn.prepare(&format!("{SELECT_EVENT} ORDER BY seq DESC LIMIT ?1 OFFSET ?2"))?;
+        let rows = stmt.query_map(params![limit, offset], row_to_event)?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Recalcula a cadeia de hash inteira.
+    pub fn verify_integrity(&self) -> Result<IntegrityReport> {
+        let mut stmt = self.conn.prepare(&format!("{SELECT_EVENT} ORDER BY seq ASC"))?;
+        let events: Vec<Event> = stmt.query_map([], row_to_event)?.collect::<std::result::Result<_, _>>()?;
+        Ok(match ledger::verify_chain(&events) {
+            Ok(n) => IntegrityReport { ok: true, events_checked: n, problem: None },
+            Err(e @ (ChainError::SequenceGap { .. } | ChainError::BrokenLink { .. } | ChainError::Tampered { .. })) => {
+                IntegrityReport { ok: false, events_checked: events.len(), problem: Some(e.to_string()) }
+            }
+        })
+    }
+
+    /// Registra a versão do app na primeira vez em que ela abre o cofre.
+    /// Retorna `true` quando a versão é nova.
+    pub fn record_app_version(&mut self, changelog: &str) -> Result<bool> {
+        let version = self.app_version.clone();
+        let known: Option<String> = self
+            .conn
+            .query_row("SELECT version FROM app_version_history WHERE version = ?1", [&version], |r| r.get(0))
+            .optional()?;
+        if known.is_some() {
+            return Ok(false);
+        }
+        self.conn.execute(
+            "INSERT INTO app_version_history (version, installed_at, changelog) VALUES (?1, ?2, ?3)",
+            params![version, now_iso(), changelog],
+        )?;
+        let after = serde_json::json!({ "evento": "versão instalada", "versao": version }).to_string();
+        self.append_event("SISTEMA", "versao", Action::Criada, None, Some(&after), None)?;
+        Ok(true)
+    }
+
+    pub fn version_history(&self) -> Result<Vec<VersionEntry>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT version, installed_at, changelog FROM app_version_history ORDER BY installed_at DESC, version DESC")?;
+        let rows = stmt.query_map([], |r| {
+            Ok(VersionEntry { version: r.get(0)?, installed_at: r.get(1)?, changelog: r.get(2)? })
+        })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    #[cfg(test)]
+    fn raw(&self) -> &Connection {
+        &self.conn
+    }
+}
+
+const SELECT_EVENT: &str = "SELECT seq, occurred_at, entity, entity_id, action, before_json, after_json, reason, app_version, prev_hash, hash FROM event_log";
+
+fn row_to_event(r: &rusqlite::Row<'_>) -> rusqlite::Result<Event> {
+    let action: String = r.get(4)?;
+    Ok(Event {
+        seq: r.get(0)?,
+        data: NewEvent {
+            occurred_at: r.get(1)?,
+            entity: r.get(2)?,
+            entity_id: r.get(3)?,
+            action: Action::parse(&action).ok_or_else(|| {
+                rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, format!("ação desconhecida: {action}").into())
+            })?,
+            before: r.get(5)?,
+            after: r.get(6)?,
+            reason: r.get(7)?,
+            app_version: r.get(8)?,
+        },
+        prev_hash: r.get(9)?,
+        hash: r.get(10)?,
+    })
+}
+
+fn last_event(conn: &Connection) -> Result<Option<Event>> {
+    Ok(conn.query_row(&format!("{SELECT_EVENT} ORDER BY seq DESC LIMIT 1"), [], row_to_event).optional()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SENHA: &str = "senha-de-teste-123";
+
+    fn create(dir: &Path) -> Vault {
+        Vault::create_with_params(dir, SENHA, "0.1.0", KdfParams::fast_for_tests()).unwrap()
+    }
+
+    #[test]
+    fn cria_reabre_e_recusa_senha_errada() {
+        let tmp = tempfile::tempdir().unwrap();
+        drop(create(tmp.path()));
+        assert!(matches!(Vault::open(tmp.path(), "outra-senha-qualquer", "0.1.0"), Err(VaultError::WrongPassword)));
+        let v = Vault::open(tmp.path(), SENHA, "0.1.0").unwrap();
+        assert_eq!(v.list_events(10, 0).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn arquivo_do_banco_nao_e_sqlite_legivel() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = create(tmp.path());
+        v.append_event("OPERACAO", "op-1", Action::Criada, None, Some(r#"{"ativo":"TESTE3"}"#), None).unwrap();
+        drop(v);
+        let bytes = fs::read(tmp.path().join(DB_FILE)).unwrap();
+        assert!(!bytes.starts_with(b"SQLite format 3"));
+        assert!(!bytes.windows(6).any(|w| w == b"TESTE3"));
+    }
+
+    #[test]
+    fn nao_cria_sobre_cofre_existente_nem_com_senha_curta() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(matches!(
+            Vault::create_with_params(tmp.path(), "curta", "0.1.0", KdfParams::fast_for_tests()),
+            Err(VaultError::WeakPassword(_))
+        ));
+        drop(create(tmp.path()));
+        assert!(matches!(
+            Vault::create_with_params(tmp.path(), SENHA, "0.1.0", KdfParams::fast_for_tests()),
+            Err(VaultError::AlreadyExists)
+        ));
+    }
+
+    #[test]
+    fn log_e_somente_inclusao_e_integro() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = create(tmp.path());
+        for i in 0..5 {
+            v.append_event("OPERACAO", &format!("op-{i}"), Action::Criada, None, Some("{}"), None).unwrap();
+        }
+        assert!(v.raw().execute("UPDATE event_log SET reason = 'x' WHERE seq = 2", []).is_err());
+        assert!(v.raw().execute("DELETE FROM event_log WHERE seq = 2", []).is_err());
+        let report = v.verify_integrity().unwrap();
+        assert!(report.ok);
+        assert_eq!(report.events_checked, 6);
+    }
+
+    #[test]
+    fn adulteracao_por_fora_e_detectada() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = create(tmp.path());
+        v.append_event("OPERACAO", "op-1", Action::Criada, None, Some(r#"{"quantidade":"10"}"#), None).unwrap();
+        v.append_event("OPERACAO", "op-2", Action::Criada, None, Some(r#"{"quantidade":"20"}"#), None).unwrap();
+        // Simula alguém que tem a senha e edita o banco com outra ferramenta.
+        v.raw().execute_batch("DROP TRIGGER event_log_no_update").unwrap();
+        v.raw().execute("UPDATE event_log SET after_json = '{\"quantidade\":\"99\"}' WHERE seq = 2", []).unwrap();
+        let report = v.verify_integrity().unwrap();
+        assert!(!report.ok);
+        assert!(report.problem.unwrap().contains("evento 2"));
+    }
+
+    #[test]
+    fn registra_cada_versao_uma_vez() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = create(tmp.path());
+        assert!(v.record_app_version("primeira versão").unwrap());
+        assert!(!v.record_app_version("primeira versão").unwrap());
+        drop(v);
+        let mut v = Vault::open(tmp.path(), SENHA, "0.2.0").unwrap();
+        assert!(v.record_app_version("segunda versão").unwrap());
+        let hist = v.version_history().unwrap();
+        assert_eq!(hist.len(), 2);
+        assert!(v.verify_integrity().unwrap().ok);
+    }
+
+    #[test]
+    fn senha_com_caracteres_especiais_e_acentos() {
+        let tmp = tempfile::tempdir().unwrap();
+        let senha = "Ab$1çÃo €\"'%^&*()";
+        drop(Vault::create_with_params(tmp.path(), senha, "0.1.0", KdfParams::fast_for_tests()).unwrap());
+        assert!(Vault::open(tmp.path(), senha, "0.1.0").is_ok());
+        assert!(matches!(Vault::open(tmp.path(), "Ab$1çÃo €", "0.1.0"), Err(VaultError::WrongPassword)));
+    }
+
+    #[test]
+    fn troca_de_senha() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = create(tmp.path());
+        assert!(matches!(v.change_password("errada-errada", "nova-senha-456"), Err(VaultError::WrongPassword)));
+        v.change_password(SENHA, "nova-senha-456").unwrap();
+        drop(v);
+        assert!(matches!(Vault::open(tmp.path(), SENHA, "0.1.0"), Err(VaultError::WrongPassword)));
+        let v = Vault::open(tmp.path(), "nova-senha-456", "0.1.0").unwrap();
+        assert!(v.verify_integrity().unwrap().ok);
+    }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "carteira-core"
+description = "Domínio e regras de cálculo da Carteira Auditável (sem IO)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rust_decimal.workspace = true
+serde.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+rust_decimal_macros.workspace = true

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Carteira Auditável",
+  "version": "../package.json",
+  "identifier": "io.github.marcelofournier.carteiraauditavel",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Carteira Auditável",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 720,
+        "minHeight": 520
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "appimage", "deb", "dmg"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Finance",
+    "shortDescription": "Controle de investimentos com rentabilidade auditável",
+    "copyright": "GPL-3.0-or-later",
+    "windows": {
+      "nsis": { "languages": ["PortugueseBR"], "installMode": "currentUser" },
+      "wix": { "language": "pt-BR" }
+    }
+  }
+}
