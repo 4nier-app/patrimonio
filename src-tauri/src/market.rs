@@ -116,21 +116,21 @@ pub fn update_all(vault: Shared, fetcher: &dyn Fetcher, today: NaiveDate) -> Res
     let mut report = Vec::new();
 
     // 1. Catálogo.
-    let (catalog_age, ops) = with(vault, |v| {
+    let (catalog_age, catalog_info, ops) = with(vault, |v| {
         let last = v.last_successful_update(CATALOG_SOURCE, None).map_err(|e| e.to_string())?;
         let count = v.asset_count().map_err(|e| e.to_string())?;
         let ops = v.list_operations().map_err(|e| e.to_string())?;
-        let stale = count < 100
-            || last
-                .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
-                .map(|d| (today - d.date_naive()).num_days() >= CATALOG_MAX_AGE_DAYS)
-                .unwrap_or(true);
-        Ok((stale, ops))
+        let last_date = last.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok()).map(|d| d.date_naive());
+        let stale = count < 100 || last_date.map(|d| (today - d).num_days() >= CATALOG_MAX_AGE_DAYS).unwrap_or(true);
+        let info = last_date.map(|d| format!("em dia: {count} ativos, atualizado em {}", d.format("%d/%m/%Y")));
+        Ok((stale, info, ops))
     })?;
     let held = tickers_by_month(&ops, today);
     let all_tickers: BTreeSet<String> = held.values().flatten().cloned().collect();
 
-    if catalog_age {
+    if !catalog_age {
+        report.push(UpdateLine { source: "Catálogo B3".into(), ok: true, message: catalog_info.unwrap_or_default() });
+    } else {
         match fetcher.latest_daily(today) {
             Ok((day, records)) => {
                 let assets: Vec<Asset> = records
@@ -196,6 +196,14 @@ pub fn update_all(vault: Shared, fetcher: &dyn Fetcher, today: NaiveDate) -> Res
                 }
             }
         }
+    }
+    let closed_months = held.keys().filter(|k| **k < current).count();
+    if months_ok == 0 && month_errors.is_empty() && closed_months > 0 {
+        report.push(UpdateLine {
+            source: "Fechamentos oficiais B3".into(),
+            ok: true,
+            message: format!("em dia: {closed_months} mês(es) encerrado(s) já baixado(s)"),
+        });
     }
     if months_ok > 0 || !month_errors.is_empty() {
         let mut msg = format!("{months_ok} mês(es) baixado(s)");
@@ -312,8 +320,10 @@ mod tests {
         assert!(report.iter().all(|l| l.ok), "{report:?}");
         assert_eq!(*fake.monthly_calls.borrow(), vec![(2026, 1), (2026, 2)]);
 
-        update_all(&vault, &fake, today).unwrap();
+        let again = update_all(&vault, &fake, today).unwrap();
         assert_eq!(fake.monthly_calls.borrow().len(), 2, "mês já baixado não é baixado de novo");
+        assert!(again.iter().any(|l| l.source == "Catálogo B3" && l.message.starts_with("em dia")), "{again:?}");
+        assert!(again.iter().any(|l| l.source.contains("oficiais") && l.message.starts_with("em dia")), "{again:?}");
 
         let g = vault.lock().unwrap();
         let v = g.as_ref().unwrap();

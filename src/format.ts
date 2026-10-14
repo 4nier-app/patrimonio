@@ -32,6 +32,11 @@ export function money(v: string | null | undefined): string {
   return v == null ? "—" : brlFmt.format(Number(v));
 }
 
+/** Preço médio: 2 casas, como nas corretoras (o valor exato fica na dica). */
+export function averagePrice(v: string | null | undefined): string {
+  return v == null ? "—" : brlFmt.format(Number(v));
+}
+
 export function price(v: string | null | undefined): string {
   return v == null ? "—" : `R$ ${priceFmt.format(Number(v))}`;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage, market, type PortfolioView } from "../api";
-import { date, formatDateTime, money, percent, price, quantity, tone } from "../format";
+import { averagePrice, date, formatDateTime, money, percent, price, quantity, tone } from "../format";
 
 function ratio(a: string | null, b: string): string | null {
   if (a == null || Number(b) === 0) return null;
@@ -83,7 +83,7 @@ export default function Portfolio({ refresh }: { refresh: number }) {
                     {p.oversold && <div className="error small">Venda maior que a posição: confira os lançamentos.</div>}
                   </td>
                   <td className="num">{quantity(p.quantity)}</td>
-                  <td className="num">{price(p.average_price)}</td>
+                  <td className="num" title={`Valor exato: ${p.average_price}`}>{averagePrice(p.average_price)}</td>
                   <td className="num">{money(p.cost)}</td>
                   <td className="num">
                     {p.quote ? (
