@@ -1,0 +1,11 @@
+/target
+node_modules/
+dist/
+*.db
+*.db-*
+cofre.json
+.DS_Store
+# Notas de corretagem reais nunca entram no repositório (ver docs/ARQUITETURA.md, seção 14).
+*.pdf
+!fixtures/sinteticas/**/*.pdf
+/src-tauri/gen/
