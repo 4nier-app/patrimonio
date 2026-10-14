@@ -102,3 +102,8 @@ dd { margin: 0; }
 
 .version { margin-top: 12px; }
 .version pre { white-space: pre-wrap; font-family: inherit; margin: 8px 0 0; }
+
+.password-field { display: flex; gap: 6px; }
+.password-field input { flex: 1; min-width: 0; }
+.password-field .reveal { background: transparent; color: var(--accent); border: 1px solid var(--border); font-weight: 500; padding: 6px 10px; }
+.caps { color: var(--warning-text); font-size: 0.85rem; font-weight: 500; }

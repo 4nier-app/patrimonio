@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, errorMessage, type VaultStatus } from "../api";
 import { passwordStrength } from "../format";
+import PasswordInput from "../components/PasswordInput";
 
 const STRENGTH = ["muito fraca", "fraca", "razoável", "boa", "forte"];
 
@@ -27,6 +28,7 @@ export default function Login({ status, onUnlocked }: { status: VaultStatus; onU
   }
 
   const strength = passwordStrength(password);
+  const mismatch = creating && confirmation.length > 0 && confirmation !== password;
 
   return (
     <main className="center">
@@ -47,25 +49,20 @@ export default function Login({ status, onUnlocked }: { status: VaultStatus; onU
           <p className="muted">Digite sua senha para abrir a carteira.</p>
         )}
 
-        <label>
-          Senha
-          <input type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
+        <PasswordInput label="Senha" autoFocus value={password} onChange={setPassword} />
         {creating && (
           <>
             <div className="strength" aria-live="polite">
               <div className={`bar s${strength}`} />
               <span>Força: {STRENGTH[strength]}</span>
             </div>
-            <label>
-              Confirme a senha
-              <input type="password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
-            </label>
+            <PasswordInput label="Confirme a senha" value={confirmation} onChange={setConfirmation} />
+            {mismatch && <p className="error">As duas senhas estão diferentes. Use "Mostrar" para conferir.</p>}
           </>
         )}
 
         {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy || password.length === 0}>
+        <button type="submit" disabled={busy || password.length === 0 || mismatch}>
           {busy ? "Aguarde…" : creating ? "Criar cofre" : "Entrar"}
         </button>
         <p className="footnote">Versão {status.app_version}</p>

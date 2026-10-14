@@ -371,6 +371,15 @@ mod tests {
     }
 
     #[test]
+    fn senha_com_caracteres_especiais_e_acentos() {
+        let tmp = tempfile::tempdir().unwrap();
+        let senha = "Ab$1çÃo €\"'%^&*()";
+        drop(Vault::create_with_params(tmp.path(), senha, "0.1.0", KdfParams::fast_for_tests()).unwrap());
+        assert!(Vault::open(tmp.path(), senha, "0.1.0").is_ok());
+        assert!(matches!(Vault::open(tmp.path(), "Ab$1çÃo €", "0.1.0"), Err(VaultError::WrongPassword)));
+    }
+
+    #[test]
     fn troca_de_senha() {
         let tmp = tempfile::tempdir().unwrap();
         let mut v = create(tmp.path());

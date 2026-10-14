@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api, errorMessage, type VaultStatus } from "../api";
+import PasswordInput from "../components/PasswordInput";
 
 export default function Security({ status }: { status: VaultStatus }) {
   const [current, setCurrent] = useState("");
@@ -32,9 +33,9 @@ export default function Security({ status }: { status: VaultStatus }) {
 
       <form className="card narrow" onSubmit={submit}>
         <h3>Trocar senha</h3>
-        <label>Senha atual<input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} /></label>
-        <label>Nova senha<input type="password" value={next} onChange={(e) => setNext(e.target.value)} /></label>
-        <label>Confirme a nova senha<input type="password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} /></label>
+        <PasswordInput label="Senha atual" value={current} onChange={setCurrent} />
+        <PasswordInput label="Nova senha" value={next} onChange={setNext} />
+        <PasswordInput label="Confirme a nova senha" value={confirmation} onChange={setConfirmation} />
         {message && <p className={message.ok ? "ok" : "error"}>{message.text}</p>}
         <button type="submit" disabled={!current || !next}>Trocar senha</button>
       </form>
