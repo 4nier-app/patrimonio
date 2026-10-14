@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { api, errorMessage, type VaultStatus } from "../api";
 import { passwordStrength } from "../format";
 import PasswordInput from "../components/PasswordInput";
+import Logo from "../components/Logo";
 
 const STRENGTH = ["muito fraca", "fraca", "razoável", "boa", "forte"];
 
@@ -33,7 +34,9 @@ export default function Login({ status, onUnlocked }: { status: VaultStatus; onU
   return (
     <main className="center">
       <form className="card login" onSubmit={submit}>
-        <h1>Carteira Auditável</h1>
+        <div className="login-brand">
+          <Logo size={48} />
+        </div>
         {creating ? (
           <>
             <p className="muted">

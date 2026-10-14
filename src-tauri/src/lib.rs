@@ -2,12 +2,15 @@
 //! aqui só existe a ponte com o Tauri.
 
 mod changelog;
+mod market;
+mod views;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 use carteira_ledger::Event;
-use carteira_storage::{IntegrityReport, Vault, VaultError, VersionEntry};
+use carteira_core::operations::{Operation, PricedOperation};
+use carteira_storage::{Asset, IntegrityReport, QuoteUpdate, Vault, VaultError, VersionEntry};
 use serde::Serialize;
 use tauri::{Manager, State};
 
@@ -97,6 +100,79 @@ fn version_history(state: State<AppState>) -> Result<Vec<VersionEntry>, String> 
     with_vault(&state, |v| v.version_history())
 }
 
+// ---------- etapa 1: ativos, lançamentos, carteira e rentabilidade ----------
+
+#[tauri::command]
+fn search_assets(query: String, state: State<AppState>) -> Result<Vec<Asset>, String> {
+    with_vault(&state, |v| v.search_assets(&query, 20))
+}
+
+#[tauri::command]
+fn list_accounts(state: State<AppState>) -> Result<Vec<String>, String> {
+    with_vault(&state, |v| v.list_accounts())
+}
+
+#[tauri::command]
+fn list_operations(state: State<AppState>) -> Result<Vec<PricedOperation>, String> {
+    with_vault_str(&state, |v| views::list_operations(v))
+}
+
+#[tauri::command]
+fn preview_operation(operation: Operation, state: State<AppState>) -> Result<views::Preview, String> {
+    with_vault_str(&state, |v| views::preview(v, operation))
+}
+
+#[tauri::command]
+fn create_operation(operation: Operation, state: State<AppState>) -> Result<Operation, String> {
+    with_vault(&state, |v| v.create_operation(operation))
+}
+
+#[tauri::command]
+fn update_operation(operation: Operation, reason: Option<String>, state: State<AppState>) -> Result<Operation, String> {
+    let reason = reason.filter(|r| !r.trim().is_empty());
+    with_vault(&state, |v| v.update_operation(operation, reason.as_deref()))
+}
+
+#[tauri::command]
+fn remove_operation(id: String, reason: String, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_operation(&id, &reason))
+}
+
+#[tauri::command]
+fn portfolio(state: State<AppState>) -> Result<views::PortfolioView, String> {
+    with_vault_str(&state, |v| views::portfolio(v, today()))
+}
+
+#[tauri::command]
+fn returns_report(state: State<AppState>) -> Result<views::ReturnsView, String> {
+    with_vault_str(&state, |v| views::returns(v, today()))
+}
+
+#[tauri::command]
+fn list_quote_updates(state: State<AppState>) -> Result<Vec<QuoteUpdate>, String> {
+    with_vault(&state, |v| v.list_quote_updates(30))
+}
+
+#[tauri::command]
+async fn update_quotes(app: tauri::AppHandle) -> Result<Vec<market::UpdateLine>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        market::update_all(&state.vault, &market::Internet, today())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+fn today() -> chrono::NaiveDate {
+    chrono::Local::now().date_naive()
+}
+
+fn with_vault_str<T>(state: &State<AppState>, f: impl FnOnce(&mut Vault) -> Result<T, String>) -> Result<T, String> {
+    let mut guard = state.vault.lock().map_err(|_| "estado interno indisponível".to_string())?;
+    let vault = guard.as_mut().ok_or_else(|| "o cofre está bloqueado".to_string())?;
+    f(vault)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
@@ -113,6 +189,17 @@ pub fn run() {
             list_events,
             verify_integrity,
             version_history,
+            search_assets,
+            list_accounts,
+            list_operations,
+            preview_operation,
+            create_operation,
+            update_operation,
+            remove_operation,
+            portfolio,
+            returns_report,
+            list_quote_updates,
+            update_quotes,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o aplicativo");

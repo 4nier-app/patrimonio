@@ -1,0 +1,22 @@
+//! Fontes de dados externas. Cada função de rede só baixa e interpreta; quem
+//! grava no cofre e registra o que foi atualizado é o aplicativo.
+//!
+//! Todas são gratuitas e públicas:
+//! - B3, séries históricas COTAHIST: catálogo de ativos e fechamentos oficiais.
+//! - Yahoo Finance (gráfico diário): fechamentos do mês corrente e último preço.
+
+pub mod cotahist;
+pub mod http;
+pub mod yahoo;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProviderError {
+    #[error("sem conexão ou servidor indisponível: {0}")]
+    Network(String),
+    #[error("arquivo não encontrado na fonte: {0}")]
+    NotFound(String),
+    #[error("resposta em formato inesperado: {0}")]
+    Format(String),
+}
+
+pub type Result<T> = std::result::Result<T, ProviderError>;

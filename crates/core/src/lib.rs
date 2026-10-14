@@ -2,3 +2,8 @@
 //! reproduzível e testável.
 
 pub mod fees;
+pub mod format;
+pub mod model;
+pub mod operations;
+pub mod portfolio;
+pub mod returns;

@@ -43,3 +43,91 @@ export const api = {
 export function errorMessage(e: unknown): string {
   return typeof e === "string" ? e : e instanceof Error ? e.message : "erro inesperado";
 }
+
+// ---------- etapa 1 ----------
+
+/** Decimais chegam e vão como texto exato ("1234.56"). */
+export type Dec = string;
+export type Side = "COMPRA" | "VENDA";
+
+export type Asset = { ticker: string; name: string; kind: string; market: string; currency: string; isin: string | null; source: string };
+
+export type Operation = {
+  id: string;
+  account: string;
+  asset: string;
+  date: string;
+  side: Side;
+  quantity: Dec;
+  price: Dec;
+  manual_fees: Dec | null;
+  note: string | null;
+};
+
+export type PricedOperation = { operation: Operation; gross: Dec; fees: Dec; fee_origin: string };
+
+export type NoteFee = { kind: string; rule_id: string; base: Dec; rate: Dec; amount: Dec; formula: string };
+
+export type Preview = { valid: string | null; gross: Dec; fees: Dec; fee_origin: string; note_fees: NoteFee[]; note_operations: number };
+
+export type Quote = { id: number; asset: string; date: string; close: Dec; source: string };
+
+export type Position = {
+  asset: string;
+  quantity: Dec;
+  cost: Dec;
+  average_price: Dec;
+  quote: Quote | null;
+  market_value: Dec | null;
+  unrealized: Dec | null;
+  realized: Dec;
+  oversold: boolean;
+};
+
+export type PortfolioView = {
+  as_of: string;
+  positions: Position[];
+  cost: Dec;
+  market_value: Dec | null;
+  unrealized: Dec | null;
+  realized: Dec;
+  last_update: string | null;
+};
+
+export type MonthResult = {
+  year: number;
+  month: number;
+  period_start: string;
+  period_end: string;
+  days: number;
+  closed: boolean;
+  net_flows: Dec;
+  weighted_flows: Dec;
+  profit: Dec | null;
+  average_capital: Dec | null;
+  rate: Dec | null;
+  formula_id: string;
+  formula_version: number;
+  explanation: string[];
+};
+
+export type YearResult = { year: number; profit: Dec | null; rate: Dec | null; months: number; explanation: string };
+export type ScopeReturns = { asset: string | null; months: MonthResult[]; years: YearResult[] };
+export type ReturnsView = { as_of: string; portfolio: ScopeReturns; assets: ScopeReturns[] };
+
+export type UpdateLine = { source: string; ok: boolean; message: string };
+export type QuoteUpdate = { started_at: string; source: string; ok: boolean; items: number; message: string };
+
+export const market = {
+  searchAssets: (query: string) => invoke<Asset[]>("search_assets", { query }),
+  listAccounts: () => invoke<string[]>("list_accounts"),
+  listOperations: () => invoke<PricedOperation[]>("list_operations"),
+  preview: (operation: Operation) => invoke<Preview>("preview_operation", { operation }),
+  create: (operation: Operation) => invoke<Operation>("create_operation", { operation }),
+  update: (operation: Operation, reason: string) => invoke<Operation>("update_operation", { operation, reason }),
+  remove: (id: string, reason: string) => invoke<void>("remove_operation", { id, reason }),
+  portfolio: () => invoke<PortfolioView>("portfolio"),
+  returns: () => invoke<ReturnsView>("returns_report"),
+  updateQuotes: () => invoke<UpdateLine[]>("update_quotes"),
+  quoteUpdates: () => invoke<QuoteUpdate[]>("list_quote_updates"),
+};
