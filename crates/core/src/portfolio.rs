@@ -105,6 +105,9 @@ pub fn positions_with_fx(
                 let out = if t.quantity > p.quantity {
                     p.oversold = true;
                     p.quantity
+                } else if crate::model::is_dust(p.quantity - t.quantity) {
+                    // A sobra de arredondamento sai junto.
+                    p.quantity
                 } else {
                     t.quantity
                 };
@@ -146,6 +149,13 @@ pub fn positions_with_fx(
         }
     }
     for p in map.values_mut() {
+        // Sobra de fração sem venda que a zere (troca de custodiante, por exemplo).
+        if crate::model::is_dust(p.quantity) {
+            p.quantity = Decimal::ZERO;
+            p.average_price = Decimal::ZERO;
+            p.cost = Decimal::ZERO;
+            p.cost_brl = p.cost_brl.map(|_| Decimal::ZERO);
+        }
         if p.quantity.is_zero() {
             continue;
         }
@@ -236,6 +246,23 @@ mod tests {
         assert_eq!(p.cost_brl, Some(dec!(1651.50)));
         assert_eq!(p.realized_brl, Some(dec!(199.00)));
         assert!(!p.oversold);
+    }
+
+    #[test]
+    fn sobra_de_fracao_conta_como_zerada() {
+        let at = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
+        // Venda deixa 0,00001: sai junto, com todo o custo.
+        let vendida = vec![
+            t(4, Side::Compra, dec!(1.50001), dec!(10), dec!(0)),
+            t(5, Side::Venda, dec!(1.5), dec!(12), dec!(0)),
+        ];
+        let p = &positions(&vendida, &One(dec!(13)), at)[0];
+        assert_eq!(p.quantity, dec!(0));
+        assert_eq!(p.realized, dec!(18) - dec!(15.0001));
+        assert!(p.market_value.is_none());
+        // Sobra sem venda nenhuma também não aparece como posição.
+        let sobra = vec![t(4, Side::Compra, dec!(0.00003), dec!(10), dec!(0))];
+        assert_eq!(positions(&sobra, &One(dec!(13)), at)[0].quantity, dec!(0));
     }
 
     #[test]

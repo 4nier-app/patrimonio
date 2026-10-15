@@ -97,9 +97,27 @@ function Months({
   );
 }
 
+/** Um bloco por ano, para a visão "desde o início". */
+function Years({ label, data, onPick }: { label: string; data: ScopeReturns; onPick: (s: Selected) => void }) {
+  return (
+    <div className="ret-months">
+      {data.years.map((y) => (
+        <button key={y.year} className={`ret-month ${tone(y.rate)}`} onClick={() => onPick({ scope: label, data, year: y })}>
+          <span className="ret-month-name">{y.year}</span>
+          <Value rate={y.rate} profit={y.profit} />
+          <Split data={data} year={y} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Ano escolhido ou "desde o início". */
+type Pick = number | "inicio";
+
 export default function Returns() {
   const [view, setView] = useState<ReturnsView | null>(null);
-  const [year, setYear] = useState<number | null>(null);
+  const [year, setYear] = useState<Pick | null>(null);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [selected, setSelected] = useState<Selected | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,9 +135,11 @@ export default function Returns() {
 
   const years = useMemo(() => view?.portfolio.years.map((y) => y.year) ?? [], [view]);
   const groups = useMemo(() => {
-    // Só ativos com rentabilidade no ano escolhido.
+    // Só ativos com rentabilidade no período escolhido.
     const rows = (view?.assets ?? [])
-      .filter((a) => a.years.some((y) => y.year === year && y.rate != null))
+      .filter((a) =>
+        year === "inicio" ? sinceStart(a).rate != null : a.years.some((y) => y.year === year && y.rate != null),
+      )
       .map((a) => ({ label: a.asset ?? "", data: a, status: status(a) }));
     return [
       { title: "Na carteira", rows: rows.filter((r) => r.status.open) },
@@ -137,6 +157,7 @@ export default function Returns() {
       </section>
     );
 
+  const all = year === "inicio";
   const pYear = view.portfolio.years.find((y) => y.year === year);
   const pAll = sinceStart(view.portfolio);
 
@@ -156,22 +177,31 @@ export default function Returns() {
               {y}
             </button>
           ))}
+          <button className={year === "inicio" ? "seg active" : "seg"} onClick={() => setYear("inicio")}>
+            Desde o início
+          </button>
         </div>
       </div>
 
       <div className="card ret-portfolio">
         <div className="ret-head">
           <h3>Carteira</h3>
-          <button className="ret-total" disabled={!pYear} onClick={() => pYear && setSelected({ scope: "Carteira", data: view.portfolio, year: pYear })}>
-            <span className="ret-label">Em {year}</span>
-            {pYear ? <Value rate={pYear.rate} profit={pYear.profit} big /> : <span className="ret-missing">sem carteira</span>}
-          </button>
+          {!all && (
+            <button className="ret-total" disabled={!pYear} onClick={() => pYear && setSelected({ scope: "Carteira", data: view.portfolio, year: pYear })}>
+              <span className="ret-label">Em {year}</span>
+              {pYear ? <Value rate={pYear.rate} profit={pYear.profit} big /> : <span className="ret-missing">sem carteira</span>}
+            </button>
+          )}
           <div className="ret-total static">
             <span className="ret-label">Desde o início</span>
             <Value rate={pAll.rate} profit={pAll.profit} big />
           </div>
         </div>
-        <Months label="Carteira" data={view.portfolio} year={year} onPick={setSelected} />
+        {all ? (
+          <Years label="Carteira" data={view.portfolio} onPick={setSelected} />
+        ) : (
+          <Months label="Carteira" data={view.portfolio} year={year} onPick={setSelected} />
+        )}
       </div>
 
       {groups.map((g) => (
@@ -181,14 +211,14 @@ export default function Returns() {
             <thead>
               <tr>
                 <th>Ativo</th>
-                <th className="num">Em {year}</th>
+                {!all && <th className="num">Em {year}</th>}
                 <th className="num">Desde o início</th>
               </tr>
             </thead>
             <tbody>
               {g.rows.map(({ label, data, status }) => {
                 const y = data.years.find((r) => r.year === year);
-                const all = sinceStart(data);
+                const since = sinceStart(data);
                 const isOpen = openAsset === label;
                 return (
                   <FragmentRows key={label}>
@@ -199,23 +229,29 @@ export default function Returns() {
                         {data.currency !== "BRL" && <span className="ret-badge">US$</span>}
                         {!status.open && <span className="ret-status">{status.label}</span>}
                       </td>
+                      {!all && (
+                        <td className="num">
+                          {y && (
+                            <>
+                              <Value rate={y.rate} profit={y.profit} />
+                              <Split data={data} year={y} />
+                            </>
+                          )}
+                        </td>
+                      )}
                       <td className="num">
-                        {y && (
-                          <>
-                            <Value rate={y.rate} profit={y.profit} />
-                            <Split data={data} year={y} />
-                          </>
-                        )}
-                      </td>
-                      <td className="num">
-                        <Value rate={all.rate} profit={all.profit} />
+                        <Value rate={since.rate} profit={since.profit} />
                       </td>
                     </tr>
                     {isOpen && (
                       <tr className="ret-detail">
-                        <td colSpan={3}>
-                          <Months label={label} data={data} year={year} onPick={setSelected} />
-                          {y && (
+                        <td colSpan={all ? 2 : 3}>
+                          {all ? (
+                            <Years label={label} data={data} onPick={setSelected} />
+                          ) : (
+                            <Months label={label} data={data} year={year} onPick={setSelected} />
+                          )}
+                          {y && !all && (
                             <button className="link" onClick={() => setSelected({ scope: label, data, year: y })}>
                               Ver a conta de {year}
                             </button>

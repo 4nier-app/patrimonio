@@ -36,6 +36,10 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   cima, com o ano e o "desde o início", e os 12 meses em blocos; os ativos
   embaixo, separados em "Na carteira" e "Já vendidos", e um clique abre os
   meses do ativo. Cada ano lista só os ativos com rentabilidade nele.
+- Rentabilidade também tem o botão "Desde o início", com um bloco por ano.
+- Sobra de fração menor que 0,0001 cota (arredondamento da corretora ou troca
+  de custodiante) conta como posição zerada: o ativo não aparece mais com
+  R$ 0,00 na Carteira e no Painel.
 - Mês sem lançamento fica em branco, sem traço; falta de cotação aparece
   escrita.
 

@@ -198,7 +198,7 @@ fn tickers_by_month(ops: &[Operation], today: NaiveDate) -> BTreeMap<(i32, u32),
                 .map(|o| signed(o))
                 .sum();
             let traded = list.iter().any(|o| o.date >= cursor && o.date <= end);
-            if traded || !start_qty.is_zero() {
+            if traded || !carteira_core::model::is_dust(start_qty) {
                 out.entry((cursor.year(), cursor.month()))
                     .or_default()
                     .insert(asset.to_string());
