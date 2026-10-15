@@ -23,7 +23,7 @@ import {
   quantity,
   toCashMask,
 } from "../format";
-import { currencyOfAsset } from "../currency";
+import { currencyOfNewAccount } from "../currency";
 
 type Form = {
   id: string;
@@ -38,10 +38,6 @@ type Form = {
   manual: boolean;
   fees: string;
   note: string;
-  /** Moeda escolhida para uma conta nova. */
-  newCurrency: Currency;
-  /** O usuário escolheu a moeda à mão; não deduzir mais pelo ativo. */
-  currencyTouched: boolean;
   fromAccount: string;
   residue: string;
 };
@@ -63,8 +59,6 @@ const EMPTY: Form = {
   manual: false,
   fees: "",
   note: "",
-  newCurrency: "BRL",
-  currencyTouched: false,
   fromAccount: "",
   residue: "",
 };
@@ -199,14 +193,9 @@ export default function Operations() {
   }, [form.asset]);
 
   const existing = accounts.find((a) => a.name === form.account.trim());
-  const currency: Currency = existing?.currency ?? form.newCurrency;
-
-  // Conta nova: a moeda vem do ativo (catálogo dos EUA → dólar; B3 → reais).
-  useEffect(() => {
-    if (existing || form.currencyTouched || form.id) return;
-    const guess = currencyOfAsset(form.asset, suggestions);
-    if (guess && guess !== form.newCurrency) setForm((f) => ({ ...f, newCurrency: guess }));
-  }, [existing, form.asset, form.currencyTouched, form.id, form.newCurrency, suggestions]);
+  // Conta existente: a moeda dela. Conta nova: pelo nome da corretora
+  // (Nomad → dólar) ou, se o nome não disser, pelo ativo.
+  const currency: Currency = existing?.currency ?? currencyOfNewAccount(form.account, form.asset, suggestions);
   const transfer = form.side === "TRANSFERENCIA";
   const draft = useMemo(() => toOperation(form, currency), [form, currency]);
 
@@ -259,7 +248,7 @@ export default function Operations() {
         await market.create(draft);
         setMessage("Lançamento incluído.");
       }
-      setForm({ ...EMPTY, account: form.account, date: form.date, newCurrency: currency, priceDecimals: priceDecimals(currency) });
+      setForm({ ...EMPTY, account: form.account, date: form.date, priceDecimals: priceDecimals(currency) });
       setReason("");
       load();
     } catch (err) {
@@ -283,8 +272,6 @@ export default function Operations() {
       manual: o.manual_fees != null,
       fees: o.manual_fees != null ? toCashMask(o.manual_fees, 2, cur).text : "",
       note: o.note ?? "",
-      newCurrency: cur,
-      currencyTouched: true,
       fromAccount: o.from_account ?? "",
       residue: o.residue ? maskDecimal(o.residue, "quantity") : "",
     });
@@ -341,20 +328,6 @@ export default function Operations() {
                 </option>
               ))}
             </datalist>
-          </label>
-          <label>
-            Moeda da conta
-            {existing || !form.account.trim() ? (
-              <input value={currency === "USD" ? "Dólar (exterior)" : "Reais (B3)"} disabled />
-            ) : (
-              <select
-                value={form.newCurrency}
-                onChange={(e) => setForm((f) => ({ ...f, newCurrency: e.target.value as Currency, currencyTouched: true }))}
-              >
-                <option value="BRL">Reais (B3)</option>
-                <option value="USD">Dólar (exterior)</option>
-              </select>
-            )}
           </label>
           <label>
             Data do pregão

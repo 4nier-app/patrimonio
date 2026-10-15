@@ -13,3 +13,35 @@ export function currencyOfAsset(ticker: string, catalog: Asset[]): Currency | nu
   if (/^[A-Z][A-Z.-]*$/.test(t)) return "USD";
   return null;
 }
+
+/** Corretoras do exterior: contas novas com esses nomes operam em dólar. */
+const FOREIGN_BROKERS = [
+  "nomad",
+  "avenue",
+  "inter global",
+  "interactive brokers",
+  "ibkr",
+  "charles schwab",
+  "schwab",
+  "passfolio",
+  "stake",
+  "drivewealth",
+  "apex",
+  "c6 global",
+  "xp internacional",
+  "btg global",
+];
+
+function normalize(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+/**
+ * Moeda de uma conta nova: pelo nome da corretora (Nomad, Avenue... → dólar);
+ * se o nome não diz, pelo ativo; sem pista, reais.
+ */
+export function currencyOfNewAccount(account: string, ticker: string, catalog: Asset[]): Currency {
+  const name = normalize(account);
+  if (name && FOREIGN_BROKERS.some((b) => name.includes(b))) return "USD";
+  return currencyOfAsset(ticker, catalog) ?? "BRL";
+}
