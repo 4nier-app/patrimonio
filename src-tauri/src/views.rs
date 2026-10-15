@@ -341,6 +341,7 @@ fn kind_label(kind: Option<&str>, currency: &str) -> &'static str {
         (true, Some("FII")) => "FIIs",
         (true, Some("ETF")) => "ETFs",
         (true, Some("BDR")) => "BDRs",
+        (true, Some("CRIPTO")) => "Criptomoedas",
         (true, _) => "Outros (B3)",
         (false, Some("ETF")) => "ETFs no exterior",
         (false, _) => "Ações no exterior",

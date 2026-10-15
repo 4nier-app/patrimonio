@@ -144,11 +144,14 @@ pub fn price_operations(
     ops: &[Operation],
 ) -> Result<(Vec<PricedOperation>, Vec<NoteGroup>), FeeError> {
     let mut groups: BTreeMap<(String, NaiveDate), Vec<&Operation>> = BTreeMap::new();
-    // Taxas da B3: só operações em reais (compra e venda), sem taxa informada.
-    for op in ops
-        .iter()
-        .filter(|o| o.manual_fees.is_none() && o.currency == BRL && o.side != Side::Transferencia)
-    {
+    // Taxas da B3: só operações em reais (compra e venda), sem taxa informada;
+    // cripto não passa pela B3.
+    for op in ops.iter().filter(|o| {
+        o.manual_fees.is_none()
+            && o.currency == BRL
+            && o.side != Side::Transferencia
+            && !crate::crypto::is_crypto(&o.asset)
+    }) {
         groups
             .entry((op.account.clone(), op.date))
             .or_default()
@@ -240,6 +243,16 @@ mod tests {
         assert_eq!(priced[1].gross, dec!(150.01));
         assert_eq!(priced[3].fees, dec!(1.23));
         assert_eq!(priced[3].fee_origin, "informada");
+    }
+
+    #[test]
+    fn cripto_nao_paga_taxa_da_b3() {
+        let mut btc = op("a", "Carteira cripto", 2, dec!(0.0123), dec!(350000), None);
+        btc.asset = "BTC".into();
+        let (priced, notes) = price_operations(&default_rules(), &[btc]).unwrap();
+        assert!(notes.is_empty());
+        assert_eq!(priced[0].fees, dec!(0));
+        assert_eq!(priced[0].gross, dec!(4305.00));
     }
 
     #[test]

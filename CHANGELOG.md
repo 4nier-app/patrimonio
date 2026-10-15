@@ -30,6 +30,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Cada importação fica registrada na Auditoria.
 - O PDF é lido no próprio computador, com o pdf.js, e não é enviado para
   lugar nenhum.
+- **Criptomoedas** em carteira própria (BTC, ETH, SOL, USDT e outras 20):
+  lançamento à mão numa conta em reais, quantidade com até 8 casas, sem taxas
+  da B3. A cotação diária em reais vem do Yahoo (par BTC-BRL; sem par em
+  reais, o par em dólar convertido pela PTAX). No Painel aparecem como
+  "Criptomoedas".
 
 ### Alterado
 - Aba **Rentabilidade** refeita, sem rolagem para os lados: a carteira em

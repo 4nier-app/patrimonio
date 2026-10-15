@@ -14,7 +14,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
-use carteira_core::model::{Side, BRL};
+use carteira_core::crypto;
+use carteira_core::model::{FxSource, Side, BRL};
 use carteira_core::operations::Operation;
 use carteira_providers::{cotahist, nasdaq, ptax, sgs, yahoo, ProviderError};
 use carteira_storage::{Asset, NewFxRate, NewQuote, Vault};
@@ -244,6 +245,9 @@ pub fn update_all(
     today: NaiveDate,
 ) -> Result<Vec<UpdateLine>, String> {
     let mut report = Vec::new();
+    with(vault, |v| {
+        v.seed_crypto().map(|_| ()).map_err(|e| e.to_string())
+    })?;
 
     // 1. Catálogo.
     let catalog_state = |source: &str, market: &str| {
@@ -279,6 +283,8 @@ pub fn update_all(
     let (catalog_age, catalog_info) = catalog_state(CATALOG_SOURCE, "B3")?;
     let ops = with(vault, |v| v.list_operations().map_err(|e| e.to_string()))?;
     let ops_dates: Vec<NaiveDate> = ops.iter().map(|o| o.date).collect();
+    let (crypto_ops, ops): (Vec<Operation>, Vec<Operation>) =
+        ops.into_iter().partition(|o| crypto::is_crypto(&o.asset));
     let (b3_ops, us_ops): (Vec<Operation>, Vec<Operation>) =
         ops.into_iter().partition(|o| o.currency == BRL);
     let held = tickers_by_month(&b3_ops, today);
@@ -578,8 +584,9 @@ pub fn update_all(
             message: msg,
         });
     }
-    // 4. PTAX desde a primeira operação em dólar.
-    if let Some(first) = us_ops.iter().map(|o| o.date).min() {
+    // 4. PTAX desde a primeira operação em dólar (ou cripto, para a cotação
+    // em dólar quando não houver par em reais).
+    if let Some(first) = us_ops.iter().chain(&crypto_ops).map(|o| o.date).min() {
         let range = with(vault, |v| v.fx_range().map_err(|e| e.to_string()))?;
         // Começa alguns dias antes da primeira operação para cobrir fins de
         // semana e feriados; se o histórico já cobre, só busca o que falta.
@@ -642,14 +649,19 @@ pub fn update_all(
         }
     }
 
-    // 5. Índices de comparação (CDI, IPCA, Ibovespa, IVVB11) desde a primeira operação.
+    // 5. Criptomoedas: par em reais; sem ele, par em dólar × PTAX.
+    if !crypto_ops.is_empty() {
+        report.push(update_crypto(vault, fetcher, &crypto_ops, today)?);
+    }
+
+    // 6. Índices de comparação (CDI, IPCA, Ibovespa, IVVB11) desde a primeira operação.
     if let Some(first) = ops_dates.iter().min().copied() {
         report.push(update_indexes(vault, fetcher, first, today)?);
     }
 
     // Sem ativos na carteira não há cotação a buscar; diz isso em vez de
     // simplesmente omitir as linhas.
-    if plan.is_empty() && us_ops.is_empty() {
+    if plan.is_empty() && us_ops.is_empty() && crypto_ops.is_empty() {
         report.push(UpdateLine {
             source: "Cotações".into(),
             ok: true,
@@ -657,6 +669,88 @@ pub fn update_all(
         });
     }
     Ok(report)
+}
+
+/// Cotações das criptomoedas em reais, desde a primeira operação de cada uma.
+fn update_crypto(
+    vault: Shared,
+    fetcher: &dyn Fetcher,
+    ops: &[Operation],
+    today: NaiveDate,
+) -> Result<UpdateLine, String> {
+    let mut first: BTreeMap<String, NaiveDate> = BTreeMap::new();
+    for o in ops {
+        let e = first.entry(o.asset.clone()).or_insert(o.date);
+        *e = (*e).min(o.date);
+    }
+    let mut saved = 0;
+    let mut failures = Vec::new();
+    for (t, first) in &first {
+        let (oldest, last) = with(vault, |v| {
+            Ok::<_, String>((
+                v.first_quote_date(t, yahoo::SOURCE)
+                    .map_err(|e| e.to_string())?,
+                v.last_quote_date(t, yahoo::SOURCE)
+                    .map_err(|e| e.to_string())?,
+            ))
+        })?;
+        let from = match (oldest, last) {
+            (Some(o), Some(l)) if o <= *first + Duration::days(7) => l - Duration::days(5),
+            _ => *first - Duration::days(10),
+        };
+        let closes: Result<Vec<(NaiveDate, Decimal)>, String> =
+            match fetcher.yahoo(&crypto::yahoo_symbol(t), from, today) {
+                Ok(c) if !c.is_empty() => Ok(c),
+                // Sem par em reais: em dólar, convertido pela PTAX do dia.
+                brl => match fetcher.yahoo(&format!("{t}-USD"), from, today) {
+                    Ok(usd) => {
+                        let fx = with(vault, |v| v.fx_table().map_err(|e| e.to_string()))?;
+                        Ok(usd
+                            .into_iter()
+                            .filter_map(|(d, c)| {
+                                fx.usd_brl_on_or_before(d).map(|r| (d, c * r.rate))
+                            })
+                            .collect())
+                    }
+                    Err(e) => Err(match brl {
+                        Err(e1) => describe(&e1),
+                        Ok(_) => describe(&e),
+                    }),
+                },
+            };
+        match closes {
+            Ok(closes) => {
+                let quotes: Vec<NewQuote> = closes
+                    .into_iter()
+                    .map(|(date, close)| NewQuote {
+                        ticker: t.clone(),
+                        date,
+                        close,
+                        source: yahoo::SOURCE.into(),
+                    })
+                    .collect();
+                saved += quotes.len();
+                with(vault, |v| {
+                    v.save_quotes(&quotes)
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
+                })?;
+            }
+            Err(e) => failures.push(format!("{t}: {e}")),
+        }
+    }
+    let mut message = format!(
+        "{saved} cotações de {} cripto(s)",
+        first.len() - failures.len()
+    );
+    if !failures.is_empty() {
+        message.push_str(&format!("; falhas: {}", failures.join("; ")));
+    }
+    Ok(UpdateLine {
+        source: "Criptomoedas (Yahoo)".into(),
+        ok: failures.is_empty(),
+        message,
+    })
 }
 
 /// Baixa o que falta de cada índice. Um índice que falha não impede os outros.
@@ -850,6 +944,66 @@ mod tests {
         })
         .unwrap();
         Mutex::new(Some(v))
+    }
+
+    #[test]
+    fn cripto_busca_par_em_reais_e_entra_no_catalogo() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = setup(tmp.path());
+        let first = NaiveDate::from_ymd_opt(2026, 2, 3).unwrap();
+        {
+            let mut g = vault.lock().unwrap();
+            let v = g.as_mut().unwrap();
+            let btc = |account: &str, currency: &str| Operation {
+                id: String::new(),
+                account: account.into(),
+                asset: "btc".into(),
+                date: first,
+                side: Side::Compra,
+                quantity: Decimal::new(123, 4),
+                price: Decimal::from(350000),
+                manual_fees: None,
+                note: None,
+                currency: currency.into(),
+                from_account: None,
+                residue: None,
+            };
+            assert!(
+                v.create_operation(btc("Nomad", "USD")).is_err(),
+                "cripto só em reais"
+            );
+            v.create_operation(btc("Carteira cripto", "BRL")).unwrap();
+        }
+        let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
+        let f = fake(true);
+        let report = update_all(&vault, &f, today).unwrap();
+        assert!(
+            report
+                .iter()
+                .any(|l| l.source.starts_with("Cripto") && l.ok),
+            "{report:?}"
+        );
+        let calls = f.yahoo_calls.borrow().clone();
+        assert!(
+            calls.contains(&("BTC-BRL".into(), first - Duration::days(10))),
+            "{calls:?}"
+        );
+        assert!(
+            !calls.iter().any(|c| c.0 == "BTC.SA"),
+            "não é ativo da B3: {calls:?}"
+        );
+        let g = vault.lock().unwrap();
+        let v = g.as_ref().unwrap();
+        let hit = &v.search_assets("ETH", 5).unwrap()[0];
+        assert_eq!(
+            (hit.kind.as_str(), hit.currency.as_str()),
+            ("CRIPTO", "BRL")
+        );
+        assert!(v
+            .price_table(&["BTC".into()])
+            .unwrap()
+            .latest("BTC")
+            .is_some());
     }
 
     #[test]

@@ -151,8 +151,34 @@ pub(crate) fn op_json(op: &Operation) -> String {
 impl Vault {
     // ---------- ativos ----------
 
+    /// Coloca as criptomoedas conhecidas no catálogo (busca do lançamento).
+    pub fn seed_crypto(&mut self) -> Result<usize> {
+        use carteira_core::crypto::{COINS, KIND};
+        let coins: Vec<Asset> = COINS
+            .iter()
+            .map(|c| Asset {
+                ticker: c.ticker.into(),
+                name: c.name.into(),
+                kind: KIND.into(),
+                market: KIND.into(),
+                currency: BRL.into(),
+                isin: None,
+                source: KIND.into(),
+            })
+            .collect();
+        self.upsert_assets(&coins)
+    }
+
     /// Grava ou atualiza o catálogo. Retorna quantos ativos foram gravados.
+    /// Código de criptomoeda conhecida fica sempre como cripto.
     pub fn upsert_assets(&mut self, assets: &[Asset]) -> Result<usize> {
+        let assets: Vec<&Asset> = assets
+            .iter()
+            .filter(|a| {
+                a.kind == carteira_core::crypto::KIND
+                    || !carteira_core::crypto::is_crypto(&a.ticker)
+            })
+            .collect();
         let now = now_iso();
         let tx = self.conn.transaction()?;
         {
@@ -163,7 +189,7 @@ impl Vault {
                    market = excluded.market, currency = excluded.currency, isin = excluded.isin,
                    source = excluded.source, updated_at = excluded.updated_at",
             )?;
-            for a in assets {
+            for a in &assets {
                 stmt.execute(params![
                     a.ticker, a.name, a.kind, a.market, a.currency, a.isin, a.source, now
                 ])?;
@@ -235,6 +261,21 @@ impl Vault {
     /// Garante que o ativo existe e é da moeda da conta. Um código fora do
     /// catálogo entra como "OUTRO" no mercado da conta (B3 ou exterior).
     fn ensure_asset(&self, ticker: &str, currency: &str) -> Result<()> {
+        if let Some(name) = carteira_core::crypto::name_of(ticker) {
+            if currency != BRL {
+                return Err(bad(format!(
+                    "{ticker} é criptomoeda e entra numa conta em reais (por exemplo, \"Carteira cripto\")"
+                )));
+            }
+            self.conn.execute(
+                "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at)
+                 VALUES (?1, ?2, ?3, ?3, 'BRL', ?3, ?4)
+                 ON CONFLICT (ticker) DO UPDATE SET name = excluded.name, kind = excluded.kind,
+                   market = excluded.market, currency = excluded.currency, source = excluded.source",
+                params![ticker, name, carteira_core::crypto::KIND, now_iso()],
+            )?;
+            return Ok(());
+        }
         let existing: Option<String> = self
             .conn
             .query_row(

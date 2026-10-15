@@ -205,6 +205,7 @@ export default function Operations() {
   // (Nomad → dólar) ou, se o nome não disser, pelo ativo.
   const currency: Currency = existing?.currency ?? currencyOfNewAccount(form.account, form.asset, suggestions);
   const transfer = form.side === "TRANSFERENCIA";
+  const coin = suggestions.find((a) => a.ticker === normalizeTicker(form.asset) && a.kind === "CRIPTO");
   const draft = useMemo(() => toOperation(form, currency), [form, currency]);
 
   // Ao trocar a moeda, o preço passa a ter as casas da nova moeda.
@@ -413,6 +414,14 @@ export default function Operations() {
           )}
         </div>
 
+        {coin && (
+          <p className="muted small">
+            {coin.name} é criptomoeda: lance numa conta em reais (por exemplo, "Carteira cripto"), com a quantidade como está
+            na carteira (ex.: 0,00123456) e o preço de cada unidade em reais. Não há taxas da B3; se a corretora cobrou
+            taxa, informe abaixo. A cotação é atualizada sozinha.
+          </p>
+        )}
+
         {transfer && (
           <p className="muted small">
             A posição muda de corretora sem compra nem venda: o preço médio e as datas de compra continuam os mesmos. Se
@@ -424,7 +433,9 @@ export default function Operations() {
         {!transfer && (
           <label className="inline">
             <input type="checkbox" checked={form.manual} onChange={(e) => set("manual", e.target.checked)} />
-            {currency === "USD" ? "Informar taxas da corretora" : "Informar as taxas à mão (substitui o cálculo automático)"}
+            {currency === "USD" || coin
+              ? "Informar taxas da corretora"
+              : "Informar as taxas à mão (substitui o cálculo automático)"}
           </label>
         )}
         {form.manual && !transfer && (
