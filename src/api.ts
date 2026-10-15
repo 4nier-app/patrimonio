@@ -240,6 +240,10 @@ export type DashboardView = {
   timeline: Span[];
 };
 
+/** Dias úteis de um mês: resultado de cada dia, no mesmo formato dos meses. */
+export type DaysView = { days: DashMonth[]; benchmarks: Benchmark[]; contributions: AssetMonths[] };
+
 export const dashboardApi = {
   load: () => invoke<DashboardView>("dashboard"),
+  days: (year: number, month: number) => invoke<DaysView>("dashboard_days", { year, month }),
 };

@@ -9,7 +9,7 @@ use carteira_core::operations::{
 };
 use carteira_core::portfolio::{positions_with_fx, Position};
 use carteira_core::returns::{
-    monthly_returns_in, yearly_returns, Conversion, MonthResult, Scope, YearResult,
+    monthly_returns_in, window_result, yearly_returns, Conversion, MonthResult, Scope, YearResult,
 };
 use carteira_storage::{normalize_ticker, PriceTable, Vault};
 use chrono::NaiveDate;
@@ -347,8 +347,35 @@ fn kind_label(kind: Option<&str>, currency: &str) -> &'static str {
     }
 }
 
+/// Índices de comparação: os baixados e o dólar (PTAX).
+fn index_series(
+    v: &Vault,
+    fx: &carteira_storage::FxTable,
+) -> Result<Vec<carteira_core::benchmark::IndexSeries>, String> {
+    use carteira_core::benchmark::{IndexKind, IndexSeries};
+    let mut series: Vec<IndexSeries> = Vec::new();
+    for def in crate::market::INDEXES {
+        let (points, source) = v.index_points(def.id).map_err(s)?;
+        series.push(IndexSeries {
+            id: def.id.into(),
+            name: def.name.into(),
+            kind: def.kind,
+            source: source.unwrap_or_else(|| def.origin.source().into()),
+            points,
+        });
+    }
+    series.push(IndexSeries {
+        id: "DOLAR".into(),
+        name: "Dólar (PTAX)".into(),
+        kind: IndexKind::Level,
+        source: carteira_providers::ptax::SOURCE.into(),
+        points: fx.points(),
+    });
+    Ok(series)
+}
+
 pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
-    use carteira_core::benchmark::{chain, compare, drawdowns, IndexSeries};
+    use carteira_core::benchmark::{chain, compare, drawdowns};
 
     let ops = priced(v)?;
     let table = prices_for(v, &ops)?;
@@ -385,25 +412,7 @@ pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
         })
         .collect();
 
-    // Índices de comparação: os baixados e o dólar (PTAX).
-    let mut series: Vec<IndexSeries> = Vec::new();
-    for def in crate::market::INDEXES {
-        let (points, source) = v.index_points(def.id).map_err(s)?;
-        series.push(IndexSeries {
-            id: def.id.into(),
-            name: def.name.into(),
-            kind: def.kind,
-            source: source.unwrap_or_else(|| def.origin.source().into()),
-            points,
-        });
-    }
-    series.push(IndexSeries {
-        id: "DOLAR".into(),
-        name: "Dólar (PTAX)".into(),
-        kind: carteira_core::benchmark::IndexKind::Level,
-        source: carteira_providers::ptax::SOURCE.into(),
-        points: fx.points(),
-    });
+    let series = index_series(v, &fx)?;
     let benchmarks: Vec<_> = series.iter().map(|s| compare(s, &months)).collect();
 
     // Cartões: desde o início, 12 meses e último mês.
@@ -511,6 +520,192 @@ pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
     })
 }
 
+/// Dias de um mês no painel: cada ponto é o resultado do dia, tirado da
+/// diferença entre o acumulado do mês até ele e até o dia útil anterior.
+#[derive(Serialize)]
+pub struct DaysView {
+    pub days: Vec<DashMonth>,
+    pub benchmarks: Vec<carteira_core::benchmark::BenchmarkView>,
+    pub contributions: Vec<AssetMonths>,
+}
+
+/// Taxa do dia a partir dos acumulados: (1 + até hoje) / (1 + até ontem) − 1.
+fn step(now: Option<Decimal>, before: Option<Decimal>) -> Option<Decimal> {
+    let (now, before) = (now?, before?);
+    let base = Decimal::ONE + before;
+    if base.is_zero() {
+        return None;
+    }
+    Some((Decimal::ONE + now) / base - Decimal::ONE)
+}
+
+fn diff(now: Option<Decimal>, before: Option<Decimal>) -> Option<Decimal> {
+    Some(now? - before?)
+}
+
+pub fn dashboard_days(
+    v: &Vault,
+    year: i32,
+    month: u32,
+    as_of: NaiveDate,
+) -> Result<DaysView, String> {
+    use carteira_core::benchmark::{compare, compare_from, drawdowns, BenchmarkView};
+    use chrono::{Datelike, Duration, Weekday};
+
+    let empty = DaysView {
+        days: vec![],
+        benchmarks: vec![],
+        contributions: vec![],
+    };
+    let ops = priced(v)?;
+    let table = prices_for(v, &ops)?;
+    let fx = v.fx_table().map_err(s)?;
+    let trades = trades_of(&ops);
+    let months = monthly_returns_in(
+        &trades,
+        &table,
+        as_of,
+        &Scope::Carteira,
+        Conversion::ToBrl(&fx),
+    );
+    let Some(idx) = months
+        .iter()
+        .position(|m| m.year == year && m.month == month)
+    else {
+        return Ok(empty);
+    };
+    let target = &months[idx];
+    let start = target.period_start;
+    let last = target.period_end.min(as_of);
+
+    // Dias úteis do período, sempre com o último.
+    let mut dates = Vec::new();
+    let mut d = start;
+    while d <= last {
+        if !matches!(d.weekday(), Weekday::Sat | Weekday::Sun) || d == last {
+            dates.push(d);
+        }
+        d += Duration::days(1);
+    }
+
+    let windows: Vec<(NaiveDate, MonthResult)> = dates
+        .iter()
+        .filter_map(|&d| {
+            window_result(
+                &trades,
+                &table,
+                start,
+                d,
+                &Scope::Carteira,
+                Conversion::ToBrl(&fx),
+            )
+            .map(|w| (d, w))
+        })
+        .collect();
+    if windows.is_empty() {
+        return Ok(empty);
+    }
+
+    let invested_before: Decimal = months[..idx].iter().map(|m| m.net_flows).sum();
+    let mut rates = Vec::with_capacity(windows.len());
+    let mut profits = Vec::with_capacity(windows.len());
+    let (mut cum, mut acc) = (Some(Decimal::ZERO), Some(Decimal::ZERO));
+    for (_, w) in &windows {
+        rates.push(step(w.rate, cum));
+        profits.push(diff(w.profit, acc));
+        cum = w.rate;
+        acc = w.profit;
+    }
+    // Queda desde o pico contando os meses anteriores.
+    let mut all: Vec<Option<Decimal>> = months[..idx].iter().map(|m| m.rate).collect();
+    all.extend(rates.iter().copied());
+    let dd = drawdowns(&all).split_off(idx);
+
+    let days: Vec<DashMonth> = windows
+        .iter()
+        .enumerate()
+        .map(|(i, (d, w))| DashMonth {
+            year: d.year(),
+            month: d.month(),
+            period_start: *d,
+            period_end: *d,
+            value: w.end.total,
+            invested: invested_before + w.net_flows,
+            profit: profits[i],
+            rate: rates[i],
+            drawdown: dd[i],
+            explanation: w.explanation.clone(),
+        })
+        .collect();
+
+    let benchmarks: Vec<BenchmarkView> = index_series(v, &fx)?
+        .iter()
+        .map(|sr| {
+            let initial = if idx == 0 {
+                Some(Decimal::ZERO)
+            } else {
+                compare(sr, &months[..idx])
+                    .same_flows
+                    .last()
+                    .copied()
+                    .flatten()
+            };
+            let mut out = BenchmarkView {
+                id: sr.id.clone(),
+                name: sr.name.clone(),
+                kind: sr.kind,
+                source: sr.source.clone(),
+                rates: vec![],
+                same_flows: vec![],
+                explanations: vec![],
+            };
+            let mut before = Some(Decimal::ZERO);
+            for (_, w) in &windows {
+                let one = compare_from(sr, std::slice::from_ref(w), initial);
+                let now = one.rates[0];
+                out.rates.push(step(now, before));
+                out.same_flows.push(one.same_flows[0]);
+                out.explanations.push(one.explanations[0].clone());
+                before = now;
+            }
+            out
+        })
+        .collect();
+
+    let tickers: BTreeSet<String> = trades.iter().map(|t| t.asset.clone()).collect();
+    let contributions = tickers
+        .into_iter()
+        .map(|t| {
+            let scope = Scope::Ativo(t.clone());
+            let mut before: Option<Decimal> = None;
+            let profits = windows
+                .iter()
+                .map(|(d, _)| {
+                    let now =
+                        window_result(&trades, &table, start, *d, &scope, Conversion::ToBrl(&fx))
+                            .and_then(|w| w.profit);
+                    let p = match (now, before) {
+                        (Some(n), Some(b)) => Some(n - b),
+                        (Some(n), None) => Some(n),
+                        _ => None,
+                    };
+                    if now.is_some() {
+                        before = now;
+                    }
+                    p
+                })
+                .collect();
+            AssetMonths { asset: t, profits }
+        })
+        .collect();
+
+    Ok(DaysView {
+        days,
+        benchmarks,
+        contributions,
+    })
+}
+
 /// Períodos de cada ativo na carteira, somando todas as contas.
 fn timeline(ops: &[PricedOperation]) -> Vec<Span> {
     use std::collections::BTreeMap;
@@ -559,6 +754,7 @@ mod tests {
     use super::*;
     use carteira_core::model::Side;
     use carteira_storage::{KdfParams, NewQuote};
+    use chrono::Datelike;
     use rust_decimal_macros::dec;
 
     fn d(m: u32, day: u32) -> NaiveDate {
@@ -653,5 +849,27 @@ mod tests {
             .find(|c| c.asset == "TEST3")
             .unwrap();
         assert_eq!(test3.profits[0], Some(dec!(100)));
+
+        // Dias de abril: somados e encadeados, batem com o mês.
+        let days = dashboard_days(&v, 2026, 4, d(4, 30)).unwrap();
+        assert_eq!(days.days.first().unwrap().period_end, d(4, 1));
+        assert_eq!(days.days.last().unwrap().period_end, d(4, 30));
+        assert!(days
+            .days
+            .iter()
+            .all(|x| x.period_end.weekday().number_from_monday() <= 5));
+        let total: Decimal = days.days.iter().map(|x| x.profit.unwrap()).sum();
+        assert_eq!(Some(total), view.months[1].profit);
+        let rates: Vec<_> = days.days.iter().map(|x| x.rate).collect();
+        let chained = carteira_core::benchmark::chain(&rates).unwrap();
+        assert!((chained - view.months[1].rate.unwrap()).abs() < dec!(0.0000001));
+        assert_eq!(days.days.last().unwrap().invested, dec!(1000));
+        let cdi_days = days.benchmarks.iter().find(|b| b.id == "CDI").unwrap();
+        let last = cdi_days.same_flows.last().unwrap().unwrap();
+        assert!((last - cdi.same_flows[1].unwrap()).abs() < dec!(0.01));
+        assert!(dashboard_days(&v, 2026, 7, d(4, 30))
+            .unwrap()
+            .days
+            .is_empty());
     }
 }

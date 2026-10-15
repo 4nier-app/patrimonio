@@ -145,8 +145,8 @@ impl IndexSeries {
             IndexKind::Level => {
                 let (d0, v0) = level_on_or_before(&self.points, start - Duration::days(1))?;
                 let (d1, v1) = level_on_or_before(&self.points, end)?;
-                // Sem valor recente, o fim do período não está coberto.
-                if d1 + Duration::days(7) < end || v0.is_zero() {
+                // Sem valor recente, o início ou o fim do período não está coberto.
+                if d1 + Duration::days(7) < end || d0 + Duration::days(7) < start || v0.is_zero() {
                     return None;
                 }
                 let rate = v1 / v0 - Decimal::ONE;
@@ -194,10 +194,20 @@ pub struct BenchmarkView {
 }
 
 pub fn compare(series: &IndexSeries, months: &[MonthResult]) -> BenchmarkView {
+    compare_from(series, months, Some(Decimal::ZERO))
+}
+
+/// Como [`compare`], com o valor "mesmos aportes" já acumulado antes do
+/// primeiro período (para olhar só um trecho, como os dias de um mês).
+pub fn compare_from(
+    series: &IndexSeries,
+    months: &[MonthResult],
+    initial: Option<Decimal>,
+) -> BenchmarkView {
     let mut rates = Vec::with_capacity(months.len());
     let mut same_flows = Vec::with_capacity(months.len());
     let mut explanations = Vec::with_capacity(months.len());
-    let mut value = Some(Decimal::ZERO);
+    let mut value = initial;
     for m in months {
         // Período que começa numa compra (carteira vazia antes) conta como aporte.
         let period = if m.start.holdings.is_empty() {

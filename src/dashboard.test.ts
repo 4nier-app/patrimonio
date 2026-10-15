@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { DashMonth } from "./api";
-import { chained, cumulative, monthTag, periodRange, profitsByYear } from "./dashboard";
+import type { DashboardView, DashMonth } from "./api";
+import { chained, cumulative, dayFrame, monthFrame, monthTag, periodRange, profitsByYear, singleMonth } from "./dashboard";
 
 const m = (year: number, month: number, rate: string | null, profit: string | null = "10"): DashMonth => ({
   year,
@@ -42,5 +42,34 @@ describe("painel", () => {
       { year: 2026, profit: 5 },
     ]);
     expect(monthTag({ year: 2026, month: 3 })).toBe("mar/26");
+  });
+
+  it("mês sem carteira fica em branco sem interromper o acumulado", () => {
+    expect(cumulative(["0.1", undefined, "0.1"])).toEqual([expect.closeTo(0.1), null, expect.closeTo(0.21)]);
+  });
+
+  it("um ano escolhido tem os 12 meses", () => {
+    const view = {
+      months: [m(2025, 11, "0.01"), m(2026, 3, "0.02"), m(2026, 4, "0.03")],
+      benchmarks: [{ id: "CDI", name: "CDI", kind: "DAILY_RATE", source: "", rates: ["0.1", "0.2", "0.3"], same_flows: ["1", "2", "3"], explanations: [] }],
+      contributions: [{ asset: "ABCD3", profits: ["1", "2", null] }],
+    } as unknown as DashboardView;
+    const f = monthFrame(view, { year: 2026 });
+    expect(f.labels).toHaveLength(12);
+    expect(f.labels[0]).toBe("jan/26");
+    expect(f.slots.map((s) => s?.month ?? null)).toEqual([null, null, 3, 4, null, null, null, null, null, null, null, null]);
+    expect(f.bench[0].rates.slice(1, 5)).toEqual([undefined, "0.2", "0.3", undefined]);
+    expect(f.contributions[0].profits.slice(2, 4)).toEqual(["2", null]);
+    expect(monthFrame(view, "inicio").slots).toHaveLength(3);
+  });
+
+  it("um mês sozinho vira dias", () => {
+    expect(singleMonth({ from: "2026-03", to: "2026-03" })).toEqual({ year: 2026, month: 3 });
+    expect(singleMonth({ from: "2026-02", to: "2026-03" })).toBeNull();
+    expect(singleMonth("12m")).toBeNull();
+    const day = { ...m(2026, 3, "0.001"), period_end: "2026-03-04" };
+    const f = dayFrame({ days: [day], benchmarks: [], contributions: [] });
+    expect(f.days).toBe(true);
+    expect(f.labels).toEqual(["04/03"]);
   });
 });

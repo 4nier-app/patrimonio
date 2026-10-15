@@ -837,7 +837,8 @@ mod tests {
             .unwrap();
         assert_eq!(v.list_operations().unwrap()[0].quantity, dec!(200));
 
-        v.remove_operation(&op.id, Some("lançamento duplicado")).unwrap();
+        v.remove_operation(&op.id, Some("lançamento duplicado"))
+            .unwrap();
         assert!(v.list_operations().unwrap().is_empty());
 
         let events = v.list_events(10, 0).unwrap();
