@@ -31,6 +31,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   direita para a esquerda (digitar 1 mostra R$ 0,01). Em dólar, o preço
   aceita vírgula e até 8 casas decimais, como o preço médio das notas da Nomad.
 - Operações em dólar não recebem as taxas da B3.
+- Ao abrir o cofre, o app atualiza sozinho catálogos, cotações e PTAX em
+  segundo plano (o botão continua disponível).
 - Relatório de atualização mostra a data e a hora em que cada catálogo foi
   atualizado.
 

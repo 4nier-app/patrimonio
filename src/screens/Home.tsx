@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, errorMessage, market, type UpdateLine, type VaultStatus } from "../api";
 import Logo from "../components/Logo";
 import Audit from "./Audit";
@@ -43,6 +43,12 @@ export default function Home({ status, onLocked }: { status: VaultStatus; onLock
       setRefresh((n) => n + 1);
     }
   }
+
+  // Ao abrir o cofre, atualiza catálogos (B3 e EUA), cotações e PTAX em
+  // segundo plano; o que já está em dia não é baixado de novo.
+  useEffect(() => {
+    void updateQuotes();
+  }, []);
 
   return (
     <div className="shell">
