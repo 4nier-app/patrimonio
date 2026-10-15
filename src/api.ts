@@ -198,6 +198,24 @@ export const market = {
   quoteUpdates: () => invoke<QuoteUpdate[]>("list_quote_updates"),
 };
 
+// ---------- notas de corretagem (etapa 4) ----------
+
+export type NoteStatus = { hash: string; imported: boolean; imported_at: string | null };
+export type NoteImport = {
+  hash: string;
+  broker: string;
+  number: string | null;
+  date: string;
+  account: string;
+  operations: Operation[];
+};
+
+export const notesApi = {
+  status: (hashes: string[]) => invoke<NoteStatus[]>("note_status", { hashes }),
+  resolveNames: (items: [string, string][]) => invoke<string[][]>("resolve_b3_names", { items }),
+  importNote: (note: NoteImport) => invoke<number>("import_note", { note }),
+};
+
 // ---------- painel (etapa 3) ----------
 
 export type DashMonth = {

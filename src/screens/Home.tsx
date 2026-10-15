@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { api, errorMessage, market, type UpdateLine, type VaultStatus } from "../api";
 import Logo from "../components/Logo";
 import Audit from "./Audit";
@@ -8,10 +8,14 @@ import Portfolio from "./Portfolio";
 import Returns from "./Returns";
 import Security from "./Security";
 
+// A leitura de PDF (pdf.js) só carrega quando a aba é aberta.
+const ImportNotes = lazy(() => import("./ImportNotes"));
+
 const TABS = [
   { id: "painel", label: "Painel" },
   { id: "carteira", label: "Carteira" },
   { id: "lancamentos", label: "Lançamentos" },
+  { id: "importar", label: "Importar notas" },
   { id: "rentabilidade", label: "Rentabilidade" },
   { id: "auditoria", label: "Auditoria" },
   { id: "seguranca", label: "Segurança" },
@@ -103,6 +107,11 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         {tab === "painel" && <Dashboard refresh={refresh} />}
         {tab === "carteira" && <Portfolio refresh={refresh} />}
         {tab === "lancamentos" && <Operations />}
+        {tab === "importar" && (
+          <Suspense fallback={<p className="muted">Carregando…</p>}>
+            <ImportNotes onImported={() => setRefresh((r) => r + 1)} />
+          </Suspense>
+        )}
         {tab === "rentabilidade" && <Returns key={refresh} />}
         {tab === "auditoria" && <Audit status={status} />}
         {tab === "seguranca" && (

@@ -240,7 +240,9 @@ interface BrokerModule {
 - A detecção de day trade não se aplica ao exterior (venda e recompra no mesmo dia lá fora é tributada no regime anual da Lei 14.754).
 
 ### 8.2 Regras gerais de importação
-- Mesmo PDF importado duas vezes é bloqueado pelo hash do arquivo.
+- Implementação (0.6.0): leitores em `src/import/readers/` (`sinacor.ts`, `nomad.ts`), registrados em `src/import/index.ts`; o texto vem do pdf.js, montado em linhas com colunas separadas por dois espaços (`src/import/lines.ts`). Testes com notas sintéticas em `src/import/import.test.ts`.
+- A mesma nota não entra duas vezes: a impressão digital é o SHA-256 de corretora + número + data do pregão (ou do texto das linhas, quando a nota não tem número), guardada em `imported_notes`. Assim a mesma nota em outro arquivo ou em outro layout também é reconhecida. Se todos os lançamentos da nota forem removidos, ela pode ser importada de novo.
+- As taxas da nota (liquidação, registro, emolumentos, transferência, corretagem, ISS e outras) são rateadas entre as linhas pelo valor e gravadas como taxa informada de cada lançamento. O IRRF retido aparece como aviso.
 - Ativos sem nota (de outros usuários) entram por uma tela de **saldo inicial**: quantidade, custo e data de compra.
 - Cripto em carteira própria entra por **lançamento manual**, com cotação automática.
 - Futuro: módulos em WebAssembly para permitir instalar corretoras sem atualizar o app.

@@ -6,6 +6,31 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.6.0] - Não lançada
+
+### Adicionado
+- Aba **Importar notas**: escolha um ou mais PDFs e o aplicativo lê as notas,
+  mostra cada uma para conferir e grava os lançamentos.
+  - Notas da B3 no padrão SINACOR (Itaú, Nubank e outras), nos dois formatos
+    (com e sem "R$"); um PDF pode ter várias notas e uma nota pode ter várias
+    folhas.
+  - Confirmações da Nomad nos dois layouts (DriveWealth e Apex). A parte
+    inteira e a fração da mesma ordem viram um lançamento; vendas de fração
+    mínima com valor zero da troca de custodiante vêm desmarcadas.
+  - Quando a nota traz o nome de pregão ("EMPRESA PN N2") em vez do código, o
+    código é procurado no catálogo da B3; se houver mais de um, você escolhe.
+  - Conferência antes de gravar: quantidade × preço de cada linha, valor das
+    operações e líquido da nota (operações − taxas − IRRF). Nota que não
+    confere não é importada.
+  - As taxas da nota entram como taxa de cada lançamento, rateadas pelo valor
+    de cada linha.
+  - PDF com senha: o aplicativo pede a senha (muitas corretoras usam o CPF).
+  - A mesma nota não entra duas vezes, mesmo vinda de outro arquivo; se os
+    lançamentos dela forem removidos, ela pode ser importada de novo.
+  - Cada importação fica registrada na Auditoria.
+- O PDF é lido no próprio computador, com o pdf.js, e não é enviado para
+  lugar nenhum.
+
 ## [0.5.0] - Não lançada
 
 ### Adicionado

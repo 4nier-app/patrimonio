@@ -69,7 +69,7 @@ pub struct QuoteUpdate {
     pub message: String,
 }
 
-fn bad(msg: impl Into<String>) -> VaultError {
+pub(crate) fn bad(msg: impl Into<String>) -> VaultError {
     VaultError::Invalid(msg.into())
 }
 
@@ -144,7 +144,7 @@ fn row_to_op(r: &rusqlite::Row<'_>) -> rusqlite::Result<Operation> {
     })
 }
 
-fn op_json(op: &Operation) -> String {
+pub(crate) fn op_json(op: &Operation) -> String {
     serde_json::to_string(op).expect("operação serializável")
 }
 
@@ -297,7 +297,7 @@ impl Vault {
     /// Ajusta a operação às contas: a moeda vem da conta (uma conta nova é
     /// criada com a moeda informada) e, na transferência, a conta de origem
     /// precisa existir e ter a mesma moeda.
-    fn prepare_operation(&mut self, op: &mut Operation) -> Result<()> {
+    pub(crate) fn prepare_operation(&mut self, op: &mut Operation) -> Result<()> {
         op.asset = normalize_ticker(&op.asset);
         op.account = op.account.trim().to_string();
         op.from_account = op
@@ -784,6 +784,10 @@ impl PriceSource for PriceTable {
 #[cfg(test)]
 mod tests {
 
+    use super::*;
+    use crate::KdfParams;
+    use rust_decimal_macros::dec;
+
     #[test]
     fn fracionario_vira_lote_padrao() {
         assert_eq!(normalize_ticker(" klbn4f "), "KLBN4");
@@ -793,10 +797,6 @@ mod tests {
         assert_eq!(normalize_ticker("SCHF"), "SCHF");
         assert_eq!(normalize_ticker("F"), "F");
     }
-
-    use super::*;
-    use crate::KdfParams;
-    use rust_decimal_macros::dec;
 
     fn vault(dir: &std::path::Path) -> Vault {
         Vault::create_with_params(

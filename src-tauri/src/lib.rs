@@ -13,7 +13,7 @@ use carteira_core::operations::{Operation, PricedOperation};
 use carteira_ledger::Event;
 use carteira_storage::{
     backup_summary, looks_like_email, Account, Asset, BackupInfo, BackupSummary, IntegrityReport,
-    QuoteUpdate, RecoveryStatus, Vault, VaultError, VersionEntry, BACKUP_EXTENSION,
+    NoteImport, NoteStatus, QuoteUpdate, RecoveryStatus, Vault, VaultError, VersionEntry, BACKUP_EXTENSION,
 };
 use serde::Serialize;
 use tauri::{Manager, State};
@@ -339,6 +339,30 @@ fn remove_operation(id: String, reason: String, state: State<AppState>) -> Resul
 }
 
 #[tauri::command]
+fn note_status(hashes: Vec<String>, state: State<AppState>) -> Result<Vec<NoteStatus>, String> {
+    with_vault(&state, |v| hashes.iter().map(|h| v.note_status(h)).collect())
+}
+
+/// Para cada (nome de pregão, classe), os códigos da B3 que batem.
+#[tauri::command]
+fn resolve_b3_names(
+    items: Vec<(String, String)>,
+    state: State<AppState>,
+) -> Result<Vec<Vec<String>>, String> {
+    with_vault(&state, |v| {
+        items
+            .iter()
+            .map(|(name, class)| v.find_b3_by_name(name, class))
+            .collect()
+    })
+}
+
+#[tauri::command]
+fn import_note(note: NoteImport, state: State<AppState>) -> Result<usize, String> {
+    with_vault(&state, |v| v.import_note(note).map(|ops| ops.len()))
+}
+
+#[tauri::command]
 fn portfolio(state: State<AppState>) -> Result<views::PortfolioView, String> {
     with_vault_str(&state, |v| views::portfolio(v, today()))
 }
@@ -417,6 +441,9 @@ pub fn run() {
             portfolio,
             returns_report,
             dashboard,
+            note_status,
+            resolve_b3_names,
+            import_note,
             list_quote_updates,
             update_quotes,
             reset_password,
