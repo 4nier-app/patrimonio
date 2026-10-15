@@ -37,11 +37,6 @@ pub struct Operation {
     /// origem (resíduo da migração) e sai da carteira sem venda.
     #[serde(default)]
     pub residue: Option<Decimal>,
-    /// Valor total digitado no lugar do preço (contas em dólar: coluna Gross
-    /// Amount da nota). Vira o preço exato em [`Operation::apply_total`] e não
-    /// é gravado.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub total: Option<Decimal>,
 }
 
 fn default_currency() -> String {
@@ -49,16 +44,6 @@ fn default_currency() -> String {
 }
 
 impl Operation {
-    /// Troca o valor total digitado pelo preço unitário: total ÷ quantidade,
-    /// com 10 casas, o que reproduz o total ao arredondar ao centavo.
-    pub fn apply_total(&mut self) {
-        if let Some(total) = self.total.take() {
-            if self.side != Side::Transferencia && self.quantity > Decimal::ZERO {
-                self.price = (total / self.quantity).round_dp(10);
-            }
-        }
-    }
-
     /// Valor da operação: quantidade × preço, arredondado ao centavo.
     pub fn gross(&self) -> Decimal {
         (self.quantity * self.price)
@@ -234,7 +219,6 @@ mod tests {
             currency: "BRL".into(),
             from_account: None,
             residue: None,
-            total: None,
         }
     }
 
@@ -293,17 +277,5 @@ mod tests {
         );
         transf.from_account = Some("Exterior novo".into());
         assert!(validate(&transf).is_err());
-    }
-
-    #[test]
-    fn valor_total_vira_preco_exato() {
-        // Quantidade fracionada com preço médio de muitas casas (dados sintéticos).
-        let mut o = op("v", "Exterior", 2, dec!(123.45678), dec!(0), None);
-        o.currency = "USD".into();
-        o.total = Some(dec!(9876.54));
-        o.apply_total();
-        assert!(o.total.is_none());
-        assert_eq!(o.gross(), dec!(9876.54));
-        assert!(validate(&o).is_ok());
     }
 }

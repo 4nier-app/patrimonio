@@ -64,7 +64,6 @@ pub fn preview(v: &Vault, mut draft: Operation) -> Result<Preview, String> {
     if draft.id.is_empty() {
         draft.id = "rascunho".into();
     }
-    draft.apply_total();
     if let Err(msg) = validate(&draft) {
         return Ok(Preview {
             valid: Some(msg),

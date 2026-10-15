@@ -660,7 +660,6 @@ mod tests {
             currency: "BRL".into(),
             from_account: None,
             residue: None,
-            total: None,
         })
         .unwrap();
         Mutex::new(Some(v))
@@ -754,7 +753,6 @@ mod tests {
                 currency: "USD".into(),
                 from_account: None,
                 residue: None,
-                total: None,
             })
             .unwrap();
         let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();

@@ -27,9 +27,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ### Alterado
 - Preço unitário e taxas com máscara de caixa: só números, preenchendo da
-  direita para a esquerda (digitar 1 mostra R$ 0,01).
-- Em contas em dólar, o lançamento pede quantidade e valor total (Gross Amount
-  da nota) e o app calcula o preço exato, sem perder casas decimais.
+  direita para a esquerda (digitar 1 mostra R$ 0,01). Em dólar, o preço tem 4
+  casas decimais.
 - Operações em dólar não recebem as taxas da B3.
 - Relatório de atualização mostra a data e a hora em que cada catálogo foi
   atualizado.
