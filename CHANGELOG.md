@@ -31,6 +31,14 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - O PDF é lido no próprio computador, com o pdf.js, e não é enviado para
   lugar nenhum.
 
+### Alterado
+- Aba **Rentabilidade** refeita, sem rolagem para os lados: a carteira em
+  cima, com o ano e o "desde o início", e os 12 meses em blocos; os ativos
+  embaixo, separados em "Na carteira" e "Já vendidos", e um clique abre os
+  meses do ativo. Um ativo vendido em outro ano continua na lista.
+- Mês sem lançamento fica em branco, sem traço; falta de cotação aparece
+  escrita.
+
 ### Corrigido
 - Operações antigas lançadas depois das mais novas ficavam
   sem cotação e a Rentabilidade mostrava só "—". Agora o histórico de preços é
