@@ -70,6 +70,8 @@ describe("cashMask", () => {
     expect(cashMask("R$ 0,012", 2)).toBe("R$ 0,12");
     expect(cashMask("1", 4, "USD")).toBe("US$ 0,0001");
     expect(cashMask("1501234", 4, "USD")).toBe("US$ 150,1234");
+    expect(cashMask("53473610000", 8, "USD")).toBe("US$ 534,73610000");
+    expect(cashMask("1", 8, "USD")).toBe("US$ 0,00000001");
   });
   it("ignora letras e fica vazio sem dígitos", () => {
     expect(cashMask("a1b2", 2)).toBe("R$ 0,12");
