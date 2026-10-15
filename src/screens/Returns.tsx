@@ -117,12 +117,15 @@ export default function Returns() {
 
   const years = useMemo(() => view?.portfolio.years.map((y) => y.year) ?? [], [view]);
   const groups = useMemo(() => {
-    const rows = (view?.assets ?? []).map((a) => ({ label: a.asset ?? "", data: a, status: status(a) }));
+    // Só ativos com rentabilidade no ano escolhido.
+    const rows = (view?.assets ?? [])
+      .filter((a) => a.years.some((y) => y.year === year && y.rate != null))
+      .map((a) => ({ label: a.asset ?? "", data: a, status: status(a) }));
     return [
       { title: "Na carteira", rows: rows.filter((r) => r.status.open) },
       { title: "Já vendidos", rows: rows.filter((r) => !r.status.open) },
     ].filter((g) => g.rows.length > 0);
-  }, [view]);
+  }, [view, year]);
 
   if (error) return <p className="error">{error}</p>;
   if (!view) return <p className="muted">Calculando…</p>;
@@ -197,13 +200,11 @@ export default function Returns() {
                         {!status.open && <span className="ret-status">{status.label}</span>}
                       </td>
                       <td className="num">
-                        {y ? (
+                        {y && (
                           <>
                             <Value rate={y.rate} profit={y.profit} />
                             <Split data={data} year={y} />
                           </>
-                        ) : (
-                          <span className="ret-missing">sem posição</span>
                         )}
                       </td>
                       <td className="num">
@@ -213,18 +214,11 @@ export default function Returns() {
                     {isOpen && (
                       <tr className="ret-detail">
                         <td colSpan={3}>
-                          {y ? (
-                            <>
-                              <Months label={label} data={data} year={year} onPick={setSelected} />
-                              <button className="link" onClick={() => setSelected({ scope: label, data, year: y })}>
-                                Ver a conta de {year}
-                              </button>
-                            </>
-                          ) : (
-                            <p className="muted">
-                              Sem posição em {year}. Esteve na carteira em {data.years.map((r) => r.year).join(", ")}:
-                              escolha o ano no alto da página.
-                            </p>
+                          <Months label={label} data={data} year={year} onPick={setSelected} />
+                          {y && (
+                            <button className="link" onClick={() => setSelected({ scope: label, data, year: y })}>
+                              Ver a conta de {year}
+                            </button>
                           )}
                         </td>
                       </tr>

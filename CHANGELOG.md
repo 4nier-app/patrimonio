@@ -35,7 +35,7 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Aba **Rentabilidade** refeita, sem rolagem para os lados: a carteira em
   cima, com o ano e o "desde o início", e os 12 meses em blocos; os ativos
   embaixo, separados em "Na carteira" e "Já vendidos", e um clique abre os
-  meses do ativo. Um ativo vendido em outro ano continua na lista.
+  meses do ativo. Cada ano lista só os ativos com rentabilidade nele.
 - Mês sem lançamento fica em branco, sem traço; falta de cotação aparece
   escrita.
 
