@@ -23,6 +23,11 @@ describe("painel", () => {
     // Meses de 2026: a partir de jan/26 (índice 3).
     expect(months[3].year).toBe(2026);
     expect(periodRange(months, "ano")).toEqual([3, 15]);
+    // Meses escolhidos: um só, um intervalo (em qualquer ordem) e fora dos dados.
+    expect(periodRange(months, { from: "2026-02", to: "2026-02" })).toEqual([4, 5]);
+    expect(periodRange(months, { from: "2026-03", to: "2025-11" })).toEqual([1, 6]);
+    expect(periodRange(months, { year: 2025 })).toEqual([0, 3]);
+    expect(periodRange(months, { from: "2030-01", to: "2030-05" })).toEqual([15, 15]);
   });
 
   it("encadeia e interrompe quando falta um mês", () => {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { EChartsCoreOption } from "echarts/core";
 import { dashboardApi, errorMessage, type DashboardView } from "../api";
 import Chart, { axisStyle, base, usePalette, type Palette } from "../charts/Chart";
-import { cumulative, monthTag, PERIODS, periodRange, profitsByYear, type Period } from "../dashboard";
+import { cumulative, monthKey, monthName, monthTag, PERIODS, periodRange, profitsByYear, type Period } from "../dashboard";
 import { date, money, percent } from "../format";
 
 type Memo = { title: string; lines: string[] };
@@ -37,6 +37,8 @@ export default function Dashboard({ refresh }: { refresh: number }) {
       </section>
     );
 
+  const years = [...new Set(view.months.map((m) => m.year))];
+
   return (
     <section className="dashboard">
       <div className="dash-head">
@@ -46,12 +48,70 @@ export default function Dashboard({ refresh }: { refresh: number }) {
             Clique em qualquer barra, ponto ou cartão para ver a memória de cálculo. Valores em reais; exterior pela PTAX.
           </p>
         </div>
-        <div className="segmented" role="group" aria-label="Período">
-          {PERIODS.map((x) => (
-            <button key={x.id} className={period === x.id ? "seg active" : "seg"} onClick={() => setPeriod(x.id)}>
-              {x.label}
+        <div className="period-pick">
+          <div className="segmented" role="group" aria-label="Período">
+            {PERIODS.map((x) => (
+              <button key={x.id} className={period === x.id ? "seg active" : "seg"} onClick={() => setPeriod(x.id)}>
+                {x.label}
+              </button>
+            ))}
+            <button
+              className={typeof period === "object" && "year" in period ? "seg active" : "seg"}
+              onClick={() => {
+                if (typeof period !== "object" || !("year" in period)) setPeriod({ year: years[years.length - 1] });
+              }}
+            >
+              Escolher ano
             </button>
-          ))}
+            <button
+              className={typeof period === "object" && "from" in period ? "seg active" : "seg"}
+              onClick={() => {
+                if (typeof period === "object" && "from" in period) return;
+                const last = monthKey(view.months[view.months.length - 1]);
+                setPeriod({ from: last, to: last });
+              }}
+            >
+              Escolher meses
+            </button>
+          </div>
+          {typeof period === "object" && "year" in period && (
+            <div className="month-range">
+              <label>
+                Ano
+                <select value={period.year} onChange={(e) => setPeriod({ year: Number(e.target.value) })}>
+                  {years.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+          {typeof period === "object" && "from" in period && (
+            <div className="month-range">
+              <label>
+                De
+                <select value={period.from} onChange={(e) => setPeriod({ ...period, from: e.target.value })}>
+                  {view.months.map((m) => (
+                    <option key={monthKey(m)} value={monthKey(m)}>
+                      {monthName(m)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Até
+                <select value={period.to} onChange={(e) => setPeriod({ ...period, to: e.target.value })}>
+                  {view.months.map((m) => (
+                    <option key={monthKey(m)} value={monthKey(m)}>
+                      {monthName(m)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
@@ -104,7 +164,7 @@ export default function Dashboard({ refresh }: { refresh: number }) {
         <Block title="O que puxou o resultado">
           <Contributions view={view} period={period} p={p} />
         </Block>
-        <Block title="Ativos na carteira">
+        <Block title="Ativos na carteira hoje">
           <Allocation view={view} p={p} open={open} setOpen={setOpen} />
         </Block>
         <Block title="Queda desde o pico">
@@ -253,6 +313,7 @@ function Patrimony({ view, period, p, onMemo }: { view: DashboardView; period: P
           name: "Valor aplicado",
           type: "bar",
           stack: "p",
+          barMaxWidth: 28,
           data: months.map((m) => Number(m.invested)),
           itemStyle: { borderColor: p.surface, borderWidth: 1 },
         },
@@ -260,6 +321,7 @@ function Patrimony({ view, period, p, onMemo }: { view: DashboardView; period: P
           name: "Ganho de capital",
           type: "bar",
           stack: "p",
+          barMaxWidth: 28,
           data: gain.map((g) => ({
             value: g,
             itemStyle: { color: g != null && g < 0 ? p.neg : p.series[2], borderRadius: g != null && g < 0 ? [0, 0, 4, 4] : [4, 4, 0, 0] },

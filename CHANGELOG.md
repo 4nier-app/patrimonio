@@ -11,6 +11,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ### Adicionado
 - Aba **Painel**, a primeira ao abrir, com filtro de período (12 meses, este
   ano, desde o início):
+  - Período dos gráficos: 12 meses, este ano, desde o início, um ano
+    escolhido ou meses escolhidos (de/até; o mesmo mês nos dois mostra só ele).
   - Cartões de rentabilidade (desde o início, 12 meses e último mês) com o CDI
     do mesmo período e a diferença em pontos percentuais.
   - Comparação com CDI, IPCA, Ibovespa, IVVB11 e dólar, num gráfico só com

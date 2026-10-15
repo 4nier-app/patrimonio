@@ -204,6 +204,9 @@ tr.total-row td { background: var(--bg); }
 /* Etapa 3: painel */
 .dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .dash-head h2 { margin: 0 0 4px; }
+.period-pick { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.month-range { display: flex; gap: 12px; }
+.month-range label { flex-direction: row; align-items: center; gap: 6px; }
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .segmented .seg { background: transparent; color: var(--text); border-radius: 0; padding: 6px 12px; font-weight: 500; }
 .segmented .seg.active { background: var(--accent); color: var(--accent-text); }
