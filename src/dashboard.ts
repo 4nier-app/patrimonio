@@ -1,6 +1,6 @@
 // Cálculos do painel feitos na tela: recorte do período e encadeamento.
 // Os valores exatos e a memória de cálculo vêm do núcleo Rust.
-import type { DashMonth } from "./api";
+import type { AssetMonths, DashboardView, DashMonth, DaysView } from "./api";
 
 export type Preset = "12m" | "ano" | "inicio";
 /** Período pronto, um ano escolhido ou meses escolhidos, de `from` até `to` ("2025-10"). */
@@ -40,11 +40,16 @@ export function periodRange(months: DashMonth[], period: Period): [number, numbe
   return [0, n];
 }
 
-/** Acumulado mês a mês: (1 + r₁)·(1 + r₂)·… − 1; para de desenhar quando falta um mês. */
-export function cumulative(rates: (string | null)[]): (number | null)[] {
+/**
+ * Acumulado mês a mês: (1 + r₁)·(1 + r₂)·… − 1; para de desenhar quando falta
+ * a taxa de um mês (null). Mês sem carteira (undefined) fica em branco e não
+ * interrompe o acumulado.
+ */
+export function cumulative(rates: (string | null | undefined)[]): (number | null)[] {
   let level = 1;
   let broken = false;
   return rates.map((r) => {
+    if (r === undefined) return null;
     if (r == null || broken) {
       broken = true;
       return null;
@@ -81,4 +86,60 @@ export function profitsByYear(months: DashMonth[]): { year: number; profit: numb
     row.profit = row.profit == null || m.profit == null ? null : row.profit + Number(m.profit);
   }
   return out;
+}
+
+/** Mês escolhido sozinho ("2025-10"): o painel mostra os dias dele. */
+export function singleMonth(period: Period): { year: number; month: number } | null {
+  if (typeof period !== "object" || !("from" in period) || period.from !== period.to) return null;
+  const [y, m] = period.from.split("-").map(Number);
+  return { year: y, month: m };
+}
+
+/**
+ * O que os gráficos desenham: um rótulo por posição e, em cada uma, o mês (ou
+ * dia) da carteira ou `null` quando não houve carteira. Índices e lucro por
+ * ativo vêm alinhados às mesmas posições (undefined onde não há carteira).
+ */
+export type Frame = {
+  days: boolean;
+  labels: string[];
+  slots: (DashMonth | null)[];
+  bench: { name: string; rates: (string | null | undefined)[]; same_flows: (string | null | undefined)[] }[];
+  contributions: AssetMonths[];
+};
+
+function pick<T>(list: T[], at: number[]): (T | undefined)[] {
+  return at.map((i) => (i < 0 ? undefined : list[i]));
+}
+
+/** Meses do período; um ano escolhido sempre tem os 12 meses. */
+export function monthFrame(view: DashboardView, period: Period): Frame {
+  let at: number[];
+  let labels: string[];
+  if (typeof period === "object" && "year" in period) {
+    at = Array.from({ length: 12 }, (_, k) => view.months.findIndex((m) => m.year === period.year && m.month === k + 1));
+    labels = at.map((_, k) => monthTag({ year: period.year, month: k + 1 }));
+  } else {
+    const [a, b] = periodRange(view.months, period);
+    at = Array.from({ length: Math.max(0, b - a) }, (_, k) => a + k);
+    labels = at.map((i) => monthTag(view.months[i]));
+  }
+  return {
+    days: false,
+    labels,
+    slots: at.map((i) => (i < 0 ? null : view.months[i])),
+    bench: view.benchmarks.map((b) => ({ name: b.name, rates: pick(b.rates, at), same_flows: pick(b.same_flows, at) })),
+    contributions: view.contributions.map((c) => ({ asset: c.asset, profits: pick(c.profits, at).map((v) => v ?? null) })),
+  };
+}
+
+/** Dias úteis de um mês, rotulados "dd/mm". */
+export function dayFrame(view: DaysView): Frame {
+  return {
+    days: true,
+    labels: view.days.map((d) => `${d.period_end.slice(8, 10)}/${d.period_end.slice(5, 7)}`),
+    slots: view.days,
+    bench: view.benchmarks.map((b) => ({ name: b.name, rates: b.rates, same_flows: b.same_flows })),
+    contributions: view.contributions,
+  };
 }

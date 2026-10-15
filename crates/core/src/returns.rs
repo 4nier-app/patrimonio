@@ -288,29 +288,11 @@ pub fn monthly_returns_in(
     scope: &Scope,
     conv: Conversion,
 ) -> Vec<MonthResult> {
-    let mut selected: Vec<&Trade> = trades
-        .iter()
-        .filter(|t| t.date <= as_of)
-        .filter(|t| match scope {
-            Scope::Ativo(a) => &t.asset == a,
-            Scope::Carteira => true,
-        })
-        .collect();
-    selected.sort_by_key(|t| t.date);
-    let Some(first) = selected.first() else {
+    let Some((selected, currencies, out)) = select(trades, as_of, scope, conv) else {
         return Vec::new();
     };
-    let currencies: BTreeMap<String, String> = selected
-        .iter()
-        .map(|t| (t.asset.clone(), t.currency.clone()))
-        .collect();
-    let out = match conv {
-        Conversion::ToBrl(_) => BRL.to_string(),
-        Conversion::Native => first.currency.clone(),
-    };
-
     let mut results = Vec::new();
-    let mut month_start = first_day_of_month(first.date);
+    let mut month_start = first_day_of_month(selected[0].date);
     while month_start <= as_of {
         let month_end = last_day_of_month(month_start.year(), month_start.month()).min(as_of);
         if let Some(r) = month_result(
@@ -328,6 +310,50 @@ pub fn monthly_returns_in(
             last_day_of_month(month_start.year(), month_start.month()) + Duration::days(1);
     }
     results
+}
+
+type Selection<'a> = (Vec<&'a Trade>, BTreeMap<String, String>, String);
+
+/// Operações do escopo até `as_of`, em ordem de data, e a moeda de cada ativo.
+fn select<'a>(
+    trades: &'a [Trade],
+    as_of: NaiveDate,
+    scope: &Scope,
+    conv: Conversion,
+) -> Option<Selection<'a>> {
+    let mut selected: Vec<&Trade> = trades
+        .iter()
+        .filter(|t| t.date <= as_of)
+        .filter(|t| match scope {
+            Scope::Ativo(a) => &t.asset == a,
+            Scope::Carteira => true,
+        })
+        .collect();
+    selected.sort_by_key(|t| t.date);
+    let first = selected.first()?;
+    let currencies: BTreeMap<String, String> = selected
+        .iter()
+        .map(|t| (t.asset.clone(), t.currency.clone()))
+        .collect();
+    let out = match conv {
+        Conversion::ToBrl(_) => BRL.to_string(),
+        Conversion::Native => first.currency.clone(),
+    };
+    Some((selected, currencies, out))
+}
+
+/// Resultado de um intervalo dentro de um mês: do dia `start` (primeiro do
+/// mês) até `end`, com a mesma fórmula do mês. Serve para ver o mês dia a dia.
+pub fn window_result(
+    trades: &[Trade],
+    prices: &dyn PriceSource,
+    start: NaiveDate,
+    end: NaiveDate,
+    scope: &Scope,
+    conv: Conversion,
+) -> Option<MonthResult> {
+    let (selected, currencies, out) = select(trades, end, scope, conv)?;
+    month_result(&selected, prices, start, end, &currencies, conv, &out)
 }
 
 fn month_result(

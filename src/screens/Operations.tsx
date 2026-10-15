@@ -559,9 +559,9 @@ export default function Operations() {
                           autoFocus
                           value={removeReason}
                           onChange={(e) => setRemoveReason(e.target.value)}
-                          placeholder="Motivo da remoção (obrigatório)"
+                          placeholder="Motivo da remoção (opcional)"
                         />
-                        <button onClick={() => confirmRemove(p.operation.id)} disabled={!removeReason.trim()}>
+                        <button onClick={() => confirmRemove(p.operation.id)}>
                           Confirmar remoção
                         </button>
                         <button className="secondary" onClick={() => setRemoving(null)}>

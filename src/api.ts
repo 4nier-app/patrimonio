@@ -191,7 +191,7 @@ export const market = {
   preview: (operation: Operation) => invoke<Preview>("preview_operation", { operation }),
   create: (operation: Operation) => invoke<Operation>("create_operation", { operation }),
   update: (operation: Operation, reason: string) => invoke<Operation>("update_operation", { operation, reason }),
-  remove: (id: string, reason: string) => invoke<void>("remove_operation", { id, reason }),
+  remove: (id: string, reason: string) => invoke<void>("remove_operation", { id, reason: reason.trim() || null }),
   portfolio: () => invoke<PortfolioView>("portfolio"),
   returns: () => invoke<ReturnsView>("returns_report"),
   updateQuotes: () => invoke<UpdateLine[]>("update_quotes"),
@@ -258,6 +258,10 @@ export type DashboardView = {
   timeline: Span[];
 };
 
+/** Dias úteis de um mês: resultado de cada dia, no mesmo formato dos meses. */
+export type DaysView = { days: DashMonth[]; benchmarks: Benchmark[]; contributions: AssetMonths[] };
+
 export const dashboardApi = {
   load: () => invoke<DashboardView>("dashboard"),
+  days: (year: number, month: number) => invoke<DaysView>("dashboard_days", { year, month }),
 };

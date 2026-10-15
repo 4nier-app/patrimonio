@@ -1,8 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import type { EChartsCoreOption } from "echarts/core";
-import { dashboardApi, errorMessage, type DashboardView } from "../api";
+import { dashboardApi, errorMessage, type DashboardView, type DaysView } from "../api";
 import Chart, { axisStyle, base, usePalette, type Palette } from "../charts/Chart";
-import { cumulative, monthKey, monthName, monthTag, PERIODS, periodRange, profitsByYear, type Period } from "../dashboard";
+import {
+  cumulative,
+  dayFrame,
+  monthFrame,
+  monthKey,
+  monthName,
+  PERIODS,
+  profitsByYear,
+  singleMonth,
+  type Frame,
+  type Period,
+} from "../dashboard";
 import { date, money, percent } from "../format";
 
 type Memo = { title: string; lines: string[] };
@@ -18,7 +29,10 @@ export default function Dashboard({ refresh }: { refresh: number }) {
   const [inMoney, setInMoney] = useState(false);
   const [memo, setMemo] = useState<Memo | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [days, setDays] = useState<{ key: string; view: DaysView } | null>(null);
   const p = usePalette();
+  const one = singleMonth(period);
+  const oneKey = one ? `${monthKey(one)}#${refresh}` : null;
 
   useEffect(() => {
     dashboardApi
@@ -26,6 +40,25 @@ export default function Dashboard({ refresh }: { refresh: number }) {
       .then(setView)
       .catch((e) => setError(errorMessage(e)));
   }, [refresh]);
+
+  // Um mês só: busca os dias dele.
+  useEffect(() => {
+    if (!one || !oneKey) return;
+    let live = true;
+    dashboardApi
+      .days(one.year, one.month)
+      .then((v) => live && setDays({ key: oneKey, view: v }))
+      .catch((e) => live && setError(errorMessage(e)));
+    return () => {
+      live = false;
+    };
+  }, [oneKey]);
+
+  const frame = useMemo<Frame | null>(() => {
+    if (!view) return null;
+    if (oneKey) return days?.key === oneKey ? dayFrame(days.view) : null;
+    return monthFrame(view, period);
+  }, [view, period, oneKey, days]);
 
   if (error) return <p className="error">{error}</p>;
   if (!view) return <p className="muted">Calculando…</p>;
@@ -45,7 +78,7 @@ export default function Dashboard({ refresh }: { refresh: number }) {
         <div>
           <h2>Painel</h2>
           <p className="muted">
-            Clique em qualquer barra, ponto ou cartão para ver a memória de cálculo. Valores em reais; exterior pela PTAX.
+            Clique num cartão para ver a memória de cálculo. Valores em reais; exterior pela PTAX.
           </p>
         </div>
         <div className="period-pick">
@@ -117,66 +150,68 @@ export default function Dashboard({ refresh }: { refresh: number }) {
 
       <Cards view={view} onMemo={setMemo} />
 
-      <div className="dash-grid">
-        <Block
-          title="Comparação com índices"
-          wide
-          extra={
-            <div className="segmented small" role="group" aria-label="Mostrar em">
-              <button className={!inMoney ? "seg active" : "seg"} onClick={() => setInMoney(false)}>
-                %
-              </button>
-              <button className={inMoney ? "seg active" : "seg"} onClick={() => setInMoney(true)}>
-                R$
-              </button>
-            </div>
-          }
-        >
-          <p className="muted small">
-            {inMoney
-              ? "Quanto você teria se cada aporte tivesse ido para o índice, na mesma data e no mesmo valor."
-              : "Quanto cada real rendeu, sem depender de quando ou quanto você aportou."}
-          </p>
-          {inMoney ? (
-            <SameFlows view={view} period={period} p={p} onMemo={setMemo} />
-          ) : (
-            <Comparison view={view} period={period} p={p} onMemo={setMemo} />
-          )}
-        </Block>
-        <Block title="Evolução do patrimônio">
-          <Patrimony view={view} period={period} p={p} onMemo={setMemo} />
-        </Block>
-        <Block
-          title="Lucro / prejuízo em R$"
-          extra={
-            <div className="segmented small" role="group" aria-label="Agrupar">
-              <button className={!byYear ? "seg active" : "seg"} onClick={() => setByYear(false)}>
-                Mês
-              </button>
-              <button className={byYear ? "seg active" : "seg"} onClick={() => setByYear(true)}>
-                Ano
-              </button>
-            </div>
-          }
-        >
-          <Profit view={view} period={period} byYear={byYear} p={p} onMemo={setMemo} />
-        </Block>
-        <Block title="O que puxou o resultado">
-          <Contributions view={view} period={period} p={p} />
-        </Block>
-        <Block title="Ativos na carteira hoje">
-          <Allocation view={view} p={p} open={open} setOpen={setOpen} />
-        </Block>
-        <Block title="Queda desde o pico">
-          <Drawdown view={view} period={period} p={p} onMemo={setMemo} />
-        </Block>
-        <Block title="Realizado × não realizado">
-          <Realized view={view} p={p} />
-        </Block>
-        <Block title="Linha do tempo das posições" wide>
-          <Timeline view={view} />
-        </Block>
-      </div>
+      {!frame ? (
+        <p className="muted">Calculando os dias do mês…</p>
+      ) : (
+        <div className="dash-grid">
+          <Block
+            title={frame.days ? "Comparação com índices, dia a dia" : "Comparação com índices"}
+            wide
+            extra={
+              <div className="segmented small" role="group" aria-label="Mostrar em">
+                <button className={!inMoney ? "seg active" : "seg"} onClick={() => setInMoney(false)}>
+                  %
+                </button>
+                <button className={inMoney ? "seg active" : "seg"} onClick={() => setInMoney(true)}>
+                  R$
+                </button>
+              </div>
+            }
+          >
+            <p className="muted small">
+              {inMoney
+                ? "Quanto você teria se cada aporte tivesse ido para o índice, na mesma data e no mesmo valor."
+                : "Quanto cada real rendeu, sem depender de quando ou quanto você aportou."}
+            </p>
+            {inMoney ? <SameFlows frame={frame} p={p} /> : <Comparison frame={frame} p={p} />}
+          </Block>
+          <Block title="Evolução do patrimônio">
+            <Patrimony frame={frame} p={p} />
+          </Block>
+          <Block
+            title="Lucro / prejuízo em R$"
+            extra={
+              frame.days ? undefined : (
+                <div className="segmented small" role="group" aria-label="Agrupar">
+                  <button className={!byYear ? "seg active" : "seg"} onClick={() => setByYear(false)}>
+                    Mês
+                  </button>
+                  <button className={byYear ? "seg active" : "seg"} onClick={() => setByYear(true)}>
+                    Ano
+                  </button>
+                </div>
+              )
+            }
+          >
+            <Profit frame={frame} byYear={byYear && !frame.days} p={p} />
+          </Block>
+          <Block title="O que puxou o resultado">
+            <Contributions frame={frame} p={p} />
+          </Block>
+          <Block title="Ativos na carteira hoje">
+            <Allocation view={view} p={p} open={open} setOpen={setOpen} />
+          </Block>
+          <Block title="Queda desde o pico">
+            <Drawdown frame={frame} p={p} />
+          </Block>
+          <Block title="Realizado × não realizado">
+            <Realized view={view} p={p} />
+          </Block>
+          <Block title="Linha do tempo das posições" wide>
+            <Timeline view={view} />
+          </Block>
+        </div>
+      )}
 
       {memo && (
         <aside className="memo-panel" role="dialog" aria-label="Memória de cálculo">
@@ -238,39 +273,28 @@ function Cards({ view, onMemo }: { view: DashboardView; onMemo: (m: Memo) => voi
   );
 }
 
-function useRange(view: DashboardView, period: Period) {
-  return useMemo(() => {
-    const [a, b] = periodRange(view.months, period);
-    return { a, b, months: view.months.slice(a, b), labels: view.months.slice(a, b).map(monthTag) };
-  }, [view, period]);
-}
+/** Linhas atravessam os meses sem carteira (ano com 12 meses). */
+const line = { type: "line", connectNulls: true } as const;
 
-function monthMemo(view: DashboardView, i: number, extra: string[] = []): Memo {
-  const m = view.months[i];
-  return {
-    title: `Carteira em ${monthTag(m)}`,
-    lines: [...m.explanation, ...extra, ...view.benchmarks.map((b) => b.explanations[i]?.[0]).filter(Boolean)],
-  };
-}
-
-function Comparison({ view, period, p, onMemo }: { view: DashboardView; period: Period; p: Palette; onMemo: (m: Memo) => void }) {
-  const { a, b, months, labels } = useRange(view, period);
+function Comparison({ frame, p }: { frame: Frame; p: Palette }) {
   const option = useMemo<EChartsCoreOption>(() => {
+    // Toda linha parte de 0% no início do período, para haver linha mesmo com um ponto só.
+    const fromZero = (c: (number | null)[]) => (c.every((v) => v == null) ? [null, ...c] : [0, ...c]);
     const series = [
-      { name: "Carteira", data: cumulative(months.map((m) => m.rate)) },
-      ...view.benchmarks.map((bm) => ({ name: bm.name, data: cumulative(bm.rates.slice(a, b)) })),
+      { name: "Carteira", data: fromZero(cumulative(frame.slots.map((m) => (m ? m.rate : undefined)))) },
+      ...frame.bench.map((bm) => ({ name: bm.name, data: fromZero(cumulative(bm.rates)) })),
     ];
     return {
       ...base(p),
       color: p.series,
       tooltip: { ...(base(p).tooltip as object), trigger: "axis", valueFormatter: (v: number) => pct(v) },
-      xAxis: { type: "category", data: labels, ...axisStyle(p), splitLine: { show: false } },
+      xAxis: { type: "category", data: ["início", ...frame.labels], boundaryGap: false, ...axisStyle(p), splitLine: { show: false } },
       yAxis: { type: "value", ...axisStyle(p), axisLabel: { color: p.muted, formatter: (v: number) => pct(v) } },
       series: series.map((s, i) => ({
+        ...line,
         name: s.name,
-        type: "line",
         data: s.data,
-        showSymbol: true,
+        showSymbol: !frame.days,
         symbolSize: 8,
         lineStyle: { width: i === 0 ? 3 : 2 },
         endLabel: { show: true, color: p.ink, formatter: (x: { value: number }) => pct(x.value) },
@@ -278,16 +302,11 @@ function Comparison({ view, period, p, onMemo }: { view: DashboardView; period: 
       })),
       grid: { left: 8, right: 64, top: 40, bottom: 8, containLabel: true },
     };
-  }, [view, a, b, labels, months, p]);
-  const missing = view.benchmarks.filter((bm) => bm.rates.slice(a, b).every((r) => r == null)).map((bm) => bm.name);
+  }, [frame, p]);
+  const missing = frame.bench.filter((bm) => bm.rates.every((r) => r == null)).map((bm) => bm.name);
   return (
     <>
-      <Chart
-        option={option}
-        height={320}
-        ariaLabel="Rentabilidade acumulada da carteira e dos índices"
-        onSelect={(i) => onMemo(monthMemo(view, a + i))}
-      />
+      <Chart option={option} height={320} ariaLabel="Rentabilidade acumulada da carteira e dos índices" />
       <p className="muted small">
         Acumulado no período, com os índices medidos nos mesmos dias em que havia dinheiro na carteira. Clique no nome
         para mostrar ou esconder um índice.
@@ -297,16 +316,15 @@ function Comparison({ view, period, p, onMemo }: { view: DashboardView; period: 
   );
 }
 
-function Patrimony({ view, period, p, onMemo }: { view: DashboardView; period: Period; p: Palette; onMemo: (m: Memo) => void }) {
-  const { a, months, labels } = useRange(view, period);
+function Patrimony({ frame, p }: { frame: Frame; p: Palette }) {
   const option = useMemo<EChartsCoreOption>(() => {
-    const gain = months.map((m) => (m.value == null ? null : Number(m.value) - Number(m.invested)));
+    const gain = frame.slots.map((m) => (m?.value == null ? null : Number(m.value) - Number(m.invested)));
     return {
       ...base(p),
       tooltip: { ...(base(p).tooltip as object), trigger: "axis", valueFormatter: (v: number) => (v == null ? "—" : brl(v)) },
       legend: { ...(base(p).legend as object), data: ["Valor aplicado", "Ganho de capital"] },
       color: [p.series[0], p.series[2]],
-      xAxis: { type: "category", data: labels, ...axisStyle(p), splitLine: { show: false } },
+      xAxis: { type: "category", data: frame.labels, ...axisStyle(p), splitLine: { show: false } },
       yAxis: { type: "value", ...axisStyle(p), axisLabel: { color: p.muted, formatter: (v: number) => compact(v) } },
       series: [
         {
@@ -314,7 +332,7 @@ function Patrimony({ view, period, p, onMemo }: { view: DashboardView; period: P
           type: "bar",
           stack: "p",
           barMaxWidth: 28,
-          data: months.map((m) => Number(m.invested)),
+          data: frame.slots.map((m) => (m ? Number(m.invested) : null)),
           itemStyle: { borderColor: p.surface, borderWidth: 1 },
         },
         {
@@ -330,31 +348,23 @@ function Patrimony({ view, period, p, onMemo }: { view: DashboardView; period: P
         },
       ],
     };
-  }, [months, labels, p]);
+  }, [frame, p]);
   return (
     <Chart
       option={option}
-      ariaLabel="Evolução do patrimônio: valor aplicado e ganho de capital por mês"
-      onSelect={(i) => {
-        const m = view.months[a + i];
-        onMemo(
-          monthMemo(view, a + i, [
-            `Valor aplicado até ${date(m.period_end)} = compras − vendas (com taxas) = ${money(m.invested)}`,
-            m.value == null
-              ? "Ganho de capital indisponível (falta cotação)"
-              : `Ganho de capital = patrimônio − aplicado = ${money(m.value)} − ${money(m.invested)} = ${brl(Number(m.value) - Number(m.invested))}`,
-          ]),
-        );
-      }}
+      ariaLabel={`Evolução do patrimônio: valor aplicado e ganho de capital por ${frame.days ? "dia" : "mês"}`}
     />
   );
 }
 
-function Profit({ view, period, byYear, p, onMemo }: { view: DashboardView; period: Period; byYear: boolean; p: Palette; onMemo: (m: Memo) => void }) {
-  const { a, months, labels } = useRange(view, period);
-  const rows = byYear
-    ? profitsByYear(months).map((r) => ({ label: String(r.year), value: r.profit }))
-    : months.map((m, i) => ({ label: labels[i], value: m.profit == null ? null : Number(m.profit) }));
+function Profit({ frame, byYear, p }: { frame: Frame; byYear: boolean; p: Palette }) {
+  const rows = useMemo(
+    () =>
+      byYear
+        ? profitsByYear(frame.slots.filter((m) => m != null)).map((r) => ({ label: String(r.year), value: r.profit }))
+        : frame.slots.map((m, i) => ({ label: frame.labels[i], value: m?.profit == null ? null : Number(m.profit) })),
+    [frame, byYear],
+  );
   const option = useMemo<EChartsCoreOption>(
     () => ({
       ...base(p),
@@ -377,82 +387,51 @@ function Profit({ view, period, byYear, p, onMemo }: { view: DashboardView; peri
     }),
     [rows, p],
   );
-  return (
-    <Chart
-      option={option}
-      ariaLabel="Lucro ou prejuízo em reais por período"
-      onSelect={(i) => {
-        if (byYear) {
-          const year = Number(rows[i].label);
-          onMemo({
-            title: `Lucro de ${year}`,
-            lines: months
-              .filter((m) => m.year === year)
-              .map((m) => `${monthTag(m)}: ${m.profit == null ? "indisponível" : money(m.profit)}`)
-              .concat(`Total = ${rows[i].value == null ? "indisponível" : brl(rows[i].value as number)}`),
-          });
-        } else onMemo(monthMemo(view, a + i));
-      }}
-    />
-  );
+  return <Chart option={option} ariaLabel="Lucro ou prejuízo em reais por período" />;
 }
 
-function SameFlows({ view, period, p, onMemo }: { view: DashboardView; period: Period; p: Palette; onMemo: (m: Memo) => void }) {
-  const { a, b, months, labels } = useRange(view, period);
+function SameFlows({ frame, p }: { frame: Frame; p: Palette }) {
   const option = useMemo<EChartsCoreOption>(() => {
+    const num = (v: string | null | undefined) => (v == null ? null : Number(v));
     const series = [
-      { name: "Carteira", data: months.map((m) => (m.value == null ? null : Number(m.value))) },
-      ...view.benchmarks.map((bm) => ({ name: `No ${bm.name}`, data: bm.same_flows.slice(a, b).map((v) => (v == null ? null : Number(v))) })),
+      { name: "Carteira", data: frame.slots.map((m) => num(m?.value)) },
+      ...frame.bench.map((bm) => ({ name: `No ${bm.name}`, data: bm.same_flows.map(num) })),
     ];
     return {
       ...base(p),
       color: p.series,
       tooltip: { ...(base(p).tooltip as object), trigger: "axis", valueFormatter: (v: number) => (v == null ? "—" : brl(v)) },
-      xAxis: { type: "category", data: labels, ...axisStyle(p), splitLine: { show: false } },
+      xAxis: { type: "category", data: frame.labels, ...axisStyle(p), splitLine: { show: false } },
       yAxis: { type: "value", scale: true, ...axisStyle(p), axisLabel: { color: p.muted, formatter: (v: number) => compact(v) } },
       series: series.map((s, i) => ({
+        ...line,
         name: s.name,
-        type: "line",
         data: s.data,
+        showSymbol: !frame.days,
         symbolSize: 8,
         lineStyle: { width: i === 0 ? 3 : 2 },
         emphasis: { focus: "series" },
       })),
     };
-  }, [view, a, b, months, labels, p]);
+  }, [frame, p]);
   return (
     <>
       <Chart
         option={option}
         height={320}
         ariaLabel="Patrimônio da carteira e quanto teria se os mesmos aportes fossem para cada índice"
-        onSelect={(i) => {
-          const idx = a + i;
-          onMemo({
-            title: `Mesmos aportes em ${monthTag(view.months[idx])}`,
-            lines: [
-              `Carteira: ${money(view.months[idx].value)}`,
-              ...view.benchmarks.flatMap((bm) => bm.explanations[idx] ?? []),
-            ],
-          });
-        }}
       />
-      <p className="muted small">
-        Cada compra e venda da carteira entra ou sai do índice na mesma data e pelo mesmo valor. Clique num mês para ver a
-        conta.
-      </p>
+      <p className="muted small">Cada compra e venda da carteira entra ou sai do índice na mesma data e pelo mesmo valor.</p>
     </>
   );
 }
 
-function Contributions({ view, period, p }: { view: DashboardView; period: Period; p: Palette }) {
-  const { a, b } = useRange(view, period);
-  const rows = view.contributions
+function Contributions({ frame, p }: { frame: Frame; p: Palette }) {
+  const rows = frame.contributions
     .map((c) => {
-      const slice = c.profits.slice(a, b);
-      const any = slice.some((v) => v != null);
-      // Mês sem posição não tem resultado (null); mês com posição e sem cotação também é null.
-      return { asset: c.asset, value: any ? slice.reduce((s, v) => s + (v == null ? 0 : Number(v)), 0) : null };
+      const any = c.profits.some((v) => v != null);
+      // Período sem posição não tem resultado (null); com posição e sem cotação também é null.
+      return { asset: c.asset, value: any ? c.profits.reduce((s, v) => s + (v == null ? 0 : Number(v)), 0) : null };
     })
     .filter((r): r is { asset: string; value: number } => r.value != null && r.value !== 0)
     .sort((x, y) => y.value - x.value);
@@ -483,7 +462,9 @@ function Contributions({ view, period, p }: { view: DashboardView; period: Perio
   return (
     <>
       <Chart option={option} height={Math.max(160, rows.length * 32 + 40)} ariaLabel="Lucro de cada ativo no período" />
-      <p className="muted small">Lucro de cada ativo no período, somando os meses (exterior em reais, com o câmbio).</p>
+      <p className="muted small">
+        Lucro de cada ativo no período, somando os {frame.days ? "dias" : "meses"} (exterior em reais, com o câmbio).
+      </p>
     </>
   );
 }
@@ -555,13 +536,13 @@ function FragmentRows({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function Drawdown({ view, period, p, onMemo }: { view: DashboardView; period: Period; p: Palette; onMemo: (m: Memo) => void }) {
-  const { a, months, labels } = useRange(view, period);
+function Drawdown({ frame, p }: { frame: Frame; p: Palette }) {
   const dd = useMemo(() => {
     let level = 1;
     let peak = 1;
     let broken = false;
-    return months.map((m) => {
+    return frame.slots.map((m) => {
+      if (!m) return null;
       if (m.rate == null || broken) {
         broken = true;
         return null;
@@ -570,19 +551,20 @@ function Drawdown({ view, period, p, onMemo }: { view: DashboardView; period: Pe
       peak = Math.max(peak, level);
       return level / peak - 1;
     });
-  }, [months]);
+  }, [frame]);
   const worst = dd.reduce<number | null>((w, v) => (v == null ? w : w == null ? v : Math.min(w, v)), null);
   const option = useMemo<EChartsCoreOption>(
     () => ({
       ...base(p),
       tooltip: { ...(base(p).tooltip as object), trigger: "axis", valueFormatter: (v: number) => pct(v) },
-      xAxis: { type: "category", data: labels, ...axisStyle(p), splitLine: { show: false } },
+      xAxis: { type: "category", data: frame.labels, ...axisStyle(p), splitLine: { show: false } },
       yAxis: { type: "value", max: 0, ...axisStyle(p), axisLabel: { color: p.muted, formatter: (v: number) => pct(v) } },
       series: [
         {
+          ...line,
           name: "Queda desde o pico",
-          type: "line",
           data: dd,
+          showSymbol: !frame.days,
           symbolSize: 6,
           lineStyle: { width: 2, color: p.neg },
           itemStyle: { color: p.neg },
@@ -592,25 +574,11 @@ function Drawdown({ view, period, p, onMemo }: { view: DashboardView; period: Pe
       legend: { show: false },
       grid: { left: 8, right: 16, top: 16, bottom: 8, containLabel: true },
     }),
-    [dd, labels, p],
+    [dd, frame, p],
   );
   return (
     <>
-      <Chart
-        option={option}
-        height={220}
-        ariaLabel="Queda da rentabilidade acumulada em relação ao maior valor"
-        onSelect={(i) =>
-          onMemo({
-            title: `Queda desde o pico em ${labels[i]}`,
-            lines: [
-              "Acumulado = (1 + r₁)·(1 + r₂)·… no período escolhido; queda = acumulado ÷ maior acumulado anterior − 1",
-              `Queda em ${labels[i]} = ${pct(dd[i])}`,
-              ...view.months[a + i].explanation.slice(-1),
-            ],
-          })
-        }
-      />
+      <Chart option={option} height={220} ariaLabel="Queda da rentabilidade acumulada em relação ao maior valor" />
       <p className="muted small">Maior queda no período: {pct(worst)}.</p>
     </>
   );

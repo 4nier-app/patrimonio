@@ -430,10 +430,8 @@ impl Vault {
         Ok(op)
     }
 
-    pub fn remove_operation(&mut self, id: &str, reason: &str) -> Result<()> {
-        if reason.trim().is_empty() {
-            return Err(bad("informe o motivo da remoção"));
-        }
+    pub fn remove_operation(&mut self, id: &str, reason: Option<&str>) -> Result<()> {
+        let reason = reason.map(str::trim).filter(|r| !r.is_empty());
         let before = self
             .get_operation(id)?
             .ok_or_else(|| bad("lançamento não encontrado"))?;
@@ -447,7 +445,7 @@ impl Vault {
             Action::Removida,
             Some(&op_json(&before)),
             None,
-            Some(reason.trim()),
+            reason,
         )?;
         Ok(())
     }
@@ -839,8 +837,8 @@ mod tests {
             .unwrap();
         assert_eq!(v.list_operations().unwrap()[0].quantity, dec!(200));
 
-        assert!(v.remove_operation(&op.id, " ").is_err());
-        v.remove_operation(&op.id, "lançamento duplicado").unwrap();
+        v.remove_operation(&op.id, Some("lançamento duplicado"))
+            .unwrap();
         assert!(v.list_operations().unwrap().is_empty());
 
         let events = v.list_events(10, 0).unwrap();

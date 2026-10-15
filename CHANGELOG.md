@@ -36,7 +36,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ### Adicionado
 - Aba **Painel**, a primeira ao abrir:
   - Período dos gráficos: 12 meses, este ano, desde o início, um ano
-    escolhido ou meses escolhidos (de/até; o mesmo mês nos dois mostra só ele).
+    escolhido (sempre com os 12 meses, de janeiro a dezembro) ou meses
+    escolhidos (de/até). O mesmo mês nos dois mostra os dias úteis dele.
   - Cartões de rentabilidade (desde o início, 12 meses e último mês) com o CDI
     do mesmo período e a diferença em pontos percentuais.
   - Comparação com CDI, IPCA, Ibovespa, IVVB11 e dólar, num gráfico só com
@@ -50,12 +51,13 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Queda desde o pico.
   - Lucro realizado (vendas) e não realizado (no papel) por ativo.
   - Linha do tempo das posições: o tempo real de cada ativo na carteira.
-  - Clique em qualquer cartão, barra ou ponto para ver a memória de cálculo.
+  - Clique em qualquer cartão para ver a memória de cálculo.
 - CDI e IPCA do Banco Central (SGS) e Ibovespa e IVVB11 (Yahoo) baixados
   automaticamente desde a primeira operação.
 ### Alterado
 - Código do mercado fracionário da B3 (ABCD3F, como aparece nas notas) é
   gravado como o do lote padrão (ABCD3): mesmo ativo, cotação e preço médio.
+- O motivo da remoção de um lançamento passa a ser opcional.
 
 
 ## [0.4.0] - Não lançada
