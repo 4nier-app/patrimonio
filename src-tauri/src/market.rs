@@ -16,7 +16,7 @@ use std::sync::Mutex;
 
 use carteira_core::model::{Side, BRL};
 use carteira_core::operations::Operation;
-use carteira_providers::{cotahist, nasdaq, ptax, yahoo, ProviderError};
+use carteira_providers::{cotahist, nasdaq, ptax, sgs, yahoo, ProviderError};
 use carteira_storage::{Asset, NewFxRate, NewQuote, Vault};
 use chrono::{Datelike, Duration, NaiveDate};
 use rust_decimal::Decimal;
@@ -41,6 +41,63 @@ pub trait Fetcher {
     ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError>;
     fn us_catalog(&self) -> Result<Vec<nasdaq::Listing>, ProviderError>;
     fn ptax(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<ptax::Ptax>, ProviderError>;
+    fn sgs(
+        &self,
+        code: u32,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError>;
+}
+
+/// De onde vem cada índice de comparação.
+#[derive(Clone, Copy)]
+pub enum IndexOrigin {
+    Sgs(u32),
+    Yahoo(&'static str),
+}
+
+/// Índice de comparação: código no cofre, nome, tipo e origem.
+pub struct IndexDef {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub kind: carteira_core::benchmark::IndexKind,
+    pub origin: IndexOrigin,
+}
+
+pub const INDEXES: &[IndexDef] = &[
+    IndexDef {
+        id: "CDI",
+        name: "CDI",
+        kind: carteira_core::benchmark::IndexKind::DailyRate,
+        origin: IndexOrigin::Sgs(sgs::CDI),
+    },
+    IndexDef {
+        id: "IPCA",
+        name: "IPCA",
+        kind: carteira_core::benchmark::IndexKind::MonthlyRate,
+        origin: IndexOrigin::Sgs(sgs::IPCA),
+    },
+    IndexDef {
+        id: "IBOV",
+        name: "Ibovespa",
+        kind: carteira_core::benchmark::IndexKind::Level,
+        origin: IndexOrigin::Yahoo("^BVSP"),
+    },
+    IndexDef {
+        id: "IVVB11",
+        name: "IVVB11 (S&P 500 em reais)",
+        kind: carteira_core::benchmark::IndexKind::Level,
+        origin: IndexOrigin::Yahoo("IVVB11.SA"),
+    },
+];
+
+impl IndexOrigin {
+    pub fn source(&self) -> &'static str {
+        match self {
+            IndexOrigin::Sgs(_) => sgs::SOURCE,
+            IndexOrigin::Yahoo(_) => yahoo::SOURCE,
+        }
+    }
 }
 
 pub struct Internet;
@@ -68,6 +125,14 @@ impl Fetcher for Internet {
     }
     fn ptax(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<ptax::Ptax>, ProviderError> {
         ptax::fetch(from, to)
+    }
+    fn sgs(
+        &self,
+        code: u32,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError> {
+        sgs::fetch(code, from, to)
     }
 }
 
@@ -213,6 +278,7 @@ pub fn update_all(
     };
     let (catalog_age, catalog_info) = catalog_state(CATALOG_SOURCE, "B3")?;
     let ops = with(vault, |v| v.list_operations().map_err(|e| e.to_string()))?;
+    let ops_dates: Vec<NaiveDate> = ops.iter().map(|o| o.date).collect();
     let (b3_ops, us_ops): (Vec<Operation>, Vec<Operation>) =
         ops.into_iter().partition(|o| o.currency == BRL);
     let held = tickers_by_month(&b3_ops, today);
@@ -542,6 +608,11 @@ pub fn update_all(
         }
     }
 
+    // 5. Índices de comparação (CDI, IPCA, Ibovespa, IVVB11) desde a primeira operação.
+    if let Some(first) = ops_dates.iter().min().copied() {
+        report.push(update_indexes(vault, fetcher, first, today)?);
+    }
+
     // Sem ativos na carteira não há cotação a buscar; diz isso em vez de
     // simplesmente omitir as linhas.
     if plan.is_empty() && us_ops.is_empty() {
@@ -552,6 +623,65 @@ pub fn update_all(
         });
     }
     Ok(report)
+}
+
+/// Baixa o que falta de cada índice. Um índice que falha não impede os outros.
+fn update_indexes(
+    vault: Shared,
+    fetcher: &dyn Fetcher,
+    first: NaiveDate,
+    today: NaiveDate,
+) -> Result<UpdateLine, String> {
+    // Um mês antes da primeira operação: cobre a véspera e o IPCA do mês.
+    let wanted = (first - Duration::days(31)).with_day(1).unwrap_or(first);
+    let mut done = Vec::new();
+    let mut failed = Vec::new();
+    for def in INDEXES {
+        let range = with(vault, |v| v.index_range(def.id).map_err(|e| e.to_string()))?;
+        let start = match range {
+            Some((lo, hi)) if lo <= wanted + Duration::days(10) => hi + Duration::days(1),
+            _ => wanted,
+        };
+        if start > today {
+            done.push(format!("{} em dia", def.name));
+            continue;
+        }
+        let fetched = match def.origin {
+            IndexOrigin::Sgs(code) => fetcher.sgs(code, start, today),
+            IndexOrigin::Yahoo(symbol) => fetcher.yahoo(symbol, start, today),
+        };
+        match fetched {
+            Ok(values) => {
+                let last = values.last().map(|(d, _)| *d);
+                with(vault, |v| {
+                    v.save_index_values(def.id, def.origin.source(), &values)
+                        .map_err(|e| e.to_string())
+                })?;
+                done.push(match last {
+                    Some(d) => format!("{} até {}", def.name, d.format("%d/%m/%Y")),
+                    None => format!("{} em dia", def.name),
+                });
+            }
+            Err(e) => failed.push(format!("{}: {}", def.name, describe(&e))),
+        }
+    }
+    let ok = failed.is_empty();
+    let mut message = done.join("; ");
+    if !ok {
+        if !message.is_empty() {
+            message.push_str(". ");
+        }
+        message.push_str(&format!("Falhou: {}", failed.join("; ")));
+    }
+    with(vault, |v| {
+        v.record_quote_update("INDICES", None, ok, done.len() as i64, &message)
+            .map_err(|e| e.to_string())
+    })?;
+    Ok(UpdateLine {
+        source: "Índices de comparação".into(),
+        ok,
+        message,
+    })
 }
 
 #[cfg(test)]
@@ -635,6 +765,14 @@ mod tests {
                     etf: i == 0,
                 })
                 .collect())
+        }
+        fn sgs(
+            &self,
+            _code: u32,
+            _from: NaiveDate,
+            to: NaiveDate,
+        ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError> {
+            Ok(vec![(to, Decimal::ONE)])
         }
         fn ptax(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<ptax::Ptax>, ProviderError> {
             self.ptax_calls.borrow_mut().push((from, to));

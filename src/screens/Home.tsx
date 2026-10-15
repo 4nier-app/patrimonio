@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, errorMessage, market, type UpdateLine, type VaultStatus } from "../api";
 import Logo from "../components/Logo";
 import Audit from "./Audit";
+import Dashboard from "./Dashboard";
 import Operations from "./Operations";
 import Portfolio from "./Portfolio";
 import Returns from "./Returns";
@@ -9,6 +10,7 @@ import SystemHistory from "./SystemHistory";
 import Security from "./Security";
 
 const TABS = [
+  { id: "painel", label: "Painel" },
   { id: "carteira", label: "Carteira" },
   { id: "lancamentos", label: "Lançamentos" },
   { id: "rentabilidade", label: "Rentabilidade" },
@@ -22,7 +24,7 @@ type Tab = (typeof TABS)[number]["id"];
 type Props = { status: VaultStatus; onLocked: () => void; onChanged: () => void };
 
 export default function Home({ status, onLocked, onChanged }: Props) {
-  const [tab, setTab] = useState<Tab>("carteira");
+  const [tab, setTab] = useState<Tab>("painel");
   const [updating, setUpdating] = useState(false);
   const [report, setReport] = useState<UpdateLine[] | null>(null);
   // Muda a cada atualização de cotações para as telas recarregarem.
@@ -75,7 +77,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         </nav>
       </header>
 
-      {report && (
+      {report && report.length > 0 && (
         <div className="update-report" role="status">
           <ul>
             {report.map((l) => (
@@ -100,6 +102,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       )}
 
       <main className="content">
+        {tab === "painel" && <Dashboard refresh={refresh} />}
         {tab === "carteira" && <Portfolio refresh={refresh} />}
         {tab === "lancamentos" && <Operations />}
         {tab === "rentabilidade" && <Returns key={refresh} />}

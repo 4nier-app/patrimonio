@@ -197,3 +197,49 @@ export const market = {
   updateQuotes: () => invoke<UpdateLine[]>("update_quotes"),
   quoteUpdates: () => invoke<QuoteUpdate[]>("list_quote_updates"),
 };
+
+// ---------- painel (etapa 3) ----------
+
+export type DashMonth = {
+  year: number;
+  month: number;
+  period_start: string;
+  period_end: string;
+  value: Dec | null;
+  invested: Dec;
+  profit: Dec | null;
+  rate: Dec | null;
+  drawdown: Dec | null;
+  explanation: string[];
+};
+
+export type Card = { label: string; from: string; to: string; rate: Dec | null; cdi: Dec | null; explanation: string[] };
+
+export type Benchmark = {
+  id: string;
+  name: string;
+  kind: "DAILY_RATE" | "MONTHLY_RATE" | "LEVEL";
+  source: string;
+  rates: (Dec | null)[];
+  same_flows: (Dec | null)[];
+  explanations: string[][];
+};
+
+export type Slice = { label: string; value: Dec | null; assets: { asset: string; value: Dec | null }[] };
+export type AssetMonths = { asset: string; profits: (Dec | null)[] };
+export type Span = { asset: string; accounts: string[]; start: string; end: string | null };
+
+export type DashboardView = {
+  as_of: string;
+  months: DashMonth[];
+  cards: Card[];
+  benchmarks: Benchmark[];
+  allocation: Slice[];
+  contributions: AssetMonths[];
+  positions: Position[];
+  timeline: Span[];
+};
+
+export const dashboardApi = {
+  load: () => invoke<DashboardView>("dashboard"),
+};

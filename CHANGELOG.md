@@ -6,6 +6,28 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.5.0] - Não lançada
+
+### Adicionado
+- Aba **Painel**, a primeira ao abrir, com filtro de período (12 meses, este
+  ano, desde o início):
+  - Cartões de rentabilidade (desde o início, 12 meses e último mês) com o CDI
+    do mesmo período e a diferença em pontos percentuais.
+  - Rentabilidade acumulada comparada com CDI, IPCA, Ibovespa, IVVB11 e dólar,
+    medidos nos mesmos dias em que havia dinheiro na carteira.
+  - Evolução do patrimônio: valor aplicado e ganho de capital por mês.
+  - Lucro ou prejuízo em reais por mês ou por ano.
+  - Mesmos aportes nos índices: quanto você teria se cada compra e venda
+    tivesse ido para o CDI, IPCA, Ibovespa, IVVB11 ou dólar, nas mesmas datas.
+  - O que puxou o resultado: lucro de cada ativo no período.
+  - Ativos na carteira por tipo (rosca e lista que abre os ativos).
+  - Queda desde o pico.
+  - Lucro realizado (vendas) e não realizado (no papel) por ativo.
+  - Linha do tempo das posições: o tempo real de cada ativo na carteira.
+  - Clique em qualquer cartão, barra ou ponto para ver a memória de cálculo.
+- CDI e IPCA do Banco Central (SGS) e Ibovespa e IVVB11 (Yahoo) baixados
+  automaticamente desde a primeira operação.
+
 ## [0.4.0] - Não lançada
 
 ### Adicionado

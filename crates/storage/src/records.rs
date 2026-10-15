@@ -181,6 +181,28 @@ impl Vault {
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 
+    /// Um ativo do catálogo pelo código exato.
+    pub fn get_asset(&self, ticker: &str) -> Result<Option<Asset>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT ticker, name, kind, market, currency, isin, source FROM assets WHERE ticker = ?1",
+                [normalize_ticker(ticker)],
+                |r| {
+                    Ok(Asset {
+                        ticker: r.get(0)?,
+                        name: r.get(1)?,
+                        kind: r.get(2)?,
+                        market: r.get(3)?,
+                        currency: r.get(4)?,
+                        isin: r.get(5)?,
+                        source: r.get(6)?,
+                    })
+                },
+            )
+            .optional()?)
+    }
+
     pub fn asset_count(&self) -> Result<i64> {
         Ok(self
             .conn
@@ -499,6 +521,68 @@ impl Vault {
         Ok(table)
     }
 
+    // ---------- índices de comparação ----------
+
+    pub fn save_index_values(
+        &mut self,
+        series: &str,
+        source: &str,
+        values: &[(NaiveDate, Decimal)],
+    ) -> Result<usize> {
+        let now = now_iso();
+        let tx = self.conn.transaction()?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO index_values (series, value_date, value, source, fetched_at) VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT (series, value_date) DO UPDATE SET value = excluded.value, source = excluded.source,
+                   fetched_at = excluded.fetched_at",
+            )?;
+            for (d, v) in values {
+                stmt.execute(params![series, d.to_string(), v.to_string(), source, now])?;
+            }
+        }
+        tx.commit()?;
+        Ok(values.len())
+    }
+
+    /// Primeira e última data gravadas de um índice.
+    pub fn index_range(&self, series: &str) -> Result<Option<(NaiveDate, NaiveDate)>> {
+        let (a, b): (Option<String>, Option<String>) = self.conn.query_row(
+            "SELECT min(value_date), max(value_date) FROM index_values WHERE series = ?1",
+            [series],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        match (a, b) {
+            (Some(a), Some(b)) => Ok(Some((date(a, 0)?, date(b, 1)?))),
+            _ => Ok(None),
+        }
+    }
+
+    /// Valores de um índice por data, e a fonte do mais recente.
+    pub fn index_points(
+        &self,
+        series: &str,
+    ) -> Result<(BTreeMap<NaiveDate, Decimal>, Option<String>)> {
+        let mut stmt = self.conn.prepare(
+            "SELECT value_date, value, source FROM index_values WHERE series = ?1 ORDER BY value_date",
+        )?;
+        let mut points = BTreeMap::new();
+        let mut source = None;
+        let rows = stmt.query_map([series], |r| {
+            Ok((
+                date(r.get(0)?, 0)?,
+                dec(r.get(1)?, 1)?,
+                r.get::<_, String>(2)?,
+            ))
+        })?;
+        for row in rows {
+            let (d, v, src) = row?;
+            points.insert(d, v);
+            source = Some(src);
+        }
+        Ok((points, source))
+    }
+
     // ---------- câmbio ----------
 
     pub fn save_fx_rates(&mut self, rates: &[NewFxRate]) -> Result<usize> {
@@ -625,6 +709,11 @@ pub struct FxTable {
 impl FxTable {
     pub fn is_empty(&self) -> bool {
         self.rates.is_empty()
+    }
+
+    /// PTAX venda por data, para usar o dólar como índice de comparação.
+    pub fn points(&self) -> BTreeMap<NaiveDate, Decimal> {
+        self.rates.iter().map(|(d, r)| (*d, r.rate)).collect()
     }
 }
 

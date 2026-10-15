@@ -349,6 +349,11 @@ fn returns_report(state: State<AppState>) -> Result<views::ReturnsView, String> 
 }
 
 #[tauri::command]
+fn dashboard(state: State<AppState>) -> Result<views::DashboardView, String> {
+    with_vault_str(&state, |v| views::dashboard(v, today()))
+}
+
+#[tauri::command]
 fn list_quote_updates(state: State<AppState>) -> Result<Vec<QuoteUpdate>, String> {
     with_vault(&state, |v| v.list_quote_updates(30))
 }
@@ -411,6 +416,7 @@ pub fn run() {
             remove_operation,
             portfolio,
             returns_report,
+            dashboard,
             list_quote_updates,
             update_quotes,
             reset_password,
