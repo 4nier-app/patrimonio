@@ -23,7 +23,7 @@ import {
   quantity,
   toCashMask,
 } from "../format";
-import { currencyOfNewAccount } from "../currency";
+import { currencyOfNewAccount, normalizeTicker } from "../currency";
 
 type Form = {
   id: string;
@@ -371,6 +371,7 @@ export default function Operations() {
               list="ativos"
               value={form.asset}
               onChange={(e) => set("asset", e.target.value.toUpperCase())}
+              onBlur={(e) => set("asset", normalizeTicker(e.target.value))}
               placeholder={currency === "USD" ? "Ex.: VOO" : "Ex.: ABCD3"}
               required
             />

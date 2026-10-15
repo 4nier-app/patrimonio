@@ -9,8 +9,7 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [0.5.0] - Não lançada
 
 ### Adicionado
-- Aba **Painel**, a primeira ao abrir, com filtro de período (12 meses, este
-  ano, desde o início):
+- Aba **Painel**, a primeira ao abrir:
   - Período dos gráficos: 12 meses, este ano, desde o início, um ano
     escolhido ou meses escolhidos (de/até; o mesmo mês nos dois mostra só ele).
   - Cartões de rentabilidade (desde o início, 12 meses e último mês) com o CDI
@@ -29,6 +28,10 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Clique em qualquer cartão, barra ou ponto para ver a memória de cálculo.
 - CDI e IPCA do Banco Central (SGS) e Ibovespa e IVVB11 (Yahoo) baixados
   automaticamente desde a primeira operação.
+### Alterado
+- Código do mercado fracionário da B3 (ABCD3F, como aparece nas notas) é
+  gravado como o do lote padrão (ABCD3): mesmo ativo, cotação e preço médio.
+
 
 ## [0.4.0] - Não lançada
 

@@ -91,9 +91,23 @@ fn new_id() -> Result<String> {
     Ok(format!("op-{}", hex::encode(bytes)))
 }
 
-/// Normaliza o código digitado: maiúsculas, sem espaços.
+/// Normaliza o código digitado: maiúsculas, sem espaços. O código do mercado
+/// fracionário da B3 ("ABCD3F") vira o do lote padrão ("ABCD3"): é o mesmo
+/// ativo, com a mesma cotação e o mesmo preço médio.
 pub fn normalize_ticker(t: &str) -> String {
-    t.trim().to_uppercase()
+    let t = t.trim().to_uppercase();
+    match t.strip_suffix('F') {
+        Some(base) if is_b3_code(base) => base.to_string(),
+        _ => t,
+    }
+}
+
+/// Quatro letras e um ou dois números, como ABCD3 ou ABCD11.
+fn is_b3_code(t: &str) -> bool {
+    let b = t.as_bytes();
+    (b.len() == 5 || b.len() == 6)
+        && b[..4].iter().all(u8::is_ascii_alphabetic)
+        && b[4..].iter().all(u8::is_ascii_digit)
 }
 
 const SELECT_OP: &str = "SELECT o.id, o.account, o.ticker, o.trade_date, o.side, o.quantity, o.price, o.manual_fees, o.note,
@@ -769,6 +783,17 @@ impl PriceSource for PriceTable {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn fracionario_vira_lote_padrao() {
+        assert_eq!(normalize_ticker(" klbn4f "), "KLBN4");
+        assert_eq!(normalize_ticker("ABCD11F"), "ABCD11");
+        assert_eq!(normalize_ticker("ABCD3"), "ABCD3");
+        // Códigos dos EUA terminados em F ficam como estão.
+        assert_eq!(normalize_ticker("SCHF"), "SCHF");
+        assert_eq!(normalize_ticker("F"), "F");
+    }
+
     use super::*;
     use crate::KdfParams;
     use rust_decimal_macros::dec;
