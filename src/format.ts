@@ -77,10 +77,12 @@ export function monthLabel(month: number): string {
  * Número digitado no padrão brasileiro para texto decimal exato.
  * "1.234,56" → "1234.56"; "12,5" → "12.5"; "12.5" → "12.5". Inválido → null.
  */
-export function parseDecimalInput(raw: string): string | null {
+export function parseDecimalInput(raw: string, dotIsDecimal = false): string | null {
   let s = raw.trim().replace(/\s/g, "").replace(/^(R|US)\$/, "");
   if (!s) return null;
   if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  // Conta no exterior: as notas usam ponto decimal ("1.234" = um vírgula dois três quatro).
+  else if (dotIsDecimal && s.indexOf(".") === s.lastIndexOf(".")) return /^\d+(\.\d+)?$/.test(s) ? s : null;
   else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
   return /^\d+(\.\d+)?$/.test(s) ? s : null;
 }
@@ -90,11 +92,18 @@ export function parseDecimalInput(raw: string): string | null {
  * "1500" → "1.500" (quantidade). Trabalha só com texto, sem arredondar.
  * Texto inválido volta como foi digitado, para o usuário corrigir.
  */
-export function maskDecimal(raw: string, kind: "money" | "quantity", currency: Currency = "BRL"): string {
-  const dec = parseDecimalInput(raw);
+export function maskDecimal(
+  raw: string,
+  kind: "money" | "quantity",
+  currency: Currency = "BRL",
+  dotIsDecimal = false,
+): string {
+  const dec = parseDecimalInput(raw, dotIsDecimal);
   if (dec == null) return raw;
   const [intPart, frac = ""] = dec.split(".");
-  const grouped = intPart.replace(/^0+(?=\d)/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const trimmed = intPart.replace(/^0+(?=\d)/, "") || "0";
+  // Sem milhar quando o ponto é decimal, para "1.234" não mudar de sentido.
+  const grouped = dotIsDecimal ? trimmed : trimmed.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   if (kind === "money") return `${SYMBOL[currency]} ${grouped},${frac.padEnd(2, "0")}`;
   return frac ? `${grouped},${frac}` : grouped;
 }
@@ -133,19 +142,23 @@ export function toCashMask(dec: string, decimals: number, currency: Currency = "
 }
 
 /**
- * Máscara para preço em dólar: números e vírgula, com até `maxDecimals` casas.
- * "9584058663" → "US$ 9.584.058.663"; "95,84058663" → "US$ 95,84058663".
- * Um ponto digitado no fim vira vírgula (teclado numérico).
+ * Máscara para preço em dólar: números e separador decimal, com até
+ * `maxDecimals` casas, sem separador de milhar (as notas do exterior usam
+ * ponto decimal). Ponto ou vírgula valem como decimal: "534.7361" e
+ * "534,7361" → "US$ 534,7361". Com os dois ("1,234.56" ou "1.234,56"), o
+ * último é o decimal; um mesmo sinal repetido ("1.234.567") é de milhar.
  */
 export function decimalMask(raw: string, maxDecimals: number, currency: Currency = "USD"): string {
-  let s = raw.replace(/^(R|US)\$\s?/, "");
-  if (s.endsWith(".") && !s.includes(",")) s = s.slice(0, -1) + ",";
-  s = s.replace(/[^\d,]/g, "");
+  const s = raw.replace(/^(R|US)\$\s?/, "").replace(/[^\d,.]/g, "");
   if (!s) return "";
-  const comma = s.indexOf(",");
-  const intDigits = (comma >= 0 ? s.slice(0, comma) : s).replace(/^0+(?=\d)/, "") || "0";
-  const grouped = intDigits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  if (comma < 0) return `${SYMBOL[currency]} ${grouped}`;
-  const frac = s.slice(comma + 1).replace(/,/g, "").slice(0, maxDecimals);
-  return `${SYMBOL[currency]} ${grouped},${frac}`;
+  const last = Math.max(s.lastIndexOf(","), s.lastIndexOf("."));
+  const sep = last >= 0 ? s[last] : "";
+  const both = s.includes(",") && s.includes(".");
+  const repeated = sep !== "" && s.indexOf(sep) !== last;
+  const decimal = sep !== "" && (both || !repeated) ? last : -1;
+  const intPart = (decimal >= 0 ? s.slice(0, decimal) : s).replace(/[,.]/g, "");
+  const intDigits = intPart.replace(/^0+(?=\d)/, "") || "0";
+  if (decimal < 0) return `${SYMBOL[currency]} ${intDigits}`;
+  const frac = s.slice(decimal + 1).replace(/[,.]/g, "").slice(0, maxDecimals);
+  return `${SYMBOL[currency]} ${intDigits},${frac}`;
 }
