@@ -176,7 +176,7 @@ mod tests {
         assert!(v.import_note(note.clone()).unwrap_err().to_string().contains("já foi importada"));
         assert!(v.verify_integrity().unwrap().ok);
         for o in &created {
-            v.remove_operation(&o.id, "teste").unwrap();
+            v.remove_operation(&o.id, Some("teste")).unwrap();
         }
         assert!(!v.note_status("abc").unwrap().imported);
         assert_eq!(v.import_note(note).unwrap().len(), 2);
