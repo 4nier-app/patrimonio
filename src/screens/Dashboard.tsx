@@ -15,6 +15,7 @@ export default function Dashboard({ refresh }: { refresh: number }) {
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>("inicio");
   const [byYear, setByYear] = useState(false);
+  const [inMoney, setInMoney] = useState(false);
   const [memo, setMemo] = useState<Memo | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const p = usePalette();
@@ -57,8 +58,30 @@ export default function Dashboard({ refresh }: { refresh: number }) {
       <Cards view={view} onMemo={setMemo} />
 
       <div className="dash-grid">
-        <Block title="Rentabilidade comparada com índices" wide>
-          <Comparison view={view} period={period} p={p} onMemo={setMemo} />
+        <Block
+          title="Comparação com índices"
+          wide
+          extra={
+            <div className="segmented small" role="group" aria-label="Mostrar em">
+              <button className={!inMoney ? "seg active" : "seg"} onClick={() => setInMoney(false)}>
+                %
+              </button>
+              <button className={inMoney ? "seg active" : "seg"} onClick={() => setInMoney(true)}>
+                R$
+              </button>
+            </div>
+          }
+        >
+          <p className="muted small">
+            {inMoney
+              ? "Quanto você teria se cada aporte tivesse ido para o índice, na mesma data e no mesmo valor."
+              : "Quanto cada real rendeu, sem depender de quando ou quanto você aportou."}
+          </p>
+          {inMoney ? (
+            <SameFlows view={view} period={period} p={p} onMemo={setMemo} />
+          ) : (
+            <Comparison view={view} period={period} p={p} onMemo={setMemo} />
+          )}
         </Block>
         <Block title="Evolução do patrimônio">
           <Patrimony view={view} period={period} p={p} onMemo={setMemo} />
@@ -77,9 +100,6 @@ export default function Dashboard({ refresh }: { refresh: number }) {
           }
         >
           <Profit view={view} period={period} byYear={byYear} p={p} onMemo={setMemo} />
-        </Block>
-        <Block title="Mesmos aportes nos índices" wide>
-          <SameFlows view={view} period={period} p={p} onMemo={setMemo} />
         </Block>
         <Block title="O que puxou o resultado">
           <Contributions view={view} period={period} p={p} />
@@ -356,8 +376,8 @@ function SameFlows({ view, period, p, onMemo }: { view: DashboardView; period: P
         }}
       />
       <p className="muted small">
-        Cada compra e venda da carteira entra ou sai do índice na mesma data e pelo mesmo valor. Mostra quanto você teria
-        se tivesse feito os mesmos aportes no CDI, no Ibovespa ou no dólar.
+        Cada compra e venda da carteira entra ou sai do índice na mesma data e pelo mesmo valor. Clique num mês para ver a
+        conta.
       </p>
     </>
   );

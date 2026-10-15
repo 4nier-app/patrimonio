@@ -13,12 +13,12 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   ano, desde o início):
   - Cartões de rentabilidade (desde o início, 12 meses e último mês) com o CDI
     do mesmo período e a diferença em pontos percentuais.
-  - Rentabilidade acumulada comparada com CDI, IPCA, Ibovespa, IVVB11 e dólar,
-    medidos nos mesmos dias em que havia dinheiro na carteira.
+  - Comparação com CDI, IPCA, Ibovespa, IVVB11 e dólar, num gráfico só com
+    botão "%" / "R$". Em %: rentabilidade acumulada, medida nos mesmos dias em
+    que havia dinheiro na carteira. Em R$: quanto você teria se cada compra e
+    venda tivesse ido para o índice, nas mesmas datas.
   - Evolução do patrimônio: valor aplicado e ganho de capital por mês.
   - Lucro ou prejuízo em reais por mês ou por ano.
-  - Mesmos aportes nos índices: quanto você teria se cada compra e venda
-    tivesse ido para o CDI, IPCA, Ibovespa, IVVB11 ou dólar, nas mesmas datas.
   - O que puxou o resultado: lucro de cada ativo no período.
   - Ativos na carteira por tipo (rosca e lista que abre os ativos).
   - Queda desde o pico.
