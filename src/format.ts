@@ -104,9 +104,9 @@ export function keepNumberChars(raw: string): string {
   return raw.replace(/[^\d.,RUS$\s]/g, "");
 }
 
-/** Casas decimais do preço digitado: reais com 2, dólar com 4 (notas da Nomad). */
+/** Casas decimais do preço: reais com 2 (máscara de caixa); dólar até 8 (preço médio nas notas da Nomad). */
 export function priceDecimals(currency: Currency): number {
-  return currency === "USD" ? 4 : 2;
+  return currency === "USD" ? 8 : 2;
 }
 
 /**
@@ -130,4 +130,22 @@ export function toCashMask(dec: string, decimals: number, currency: Currency = "
   const [intPart, frac = ""] = dec.split(".");
   const d = Math.max(decimals, frac.replace(/0+$/, "").length);
   return { text: cashMask(intPart + frac.padEnd(d, "0").slice(0, d), d, currency), decimals: d };
+}
+
+/**
+ * Máscara para preço em dólar: números e vírgula, com até `maxDecimals` casas.
+ * "9584058663" → "US$ 9.584.058.663"; "95,84058663" → "US$ 95,84058663".
+ * Um ponto digitado no fim vira vírgula (teclado numérico).
+ */
+export function decimalMask(raw: string, maxDecimals: number, currency: Currency = "USD"): string {
+  let s = raw.replace(/^(R|US)\$\s?/, "");
+  if (s.endsWith(".") && !s.includes(",")) s = s.slice(0, -1) + ",";
+  s = s.replace(/[^\d,]/g, "");
+  if (!s) return "";
+  const comma = s.indexOf(",");
+  const intDigits = (comma >= 0 ? s.slice(0, comma) : s).replace(/^0+(?=\d)/, "") || "0";
+  const grouped = intDigits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  if (comma < 0) return `${SYMBOL[currency]} ${grouped}`;
+  const frac = s.slice(comma + 1).replace(/,/g, "").slice(0, maxDecimals);
+  return `${SYMBOL[currency]} ${grouped},${frac}`;
 }

@@ -13,6 +13,7 @@ import {
 import {
   cashMask,
   date,
+  decimalMask,
   keepNumberChars,
   maskDecimal,
   money,
@@ -121,6 +122,20 @@ function CashInput({
   );
 }
 
+/**
+ * Preço digitado: em reais, máscara de caixa (só números, 2 casas); em dólar,
+ * números e vírgula com até 8 casas, como o preço médio das notas da Nomad.
+ */
+function maskPrice(raw: string, currency: Currency, decimals: number): string {
+  return currency === "USD" ? decimalMask(raw, priceDecimals("USD"), "USD") : cashMask(raw, decimals, currency);
+}
+
+/** Valor exato ("95.84") no formato do campo de preço. */
+function priceText(dec: string, currency: Currency): { text: string; decimals: number } {
+  if (currency === "USD") return { text: decimalMask(dec.replace(".", ","), priceDecimals("USD"), "USD"), decimals: 8 };
+  return toCashMask(dec, priceDecimals(currency), currency);
+}
+
 /** Converte o formulário; devolve a mensagem do primeiro campo inválido. */
 function toOperation(f: Form, currency: Currency): Operation | string {
   const transfer = f.side === "TRANSFERENCIA";
@@ -202,11 +217,15 @@ export default function Operations() {
       const decimals = priceDecimals(currency);
       if (f.priceDecimals === decimals && !f.price.startsWith(currency === "USD" ? "R$" : "US$")) return f;
       // Mantém o valor digitado, só troca o símbolo e as casas.
-      const remask = (v: string, d: number) => {
-        const dec = parseDecimalInput(v);
-        return dec == null ? "" : toCashMask(dec, d, currency).text;
+      const dec = (v: string) => parseDecimalInput(v);
+      const price = dec(f.price);
+      const fees = dec(f.fees);
+      return {
+        ...f,
+        priceDecimals: decimals,
+        price: price == null ? "" : priceText(price, currency).text,
+        fees: fees == null ? "" : toCashMask(fees, 2, currency).text,
       };
-      return { ...f, priceDecimals: decimals, price: remask(f.price, decimals), fees: remask(f.fees, 2) };
     });
   }, [currency]);
 
@@ -251,7 +270,7 @@ export default function Operations() {
   function edit(p: PricedOperation) {
     const o = p.operation;
     const cur = o.currency;
-    const pr = o.side === "TRANSFERENCIA" ? { text: "", decimals: priceDecimals(cur) } : toCashMask(o.price, priceDecimals(cur), cur);
+    const pr = o.side === "TRANSFERENCIA" ? { text: "", decimals: priceDecimals(cur) } : priceText(o.price, cur);
     setForm({
       id: o.id,
       account: o.account,
@@ -393,13 +412,14 @@ export default function Operations() {
           ) : (
             <label>
               Preço unitário
-              <CashInput
+              <input
+                inputMode={currency === "USD" ? "decimal" : "numeric"}
                 value={form.price}
-                decimals={form.priceDecimals}
-                currency={currency}
-                onChange={(v) => set("price", v)}
+                placeholder={currency === "USD" ? "US$ 0,00" : "R$ 0,00"}
                 required
+                onChange={(e) => set("price", maskPrice(e.target.value, currency, form.priceDecimals))}
               />
+              {currency === "USD" && <span className="muted small">Use vírgula para os centavos; até 8 casas.</span>}
             </label>
           )}
         </div>

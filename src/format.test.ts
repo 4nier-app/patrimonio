@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cashMask, date, maskDecimal, money, parseDecimalInput, passwordStrength, percent, shortHash, toCashMask } from "./format";
+import { cashMask, date, decimalMask, maskDecimal, money, parseDecimalInput, passwordStrength, percent, shortHash, toCashMask } from "./format";
 
 describe("shortHash", () => {
   it("encurta hashes longos", () => {
@@ -88,5 +88,17 @@ describe("money", () => {
   it("formata reais e dólares", () => {
     expect(money("1234.5")).toBe("R$ 1.234,50");
     expect(money("1234.5", "USD")).toBe("US$ 1.234,50");
+  });
+});
+
+describe("decimalMask", () => {
+  it("aceita vírgula e até 8 casas", () => {
+    expect(decimalMask("95,84058663", 8)).toBe("US$ 95,84058663");
+    expect(decimalMask("95,840586631", 8)).toBe("US$ 95,84058663");
+    expect(decimalMask("1234", 8)).toBe("US$ 1.234");
+    expect(decimalMask("US$ 1.234,5", 8)).toBe("US$ 1.234,5");
+    expect(decimalMask("US$ 1.234.", 8)).toBe("US$ 1.234,");
+    expect(decimalMask("abc", 8)).toBe("");
+    expect(parseDecimalInput(decimalMask("1234,56789", 8))).toBe("1234.56789");
   });
 });
