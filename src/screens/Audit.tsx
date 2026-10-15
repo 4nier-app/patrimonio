@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useState } from "react";
-import { api, errorMessage, type IntegrityReport, type LedgerEvent } from "../api";
+import { api, errorMessage, type IntegrityReport, type LedgerEvent, type VaultStatus } from "../api";
 import { formatDateTime, shortHash } from "../format";
+import SystemHistory from "./SystemHistory";
 
-export default function Audit() {
+export default function Audit({ status }: { status: VaultStatus }) {
   const [events, setEvents] = useState<LedgerEvent[]>([]);
   const [report, setReport] = useState<IntegrityReport | null>(null);
   const [open, setOpen] = useState<number | null>(null);
@@ -81,6 +82,7 @@ export default function Audit() {
           ))}
         </tbody>
       </table>
+      <SystemHistory status={status} />
     </section>
   );
 }

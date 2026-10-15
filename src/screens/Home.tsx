@@ -6,7 +6,6 @@ import Dashboard from "./Dashboard";
 import Operations from "./Operations";
 import Portfolio from "./Portfolio";
 import Returns from "./Returns";
-import SystemHistory from "./SystemHistory";
 import Security from "./Security";
 
 const TABS = [
@@ -15,7 +14,6 @@ const TABS = [
   { id: "lancamentos", label: "Lançamentos" },
   { id: "rentabilidade", label: "Rentabilidade" },
   { id: "auditoria", label: "Auditoria" },
-  { id: "sistema", label: "Histórico do sistema" },
   { id: "seguranca", label: "Segurança" },
 ] as const;
 
@@ -106,8 +104,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         {tab === "carteira" && <Portfolio refresh={refresh} />}
         {tab === "lancamentos" && <Operations />}
         {tab === "rentabilidade" && <Returns key={refresh} />}
-        {tab === "auditoria" && <Audit />}
-        {tab === "sistema" && <SystemHistory status={status} />}
+        {tab === "auditoria" && <Audit status={status} />}
         {tab === "seguranca" && (
           <Security
             status={status}

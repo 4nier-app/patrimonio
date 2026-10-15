@@ -49,6 +49,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   chave de recuperação. Cofres da versão 0.3.0 são convertidos na primeira
   abertura, sem recriptografar os dados.
 - Trocar a senha não invalida a chave de recuperação.
+- Preço em dólar aceita ponto ou vírgula como decimal, como nas notas do
+  exterior (534.7361 vira US$ 534,7361), sem separador de milhar. Na conta em
+  dólar, a quantidade também usa o ponto como decimal (1.234 = 1,234).
+- O histórico de versões do aplicativo saiu da barra de abas e virou a seção
+  "Versões do aplicativo", no fim da aba Auditoria.
 - Relatório de atualização: os catálogos aparecem como "lista de ativos", com
   a data em que foram baixados e a data da próxima atualização (a cada 7 dias).
   Os preços do dia continuam sendo buscados a cada abertura.

@@ -248,3 +248,4 @@ tr.total-row td { background: var(--bg); }
   .tl-bar { background: #3987e5; }
   .tl-bar.closed { background: #1c5cab; }
 }
+.versions { margin-top: 32px; }
