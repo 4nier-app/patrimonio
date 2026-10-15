@@ -200,3 +200,4 @@ tr.total-row td { background: var(--bg); }
 .summary dt { color: var(--muted); }
 .summary dd { margin: 0; }
 .banner { margin: 12px 24px 0; border-radius: 8px; }
+.versions { margin-top: 32px; }
