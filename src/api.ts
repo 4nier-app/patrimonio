@@ -48,7 +48,9 @@ export function errorMessage(e: unknown): string {
 
 /** Decimais chegam e vão como texto exato ("1234.56"). */
 export type Dec = string;
-export type Side = "COMPRA" | "VENDA";
+export type Side = "COMPRA" | "VENDA" | "TRANSFERENCIA";
+export type Currency = "BRL" | "USD";
+export type Account = { name: string; currency: Currency };
 
 export type Asset = { ticker: string; name: string; kind: string; market: string; currency: string; isin: string | null; source: string };
 
@@ -62,6 +64,12 @@ export type Operation = {
   price: Dec;
   manual_fees: Dec | null;
   note: string | null;
+  /** Moeda da conta. Para conta existente, o núcleo usa a moeda dela. */
+  currency: Currency;
+  /** Transferência de custódia: conta de origem. */
+  from_account: string | null;
+  /** Transferência de custódia: quantidade que ficou na origem e sai da carteira. */
+  residue: Dec | null;
 };
 
 export type PricedOperation = { operation: Operation; gross: Dec; fees: Dec; fee_origin: string };
@@ -72,8 +80,11 @@ export type Preview = { valid: string | null; gross: Dec; fees: Dec; fee_origin:
 
 export type Quote = { id: number; asset: string; date: string; close: Dec; source: string };
 
+export type FxRate = { date: string; rate: Dec; source: string };
+
 export type Position = {
   asset: string;
+  currency: Currency;
   quantity: Dec;
   cost: Dec;
   average_price: Dec;
@@ -82,15 +93,23 @@ export type Position = {
   unrealized: Dec | null;
   realized: Dec;
   oversold: boolean;
+  transfer_residue: Dec;
+  cost_brl: Dec | null;
+  market_value_brl: Dec | null;
+  unrealized_brl: Dec | null;
+  realized_brl: Dec | null;
+  fx: FxRate | null;
 };
 
 export type PortfolioView = {
   as_of: string;
   positions: Position[];
-  cost: Dec;
+  /** Totais em reais (exterior convertido pela PTAX); vazios se faltar PTAX. */
+  cost: Dec | null;
   market_value: Dec | null;
   unrealized: Dec | null;
-  realized: Dec;
+  realized: Dec | null;
+  fx: FxRate | null;
   last_update: string | null;
 };
 
@@ -106,13 +125,27 @@ export type MonthResult = {
   profit: Dec | null;
   average_capital: Dec | null;
   rate: Dec | null;
+  currency: Currency;
   formula_id: string;
   formula_version: number;
   explanation: string[];
 };
 
 export type YearResult = { year: number; profit: Dec | null; rate: Dec | null; months: number; explanation: string };
-export type ScopeReturns = { asset: string | null; months: MonthResult[]; years: YearResult[] };
+export type NativeReturns = {
+  months: MonthResult[];
+  years: YearResult[];
+  /** Efeito do câmbio, alinhado com os meses e anos em reais. */
+  fx_months: (Dec | null)[];
+  fx_years: (Dec | null)[];
+};
+export type ScopeReturns = {
+  asset: string | null;
+  currency: Currency;
+  months: MonthResult[];
+  years: YearResult[];
+  native: NativeReturns | null;
+};
 export type ReturnsView = { as_of: string; portfolio: ScopeReturns; assets: ScopeReturns[] };
 
 export type UpdateLine = { source: string; ok: boolean; message: string };
@@ -120,7 +153,7 @@ export type QuoteUpdate = { started_at: string; source: string; ok: boolean; ite
 
 export const market = {
   searchAssets: (query: string) => invoke<Asset[]>("search_assets", { query }),
-  listAccounts: () => invoke<string[]>("list_accounts"),
+  listAccounts: () => invoke<Account[]>("list_accounts"),
   listOperations: () => invoke<PricedOperation[]>("list_operations"),
   preview: (operation: Operation) => invoke<Preview>("preview_operation", { operation }),
   create: (operation: Operation) => invoke<Operation>("create_operation", { operation }),

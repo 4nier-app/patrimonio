@@ -2,8 +2,13 @@ import { useEffect, useState } from "react";
 import { errorMessage, market, type PortfolioView } from "../api";
 import { averagePrice, date, formatDateTime, money, percent, price, quantity, tone } from "../format";
 
-function ratio(a: string | null, b: string): string | null {
-  if (a == null || Number(b) === 0) return null;
+/** Valor em reais embaixo do valor em dólar. */
+function Brl({ v }: { v: string | null }) {
+  return <div className="muted small">{v == null ? "R$ —" : money(v)}</div>;
+}
+
+function ratio(a: string | null, b: string | null): string | null {
+  if (a == null || b == null || Number(b) === 0) return null;
   return String(Number(a) / Number(b));
 }
 
@@ -27,6 +32,13 @@ export default function Portfolio({ refresh }: { refresh: number }) {
             Posição de hoje pelo preço médio (compras somam valor e taxas). Cotações ficam guardadas no cofre: sem
             internet, o app usa a última que tiver.
             {view?.last_update && <> Última atualização: {formatDateTime(view.last_update)}.</>}
+            {view?.fx && (
+              <>
+                {" "}
+                Ativos no exterior: custo pela PTAX de cada compra e valor atual pela PTAX de {date(view.fx.date)} (
+                {price(view.fx.rate)} por dólar).
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -36,13 +48,15 @@ export default function Portfolio({ refresh }: { refresh: number }) {
       {view && (
         <div className="cards">
           <div className="card stat">
-            <span className="muted">Custo da posição</span>
+            <span className="muted">Custo da posição (R$)</span>
             <strong>{money(view.cost)}</strong>
           </div>
           <div className="card stat">
             <span className="muted">Valor de mercado</span>
             <strong>{money(view.market_value)}</strong>
-            {view.market_value == null && open.length > 0 && <span className="muted small">falta cotação de algum ativo</span>}
+            {view.market_value == null && open.length > 0 && (
+              <span className="muted small">falta cotação ou PTAX de algum ativo; use ↻ Atualizar cotações</span>
+            )}
           </div>
           <div className="card stat">
             <span className="muted">Resultado em aberto</span>
@@ -83,12 +97,15 @@ export default function Portfolio({ refresh }: { refresh: number }) {
                     {p.oversold && <div className="error small">Venda maior que a posição: confira os lançamentos.</div>}
                   </td>
                   <td className="num">{quantity(p.quantity)}</td>
-                  <td className="num" title={`Valor exato: ${p.average_price}`}>{averagePrice(p.average_price)}</td>
-                  <td className="num">{money(p.cost)}</td>
+                  <td className="num" title={`Valor exato: ${p.average_price}`}>{averagePrice(p.average_price, p.currency)}</td>
+                  <td className="num">
+                    {money(p.cost, p.currency)}
+                    {p.currency === "USD" && <Brl v={p.cost_brl} />}
+                  </td>
                   <td className="num">
                     {p.quote ? (
                       <>
-                        {price(p.quote.close)}
+                        {price(p.quote.close, p.currency)}
                         <div className="muted small">
                           {date(p.quote.date)} · {p.quote.source}
                         </div>
@@ -97,10 +114,18 @@ export default function Portfolio({ refresh }: { refresh: number }) {
                       <span className="muted">sem cotação</span>
                     )}
                   </td>
-                  <td className="num">{money(p.market_value)}</td>
+                  <td className="num">
+                    {money(p.market_value, p.currency)}
+                    {p.currency === "USD" && <Brl v={p.market_value_brl} />}
+                  </td>
                   <td className={`num ${tone(p.unrealized)}`}>
-                    {money(p.unrealized)}
+                    {money(p.unrealized, p.currency)}
                     {p.unrealized != null && <div className="small">{percent(ratio(p.unrealized, p.cost))}</div>}
+                    {p.currency === "USD" && (
+                      <div className={`small ${tone(p.unrealized_brl)}`}>
+                        {money(p.unrealized_brl)} {percent(ratio(p.unrealized_brl, p.cost_brl))}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -124,7 +149,10 @@ export default function Portfolio({ refresh }: { refresh: number }) {
                 {closed.map((p) => (
                   <tr key={p.asset}>
                     <td>{p.asset}</td>
-                    <td className={`num ${tone(p.realized)}`}>{money(p.realized)}</td>
+                    <td className={`num ${tone(p.realized)}`}>
+                      {money(p.realized, p.currency)}
+                      {p.currency === "USD" && <Brl v={p.realized_brl} />}
+                    </td>
                   </tr>
                 ))}
               </tbody>

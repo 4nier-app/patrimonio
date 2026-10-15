@@ -8,9 +8,11 @@ mod views;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use carteira_ledger::Event;
 use carteira_core::operations::{Operation, PricedOperation};
-use carteira_storage::{Asset, IntegrityReport, QuoteUpdate, Vault, VaultError, VersionEntry};
+use carteira_ledger::Event;
+use carteira_storage::{
+    Account, Asset, IntegrityReport, QuoteUpdate, Vault, VaultError, VersionEntry,
+};
 use serde::Serialize;
 use tauri::{Manager, State};
 
@@ -33,9 +35,17 @@ fn err(e: VaultError) -> String {
     e.to_string()
 }
 
-fn with_vault<T>(state: &State<AppState>, f: impl FnOnce(&mut Vault) -> Result<T, VaultError>) -> Result<T, String> {
-    let mut guard = state.vault.lock().map_err(|_| "estado interno indisponível".to_string())?;
-    let vault = guard.as_mut().ok_or_else(|| "o cofre está bloqueado".to_string())?;
+fn with_vault<T>(
+    state: &State<AppState>,
+    f: impl FnOnce(&mut Vault) -> Result<T, VaultError>,
+) -> Result<T, String> {
+    let mut guard = state
+        .vault
+        .lock()
+        .map_err(|_| "estado interno indisponível".to_string())?;
+    let vault = guard
+        .as_mut()
+        .ok_or_else(|| "o cofre está bloqueado".to_string())?;
     f(vault).map_err(err)
 }
 
@@ -50,13 +60,22 @@ fn vault_status(state: State<AppState>) -> VaultStatus {
 }
 
 fn after_unlock(mut vault: Vault, state: &State<AppState>) -> Result<(), String> {
-    vault.record_app_version(&changelog::section(APP_VERSION)).map_err(err)?;
-    *state.vault.lock().map_err(|_| "estado interno indisponível".to_string())? = Some(vault);
+    vault
+        .record_app_version(&changelog::section(APP_VERSION))
+        .map_err(err)?;
+    *state
+        .vault
+        .lock()
+        .map_err(|_| "estado interno indisponível".to_string())? = Some(vault);
     Ok(())
 }
 
 #[tauri::command]
-fn create_vault(password: String, confirmation: String, state: State<AppState>) -> Result<(), String> {
+fn create_vault(
+    password: String,
+    confirmation: String,
+    state: State<AppState>,
+) -> Result<(), String> {
     if password != confirmation {
         return Err("as senhas não conferem".into());
     }
@@ -78,7 +97,12 @@ fn lock(state: State<AppState>) {
 }
 
 #[tauri::command]
-fn change_password(current: String, new: String, confirmation: String, state: State<AppState>) -> Result<(), String> {
+fn change_password(
+    current: String,
+    new: String,
+    confirmation: String,
+    state: State<AppState>,
+) -> Result<(), String> {
     if new != confirmation {
         return Err("as senhas novas não conferem".into());
     }
@@ -108,7 +132,7 @@ fn search_assets(query: String, state: State<AppState>) -> Result<Vec<Asset>, St
 }
 
 #[tauri::command]
-fn list_accounts(state: State<AppState>) -> Result<Vec<String>, String> {
+fn list_accounts(state: State<AppState>) -> Result<Vec<Account>, String> {
     with_vault(&state, |v| v.list_accounts())
 }
 
@@ -118,7 +142,10 @@ fn list_operations(state: State<AppState>) -> Result<Vec<PricedOperation>, Strin
 }
 
 #[tauri::command]
-fn preview_operation(operation: Operation, state: State<AppState>) -> Result<views::Preview, String> {
+fn preview_operation(
+    operation: Operation,
+    state: State<AppState>,
+) -> Result<views::Preview, String> {
     with_vault_str(&state, |v| views::preview(v, operation))
 }
 
@@ -128,7 +155,11 @@ fn create_operation(operation: Operation, state: State<AppState>) -> Result<Oper
 }
 
 #[tauri::command]
-fn update_operation(operation: Operation, reason: Option<String>, state: State<AppState>) -> Result<Operation, String> {
+fn update_operation(
+    operation: Operation,
+    reason: Option<String>,
+    state: State<AppState>,
+) -> Result<Operation, String> {
     let reason = reason.filter(|r| !r.trim().is_empty());
     with_vault(&state, |v| v.update_operation(operation, reason.as_deref()))
 }
@@ -167,9 +198,17 @@ fn today() -> chrono::NaiveDate {
     chrono::Local::now().date_naive()
 }
 
-fn with_vault_str<T>(state: &State<AppState>, f: impl FnOnce(&mut Vault) -> Result<T, String>) -> Result<T, String> {
-    let mut guard = state.vault.lock().map_err(|_| "estado interno indisponível".to_string())?;
-    let vault = guard.as_mut().ok_or_else(|| "o cofre está bloqueado".to_string())?;
+fn with_vault_str<T>(
+    state: &State<AppState>,
+    f: impl FnOnce(&mut Vault) -> Result<T, String>,
+) -> Result<T, String> {
+    let mut guard = state
+        .vault
+        .lock()
+        .map_err(|_| "estado interno indisponível".to_string())?;
+    let vault = guard
+        .as_mut()
+        .ok_or_else(|| "o cofre está bloqueado".to_string())?;
     f(vault)
 }
 
@@ -177,7 +216,10 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
-            app.manage(AppState { data_dir, vault: Mutex::new(None) });
+            app.manage(AppState {
+                data_dir,
+                vault: Mutex::new(None),
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

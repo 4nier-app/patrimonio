@@ -100,7 +100,12 @@ pub fn chain(previous: Option<&Event>, data: NewEvent) -> Event {
         None => (1, GENESIS_HASH.to_string()),
     };
     let hash = compute_hash(seq, &data, &prev_hash);
-    Event { seq, data, prev_hash, hash }
+    Event {
+        seq,
+        data,
+        prev_hash,
+        hash,
+    }
 }
 
 /// Problema encontrado na verificação da cadeia.
@@ -121,7 +126,10 @@ pub fn verify_chain<'a>(events: impl IntoIterator<Item = &'a Event>) -> Result<u
     let mut count = 0;
     for e in events {
         if e.seq != expected_seq {
-            return Err(ChainError::SequenceGap { seq: e.seq, expected: expected_seq });
+            return Err(ChainError::SequenceGap {
+                seq: e.seq,
+                expected: expected_seq,
+            });
         }
         if e.prev_hash != prev_hash {
             return Err(ChainError::BrokenLink { seq: e.seq });
@@ -182,14 +190,23 @@ mod tests {
         let mut events = build(4);
         events[1].data.reason = Some("forjado".into());
         events[1].hash = compute_hash(2, &events[1].data, &events[1].prev_hash);
-        assert_eq!(verify_chain(&events), Err(ChainError::BrokenLink { seq: 3 }));
+        assert_eq!(
+            verify_chain(&events),
+            Err(ChainError::BrokenLink { seq: 3 })
+        );
     }
 
     #[test]
     fn remocao_de_evento_e_detectada() {
         let mut events = build(4);
         events.remove(1);
-        assert_eq!(verify_chain(&events), Err(ChainError::SequenceGap { seq: 3, expected: 2 }));
+        assert_eq!(
+            verify_chain(&events),
+            Err(ChainError::SequenceGap {
+                seq: 3,
+                expected: 2
+            })
+        );
     }
 
     #[test]
@@ -198,6 +215,9 @@ mod tests {
         let mut b = sample(1);
         a.reason = None;
         b.reason = Some(String::new());
-        assert_ne!(compute_hash(1, &a, GENESIS_HASH), compute_hash(1, &b, GENESIS_HASH));
+        assert_ne!(
+            compute_hash(1, &a, GENESIS_HASH),
+            compute_hash(1, &b, GENESIS_HASH)
+        );
     }
 }

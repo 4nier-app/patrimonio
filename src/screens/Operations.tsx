@@ -1,6 +1,29 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { errorMessage, market, type Asset, type Operation, type Preview, type PricedOperation, type Side } from "../api";
-import { date, keepNumberChars, maskDecimal, money, parseDecimalInput, price, quantity } from "../format";
+import {
+  errorMessage,
+  market,
+  type Account,
+  type Asset,
+  type Currency,
+  type Operation,
+  type Preview,
+  type PricedOperation,
+  type Side,
+} from "../api";
+import {
+  cashMask,
+  date,
+  decimalMask,
+  keepNumberChars,
+  maskDecimal,
+  money,
+  parseDecimalInput,
+  price,
+  priceDecimals,
+  quantity,
+  toCashMask,
+} from "../format";
+import { currencyOfNewAccount } from "../currency";
 
 type Form = {
   id: string;
@@ -10,9 +33,13 @@ type Form = {
   side: Side;
   quantity: string;
   price: string;
+  /** Casas do preço na máscara (2 em reais, 4 em dólar, ou mais se o valor gravado tiver). */
+  priceDecimals: number;
   manual: boolean;
   fees: string;
   note: string;
+  fromAccount: string;
+  residue: string;
 };
 
 function todayIso(): string {
@@ -20,7 +47,24 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-const EMPTY: Form = { id: "", account: "", asset: "", date: todayIso(), side: "COMPRA", quantity: "", price: "", manual: false, fees: "", note: "" };
+const EMPTY: Form = {
+  id: "",
+  account: "",
+  asset: "",
+  date: todayIso(),
+  side: "COMPRA",
+  quantity: "",
+  price: "",
+  priceDecimals: 2,
+  manual: false,
+  fees: "",
+  note: "",
+  fromAccount: "",
+  residue: "",
+};
+
+const SIDE_LABEL: Record<Side, string> = { COMPRA: "Compra", VENDA: "Venda", TRANSFERENCIA: "Transferência" };
+const SIDE_BADGE: Record<Side, string> = { COMPRA: "criada", VENDA: "removida", TRANSFERENCIA: "alterada" };
 
 function NumberInput({
   value,
@@ -47,16 +91,61 @@ function NumberInput({
   );
 }
 
+/** Campo de dinheiro com máscara de caixa: só números, da direita para a esquerda. */
+function CashInput({
+  value,
+  decimals,
+  currency,
+  onChange,
+  required,
+}: {
+  value: string;
+  decimals: number;
+  currency: Currency;
+  onChange: (v: string) => void;
+  required?: boolean;
+}) {
+  return (
+    <input
+      inputMode="numeric"
+      value={value}
+      placeholder={`${currency === "USD" ? "US$" : "R$"} 0,${"0".repeat(decimals)}`}
+      required={required}
+      onChange={(e) => onChange(cashMask(e.target.value, decimals, currency))}
+    />
+  );
+}
+
+/**
+ * Preço digitado: em reais, máscara de caixa (só números, 2 casas); em dólar,
+ * números e vírgula com até 8 casas, como o preço médio das notas da Nomad.
+ */
+function maskPrice(raw: string, currency: Currency, decimals: number): string {
+  return currency === "USD" ? decimalMask(raw, priceDecimals("USD"), "USD") : cashMask(raw, decimals, currency);
+}
+
+/** Valor exato ("95.84") no formato do campo de preço. */
+function priceText(dec: string, currency: Currency): { text: string; decimals: number } {
+  if (currency === "USD") return { text: decimalMask(dec.replace(".", ","), priceDecimals("USD"), "USD"), decimals: 8 };
+  return toCashMask(dec, priceDecimals(currency), currency);
+}
+
 /** Converte o formulário; devolve a mensagem do primeiro campo inválido. */
-function toOperation(f: Form): Operation | string {
+function toOperation(f: Form, currency: Currency): Operation | string {
+  const transfer = f.side === "TRANSFERENCIA";
   const q = parseDecimalInput(f.quantity);
   if (!q) return "Quantidade inválida.";
-  const p = parseDecimalInput(f.price);
+  const p = transfer ? "0" : parseDecimalInput(f.price);
   if (!p) return "Preço inválido.";
   let fees: string | null = null;
-  if (f.manual) {
+  if (f.manual && !transfer) {
     fees = parseDecimalInput(f.fees);
     if (fees == null) return "Taxa inválida.";
+  }
+  let residue: string | null = null;
+  if (transfer && f.residue.trim()) {
+    residue = parseDecimalInput(f.residue);
+    if (residue == null) return "Resíduo inválido.";
   }
   if (!f.date) return "Informe a data.";
   return {
@@ -69,12 +158,15 @@ function toOperation(f: Form): Operation | string {
     price: p,
     manual_fees: fees,
     note: f.note.trim() || null,
+    currency,
+    from_account: transfer ? f.fromAccount.trim() || null : null,
+    residue,
   };
 }
 
 export default function Operations() {
   const [list, setList] = useState<PricedOperation[]>([]);
-  const [accounts, setAccounts] = useState<string[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [suggestions, setSuggestions] = useState<Asset[]>([]);
   const [form, setForm] = useState<Form>(EMPTY);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -100,7 +192,31 @@ export default function Operations() {
     return () => clearTimeout(t);
   }, [form.asset]);
 
-  const draft = useMemo(() => toOperation(form), [form]);
+  const existing = accounts.find((a) => a.name === form.account.trim());
+  // Conta existente: a moeda dela. Conta nova: pelo nome da corretora
+  // (Nomad → dólar) ou, se o nome não disser, pelo ativo.
+  const currency: Currency = existing?.currency ?? currencyOfNewAccount(form.account, form.asset, suggestions);
+  const transfer = form.side === "TRANSFERENCIA";
+  const draft = useMemo(() => toOperation(form, currency), [form, currency]);
+
+  // Ao trocar a moeda, o preço passa a ter as casas da nova moeda.
+  useEffect(() => {
+    setForm((f) => {
+      if (f.id) return f;
+      const decimals = priceDecimals(currency);
+      if (f.priceDecimals === decimals && !f.price.startsWith(currency === "USD" ? "R$" : "US$")) return f;
+      // Mantém o valor digitado, só troca o símbolo e as casas.
+      const dec = (v: string) => parseDecimalInput(v);
+      const price = dec(f.price);
+      const fees = dec(f.fees);
+      return {
+        ...f,
+        priceDecimals: decimals,
+        price: price == null ? "" : priceText(price, currency).text,
+        fees: fees == null ? "" : toCashMask(fees, 2, currency).text,
+      };
+    });
+  }, [currency]);
 
   // Taxas calculadas ao vivo, já considerando os outros lançamentos da mesma nota.
   useEffect(() => {
@@ -132,7 +248,7 @@ export default function Operations() {
         await market.create(draft);
         setMessage("Lançamento incluído.");
       }
-      setForm({ ...EMPTY, account: form.account, date: form.date });
+      setForm({ ...EMPTY, account: form.account, date: form.date, priceDecimals: priceDecimals(currency) });
       setReason("");
       load();
     } catch (err) {
@@ -142,6 +258,8 @@ export default function Operations() {
 
   function edit(p: PricedOperation) {
     const o = p.operation;
+    const cur = o.currency;
+    const pr = o.side === "TRANSFERENCIA" ? { text: "", decimals: priceDecimals(cur) } : priceText(o.price, cur);
     setForm({
       id: o.id,
       account: o.account,
@@ -149,10 +267,13 @@ export default function Operations() {
       date: o.date,
       side: o.side,
       quantity: maskDecimal(o.quantity, "quantity"),
-      price: maskDecimal(o.price, "money"),
+      price: pr.text,
+      priceDecimals: pr.decimals,
       manual: o.manual_fees != null,
-      fees: o.manual_fees != null ? maskDecimal(o.manual_fees, "money") : "",
+      fees: o.manual_fees != null ? toCashMask(o.manual_fees, 2, cur).text : "",
       note: o.note ?? "",
+      fromAccount: o.from_account ?? "",
+      residue: o.residue ? maskDecimal(o.residue, "quantity") : "",
     });
     setReason("");
     setMessage(null);
@@ -174,7 +295,7 @@ export default function Operations() {
   }
 
   const total =
-    preview && !preview.valid
+    preview && !preview.valid && !transfer
       ? form.side === "COMPRA"
         ? Number(preview.gross) + Number(preview.fees)
         : Number(preview.gross) - Number(preview.fees)
@@ -186,9 +307,10 @@ export default function Operations() {
         <div>
           <h2>Lançamentos</h2>
           <p className="muted">
-            Compras e vendas na B3. As taxas da B3 (liquidação, emolumentos e transferência) são calculadas sobre o total
-            da nota, ou seja, de todos os lançamentos da mesma corretora no mesmo dia, e divididas entre eles. Se a nota
-            trouxer outro valor, informe a taxa à mão.
+            Compras e vendas na B3 e no exterior. Na B3, as taxas (liquidação, emolumentos e transferência) são
+            calculadas sobre o total da nota, ou seja, de todos os lançamentos da mesma corretora no mesmo dia, e
+            divididas entre eles. Se a nota trouxer outro valor, informe a taxa à mão. No exterior os valores são em
+            dólar e a conversão para reais usa a PTAX do Banco Central.
           </p>
         </div>
       </div>
@@ -201,7 +323,9 @@ export default function Operations() {
             <input list="contas" value={form.account} onChange={(e) => set("account", e.target.value)} placeholder="Ex.: Itaú" required />
             <datalist id="contas">
               {accounts.map((a) => (
-                <option key={a} value={a} />
+                <option key={a.name} value={a.name}>
+                  {a.currency === "USD" ? "Dólar (exterior)" : "Reais (B3)"}
+                </option>
               ))}
             </datalist>
           </label>
@@ -214,15 +338,31 @@ export default function Operations() {
             <select value={form.side} onChange={(e) => set("side", e.target.value as Side)}>
               <option value="COMPRA">Compra</option>
               <option value="VENDA">Venda</option>
+              <option value="TRANSFERENCIA">Transferência de custódia</option>
             </select>
           </label>
+          {transfer && (
+            <label>
+              Corretora de origem
+              <select value={form.fromAccount} onChange={(e) => set("fromAccount", e.target.value)} required>
+                <option value="">Escolha a conta de onde as ações saíram</option>
+                {accounts
+                  .filter((a) => a.currency === currency && a.name !== form.account.trim())
+                  .map((a) => (
+                    <option key={a.name} value={a.name}>
+                      {a.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
           <label>
             Ativo (código)
             <input
               list="ativos"
               value={form.asset}
               onChange={(e) => set("asset", e.target.value.toUpperCase())}
-              placeholder="Ex.: ABCD3"
+              placeholder={currency === "USD" ? "Ex.: VOO" : "Ex.: ABCD3"}
               required
             />
             <datalist id="ativos">
@@ -234,23 +374,47 @@ export default function Operations() {
             </datalist>
           </label>
           <label>
-            Quantidade
+            {transfer ? "Quantidade transferida" : "Quantidade"}
             <NumberInput kind="quantity" value={form.quantity} onChange={(v) => set("quantity", v)} required />
           </label>
-          <label>
-            Preço unitário
-            <NumberInput kind="money" value={form.price} onChange={(v) => set("price", v)} placeholder="R$ 0,00" required />
-          </label>
+          {transfer ? (
+            <label>
+              Resíduo que ficou na origem (opcional)
+              <NumberInput kind="quantity" value={form.residue} onChange={(v) => set("residue", v)} placeholder="Ex.: 0,0000012" />
+            </label>
+          ) : (
+            <label>
+              Preço unitário
+              <input
+                inputMode={currency === "USD" ? "decimal" : "numeric"}
+                value={form.price}
+                placeholder={currency === "USD" ? "US$ 0,00" : "R$ 0,00"}
+                required
+                onChange={(e) => set("price", maskPrice(e.target.value, currency, form.priceDecimals))}
+              />
+              {currency === "USD" && <span className="muted small">Use vírgula para os centavos; até 8 casas.</span>}
+            </label>
+          )}
         </div>
 
-        <label className="inline">
-          <input type="checkbox" checked={form.manual} onChange={(e) => set("manual", e.target.checked)} />
-          Informar as taxas à mão (substitui o cálculo automático)
-        </label>
-        {form.manual && (
+        {transfer && (
+          <p className="muted small">
+            A posição muda de corretora sem compra nem venda: o preço médio e as datas de compra continuam os mesmos. Se
+            uma fração ficou para trás e não veio para a nova corretora, informe-a como resíduo: ela sai da carteira sem
+            gerar lucro nem prejuízo de venda.
+          </p>
+        )}
+
+        {!transfer && (
+          <label className="inline">
+            <input type="checkbox" checked={form.manual} onChange={(e) => set("manual", e.target.checked)} />
+            {currency === "USD" ? "Informar taxas da corretora" : "Informar as taxas à mão (substitui o cálculo automático)"}
+          </label>
+        )}
+        {form.manual && !transfer && (
           <label className="short">
             Taxas deste lançamento
-            <NumberInput kind="money" value={form.fees} onChange={(v) => set("fees", v)} placeholder="R$ 0,00" />
+            <CashInput value={form.fees} decimals={2} currency={currency} onChange={(v) => set("fees", v)} />
           </label>
         )}
 
@@ -259,13 +423,16 @@ export default function Operations() {
           <input value={form.note} onChange={(e) => set("note", e.target.value)} />
         </label>
 
-        {preview && !preview.valid && (
+        {preview && !preview.valid && !transfer && (
           <div className="preview">
             <div>
-              Valor da operação: <strong>{money(preview.gross)}</strong> · Taxas ({preview.fee_origin}):{" "}
-              <strong>{money(preview.fees)}</strong> · {form.side === "COMPRA" ? "Total pago" : "Total recebido"}:{" "}
-              <strong>{money(total == null ? null : String(total))}</strong>
+              Valor da operação: <strong>{money(preview.gross, currency)}</strong> · Taxas ({preview.fee_origin}):{" "}
+              <strong>{money(preview.fees, currency)}</strong> · {form.side === "COMPRA" ? "Total pago" : "Total recebido"}:{" "}
+              <strong>{money(total == null ? null : String(total), currency)}</strong>
             </div>
+            {currency === "USD" && (
+              <p className="muted small">No exterior não há taxas da B3. A conversão para reais usa a PTAX do dia da operação.</p>
+            )}
             {preview.fee_origin === "automática" && preview.note_fees.length > 0 && (
               <details>
                 <summary>
@@ -334,21 +501,27 @@ export default function Operations() {
               <Fragment key={p.operation.id}>
                 <tr>
                   <td>{date(p.operation.date)}</td>
-                  <td>{p.operation.account}</td>
+                  <td>
+                    {p.operation.account}
+                    {p.operation.from_account && <div className="muted small">vindo de {p.operation.from_account}</div>}
+                  </td>
                   <td>
                     <strong>{p.operation.asset}</strong>
                     {p.operation.note && <div className="muted small">{p.operation.note}</div>}
                   </td>
                   <td>
-                    <span className={`badge ${p.operation.side === "COMPRA" ? "criada" : "removida"}`}>
-                      {p.operation.side === "COMPRA" ? "Compra" : "Venda"}
-                    </span>
+                    <span className={`badge ${SIDE_BADGE[p.operation.side]}`}>{SIDE_LABEL[p.operation.side]}</span>
                   </td>
-                  <td className="num">{quantity(p.operation.quantity)}</td>
-                  <td className="num">{price(p.operation.price)}</td>
-                  <td className="num">{money(p.gross)}</td>
                   <td className="num">
-                    {money(p.fees)}
+                    {quantity(p.operation.quantity)}
+                    {p.operation.residue && Number(p.operation.residue) > 0 && (
+                      <div className="muted small">resíduo {quantity(p.operation.residue)}</div>
+                    )}
+                  </td>
+                  <td className="num">{p.operation.side === "TRANSFERENCIA" ? "—" : price(p.operation.price, p.operation.currency)}</td>
+                  <td className="num">{p.operation.side === "TRANSFERENCIA" ? "—" : money(p.gross, p.operation.currency)}</td>
+                  <td className="num">
+                    {money(p.fees, p.operation.currency)}
                     {p.fee_origin === "informada" && <div className="muted small">informada</div>}
                   </td>
                   <td className="row-actions">

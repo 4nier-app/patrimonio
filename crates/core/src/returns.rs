@@ -23,7 +23,7 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 
 use crate::format::{brl, number, pct, qty};
-use crate::model::{Quote, Side, Trade};
+use crate::model::{FxRate, FxSource, Quote, Side, Trade, BRL};
 
 /// Identificador e versão da fórmula, gravados em cada resultado.
 pub const FORMULA_ID: &str = "modified-dietz-diario";
@@ -32,6 +32,45 @@ pub const FORMULA_VERSION: u32 = 1;
 /// Fonte de cotações: fechamento na data ou no último pregão anterior.
 pub trait PriceSource {
     fn close_on_or_before(&self, asset: &str, date: NaiveDate) -> Option<Quote>;
+}
+
+/// Moeda do resultado. `Native` calcula na moeda dos próprios ativos (todos
+/// precisam ter a mesma moeda); `ToBrl` converte cada fluxo pela PTAX da data
+/// da operação e cada posição pela PTAX da data de avaliação.
+#[derive(Clone, Copy)]
+pub enum Conversion<'a> {
+    Native,
+    ToBrl(&'a dyn FxSource),
+}
+
+/// Câmbio a aplicar num valor: `Ok(None)` quando não há conversão,
+/// `Err(())` quando falta a PTAX.
+fn fx_for(conv: Conversion, currency: &str, date: NaiveDate) -> Result<Option<FxRate>, ()> {
+    match conv {
+        Conversion::ToBrl(src) if currency != BRL => {
+            src.usd_brl_on_or_before(date).map(Some).ok_or(())
+        }
+        _ => Ok(None),
+    }
+}
+
+/// "R$ 1.234,56" ou "US$ 1.234,56".
+pub fn money(v: Decimal, currency: &str) -> String {
+    if currency == BRL {
+        brl(v)
+    } else {
+        format!("US$ {}", number(v, 2))
+    }
+}
+
+fn price_str(v: Decimal, currency: &str) -> String {
+    let n = v.normalize();
+    let dp = n.scale().max(2);
+    if currency == BRL {
+        format!("R$ {}", number(n, dp))
+    } else {
+        format!("US$ {}", number(n, dp))
+    }
 }
 
 /// Escopo do cálculo: um ativo ou a carteira inteira.
@@ -45,8 +84,11 @@ pub enum Scope {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Holding {
     pub asset: String,
+    pub currency: String,
     pub quantity: Decimal,
     pub quote: Option<Quote>,
+    /// PTAX usada para converter o valor, quando o ativo é em dólar.
+    pub fx: Option<FxRate>,
     pub value: Option<Decimal>,
 }
 
@@ -61,7 +103,11 @@ pub struct Valuation {
 
 impl Valuation {
     fn zero(date: NaiveDate) -> Self {
-        Valuation { date, holdings: Vec::new(), total: Some(Decimal::ZERO) }
+        Valuation {
+            date,
+            holdings: Vec::new(),
+            total: Some(Decimal::ZERO),
+        }
     }
 }
 
@@ -76,7 +122,10 @@ pub struct Flow {
     pub price: Decimal,
     pub gross: Decimal,
     pub fees: Decimal,
-    /// Positivo em compras, negativo em vendas.
+    pub currency: String,
+    /// PTAX da data da operação, quando o fluxo foi convertido para reais.
+    pub fx: Option<FxRate>,
+    /// Na moeda do resultado: positivo em compras, negativo em vendas.
     pub amount: Decimal,
     /// Dias em que o fluxo ficou na carteira dentro do período.
     pub days_exposed: i64,
@@ -102,6 +151,8 @@ pub struct MonthResult {
     pub average_capital: Option<Decimal>,
     /// Fração (0,05 = 5%). `None` sem cotação ou sem capital médio positivo.
     pub rate: Option<Decimal>,
+    /// Moeda dos valores do resultado.
+    pub currency: String,
     pub formula_id: &'static str,
     pub formula_version: u32,
     /// Fórmula com os números substituídos, para a memória de cálculo.
@@ -118,7 +169,11 @@ pub struct YearResult {
 }
 
 fn last_day_of_month(year: i32, month: u32) -> NaiveDate {
-    let (y, m) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+    let (y, m) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
     NaiveDate::from_ymd_opt(y, m, 1).expect("data válida") - Duration::days(1)
 }
 
@@ -135,50 +190,104 @@ fn positions_before(trades: &[&Trade], date: NaiveDate) -> BTreeMap<String, Deci
     map
 }
 
-fn value_positions(positions: &BTreeMap<String, Decimal>, date: NaiveDate, prices: &dyn PriceSource) -> Valuation {
+fn value_positions(
+    positions: &BTreeMap<String, Decimal>,
+    currencies: &BTreeMap<String, String>,
+    date: NaiveDate,
+    prices: &dyn PriceSource,
+    conv: Conversion,
+) -> Valuation {
     let mut total = Some(Decimal::ZERO);
     let holdings = positions
         .iter()
         .map(|(asset, quantity)| {
+            let currency = currencies
+                .get(asset)
+                .cloned()
+                .unwrap_or_else(|| BRL.to_string());
             let quote = prices.close_on_or_before(asset, date);
-            let value = quote.as_ref().map(|q| q.close * quantity);
+            let fx = fx_for(conv, &currency, date);
+            let value = match (&quote, &fx) {
+                (Some(q), Ok(None)) => Some(q.close * quantity),
+                (Some(q), Ok(Some(f))) => Some(q.close * quantity * f.rate),
+                _ => None,
+            };
             total = match (total, value) {
                 (Some(t), Some(v)) => Some(t + v),
                 _ => None,
             };
-            Holding { asset: asset.clone(), quantity: *quantity, quote, value }
+            Holding {
+                asset: asset.clone(),
+                currency,
+                quantity: *quantity,
+                quote,
+                fx: fx.ok().flatten(),
+                value,
+            }
         })
         .collect();
-    Valuation { date, holdings, total }
+    Valuation {
+        date,
+        holdings,
+        total,
+    }
 }
 
-fn describe_valuation(label: &str, v: &Valuation) -> String {
+fn describe_valuation(label: &str, v: &Valuation, out: &str) -> String {
     if v.holdings.is_empty() {
-        return format!("{label} = R$ 0,00 (sem posição)");
+        return format!("{label} = {} (sem posição)", money(Decimal::ZERO, out));
     }
     let parts: Vec<String> = v
         .holdings
         .iter()
-        .map(|h| match &h.quote {
-            Some(q) => format!(
-                "{} {} × {} (fechamento de {}, {})",
-                qty(h.quantity),
-                h.asset,
-                brl(q.close),
-                q.date.format("%d/%m/%Y"),
-                q.source
-            ),
-            None => format!("{} {} × cotação indisponível", qty(h.quantity), h.asset),
+        .map(|h| {
+            let fx = match &h.fx {
+                Some(f) => format!(
+                    " × PTAX {} ({})",
+                    number(f.rate, 4),
+                    f.date.format("%d/%m/%Y")
+                ),
+                None if h.currency != out => " × PTAX indisponível".to_string(),
+                None => String::new(),
+            };
+            match &h.quote {
+                Some(q) => format!(
+                    "{} {} × {}{} (fechamento de {}, {})",
+                    qty(h.quantity),
+                    h.asset,
+                    price_str(q.close, &h.currency),
+                    fx,
+                    q.date.format("%d/%m/%Y"),
+                    q.source
+                ),
+                None => format!("{} {} × cotação indisponível", qty(h.quantity), h.asset),
+            }
         })
         .collect();
     match v.total {
-        Some(t) => format!("{label} = {} = {}", parts.join(" + "), brl(t)),
+        Some(t) => format!("{label} = {} = {}", parts.join(" + "), money(t, out)),
         None => format!("{label} = {} = indisponível", parts.join(" + ")),
     }
 }
 
 /// Calcula a rentabilidade mês a mês até `as_of` (inclusive).
-pub fn monthly_returns(trades: &[Trade], prices: &dyn PriceSource, as_of: NaiveDate, scope: &Scope) -> Vec<MonthResult> {
+pub fn monthly_returns(
+    trades: &[Trade],
+    prices: &dyn PriceSource,
+    as_of: NaiveDate,
+    scope: &Scope,
+) -> Vec<MonthResult> {
+    monthly_returns_in(trades, prices, as_of, scope, Conversion::Native)
+}
+
+/// Como [`monthly_returns`], escolhendo a moeda do resultado.
+pub fn monthly_returns_in(
+    trades: &[Trade],
+    prices: &dyn PriceSource,
+    as_of: NaiveDate,
+    scope: &Scope,
+    conv: Conversion,
+) -> Vec<MonthResult> {
     let mut selected: Vec<&Trade> = trades
         .iter()
         .filter(|t| t.date <= as_of)
@@ -188,33 +297,71 @@ pub fn monthly_returns(trades: &[Trade], prices: &dyn PriceSource, as_of: NaiveD
         })
         .collect();
     selected.sort_by_key(|t| t.date);
-    let Some(first) = selected.first() else { return Vec::new() };
+    let Some(first) = selected.first() else {
+        return Vec::new();
+    };
+    let currencies: BTreeMap<String, String> = selected
+        .iter()
+        .map(|t| (t.asset.clone(), t.currency.clone()))
+        .collect();
+    let out = match conv {
+        Conversion::ToBrl(_) => BRL.to_string(),
+        Conversion::Native => first.currency.clone(),
+    };
 
     let mut results = Vec::new();
     let mut month_start = first_day_of_month(first.date);
     while month_start <= as_of {
         let month_end = last_day_of_month(month_start.year(), month_start.month()).min(as_of);
-        if let Some(r) = month_result(&selected, prices, month_start, month_end) {
+        if let Some(r) = month_result(
+            &selected,
+            prices,
+            month_start,
+            month_end,
+            &currencies,
+            conv,
+            &out,
+        ) {
             results.push(r);
         }
-        month_start = last_day_of_month(month_start.year(), month_start.month()) + Duration::days(1);
+        month_start =
+            last_day_of_month(month_start.year(), month_start.month()) + Duration::days(1);
     }
     results
 }
 
-fn month_result(trades: &[&Trade], prices: &dyn PriceSource, month_start: NaiveDate, month_end: NaiveDate) -> Option<MonthResult> {
+fn month_result(
+    trades: &[&Trade],
+    prices: &dyn PriceSource,
+    month_start: NaiveDate,
+    month_end: NaiveDate,
+    currencies: &BTreeMap<String, String>,
+    conv: Conversion,
+    out: &str,
+) -> Option<MonthResult> {
     let at_start = positions_before(trades, month_start);
-    let in_month: Vec<&Trade> =
-        trades.iter().copied().filter(|t| t.date >= month_start && t.date <= month_end).collect();
+    let in_month: Vec<&Trade> = trades
+        .iter()
+        .copied()
+        .filter(|t| t.date >= month_start && t.date <= month_end)
+        .collect();
     if at_start.is_empty() && in_month.is_empty() {
         return None;
     }
 
-    let period_start = if at_start.is_empty() { in_month[0].date } else { month_start };
+    let period_start = if at_start.is_empty() {
+        in_month[0].date
+    } else {
+        month_start
+    };
     let at_end = positions_before(trades, month_end + Duration::days(1));
     let closed = at_end.is_empty();
     // Na venda que zera a posição o capital deixa de contar: o período vai até a véspera.
-    let close_date = if closed { in_month.last().map(|t| t.date) } else { None };
+    let close_date = if closed {
+        in_month.last().map(|t| t.date)
+    } else {
+        None
+    };
     let period_end = match close_date {
         Some(d) => (d - Duration::days(1)).max(period_start),
         None => month_end,
@@ -225,9 +372,20 @@ fn month_result(trades: &[&Trade], prices: &dyn PriceSource, month_start: NaiveD
     let start = if at_start.is_empty() {
         Valuation::zero(period_start)
     } else {
-        value_positions(&at_start, month_start - Duration::days(1), prices)
+        value_positions(
+            &at_start,
+            currencies,
+            month_start - Duration::days(1),
+            prices,
+            conv,
+        )
     };
-    let end = if closed { Valuation::zero(period_end) } else { value_positions(&at_end, period_end, prices) };
+    let end = if closed {
+        Valuation::zero(period_end)
+    } else {
+        value_positions(&at_end, currencies, period_end, prices, conv)
+    };
+    let mut fx_missing = false;
 
     let flows: Vec<Flow> = in_month
         .iter()
@@ -236,10 +394,19 @@ fn month_result(trades: &[&Trade], prices: &dyn PriceSource, month_start: NaiveD
                 // Compra e venda no mesmo dia em que a posição abriu e fechou.
                 Some(d) if t.date == d && d == period_start => match t.side {
                     Side::Compra => 1,
-                    Side::Venda => 0,
+                    Side::Venda | Side::Transferencia => 0,
                 },
                 Some(d) if t.date >= d => 0,
                 _ => ((period_end - t.date).num_days() + 1).clamp(0, days),
+            };
+            let fx = fx_for(conv, &t.currency, t.date);
+            let amount = match &fx {
+                Ok(Some(f)) => t.cash_flow() * f.rate,
+                Ok(None) => t.cash_flow(),
+                Err(()) => {
+                    fx_missing = true;
+                    Decimal::ZERO
+                }
             };
             Flow {
                 trade_id: t.id.clone(),
@@ -250,7 +417,9 @@ fn month_result(trades: &[&Trade], prices: &dyn PriceSource, month_start: NaiveD
                 price: t.price,
                 gross: t.gross,
                 fees: t.fees,
-                amount: t.cash_flow(),
+                currency: t.currency.clone(),
+                fx: fx.ok().flatten(),
+                amount,
                 days_exposed,
                 weight: Decimal::from(days_exposed) / days_dec,
             }
@@ -260,6 +429,7 @@ fn month_result(trades: &[&Trade], prices: &dyn PriceSource, month_start: NaiveD
     let net_flows: Decimal = flows.iter().map(|f| f.amount).sum();
     let weighted_flows: Decimal = flows.iter().map(|f| f.amount * f.weight).sum();
     let (profit, average_capital) = match (start.total, end.total) {
+        _ if fx_missing => (None, None),
         (Some(v0), Some(v1)) => (Some(v1 - v0 - net_flows), Some(v0 + weighted_flows)),
         _ => (None, None),
     };
@@ -274,23 +444,42 @@ fn month_result(trades: &[&Trade], prices: &dyn PriceSource, month_start: NaiveD
             period_start.format("%d/%m/%Y"),
             period_end.format("%d/%m/%Y"),
             days,
-            if closed { ", encerrado na véspera da venda que zerou a posição" } else { "" }
+            if closed {
+                ", encerrado na véspera da venda que zerou a posição"
+            } else {
+                ""
+            }
         ),
-        describe_valuation("V0 (início)", &start),
-        describe_valuation("V1 (fim)", &end),
+        describe_valuation("V0 (início)", &start, out),
+        describe_valuation("V1 (fim)", &end, out),
     ];
     for f in &flows {
+        let what = match f.side {
+            Side::Compra => "compra",
+            Side::Venda => "venda",
+            Side::Transferencia => "resíduo baixado na transferência de custódia",
+        };
+        let fx = match &f.fx {
+            Some(x) => format!(
+                " × PTAX {} ({})",
+                number(x.rate, 4),
+                x.date.format("%d/%m/%Y")
+            ),
+            None if f.currency != out => " × PTAX indisponível".to_string(),
+            None => String::new(),
+        };
         explanation.push(format!(
-            "F {} {}: {} {} × {} = {} {} taxas {} = {}; peso {}/{} = {}",
+            "F {} {}: {} {} × {} = {} {} taxas {}{} = {}; peso {}/{} = {}",
             f.date.format("%d/%m/%Y"),
-            if f.side == Side::Compra { "compra" } else { "venda" },
+            what,
             qty(f.quantity),
             f.asset,
-            brl(f.price),
-            brl(f.gross),
+            price_str(f.price, &f.currency),
+            money(f.gross, &f.currency),
             if f.side == Side::Compra { "+" } else { "−" },
-            brl(f.fees),
-            brl(f.amount),
+            money(f.fees, &f.currency),
+            fx,
+            money(f.amount, out),
             f.days_exposed,
             days,
             number(f.weight, 4)
@@ -300,23 +489,35 @@ fn month_result(trades: &[&Trade], prices: &dyn PriceSource, month_start: NaiveD
         (Some(p), Some(c)) => {
             explanation.push(format!(
                 "Lucro = V1 − V0 − ΣF = {} − {} − {} = {}",
-                brl(end.total.unwrap_or_default()),
-                brl(start.total.unwrap_or_default()),
-                brl(net_flows),
-                brl(p)
+                money(end.total.unwrap_or_default(), out),
+                money(start.total.unwrap_or_default(), out),
+                money(net_flows, out),
+                money(p, out)
             ));
             explanation.push(format!(
                 "Capital médio = V0 + Σ(w·F) = {} + {} = {}",
-                brl(start.total.unwrap_or_default()),
-                brl(weighted_flows),
-                brl(c)
+                money(start.total.unwrap_or_default(), out),
+                money(weighted_flows, out),
+                money(c, out)
             ));
             explanation.push(match rate {
-                Some(r) => format!("Rentabilidade = Lucro / Capital médio = {} / {} = {}", brl(p), brl(c), pct(r, 2)),
+                Some(r) => format!(
+                    "Rentabilidade = Lucro / Capital médio = {} / {} = {}",
+                    money(p, out),
+                    money(c, out),
+                    pct(r, 2)
+                ),
                 None => "Rentabilidade indisponível: capital médio não é positivo".to_string(),
             });
         }
-        _ => explanation.push("Resultado indisponível: falta cotação de fechamento (atualize as cotações)".to_string()),
+        _ if fx_missing => explanation.push(
+            "Resultado indisponível: falta a PTAX de alguma data (atualize as cotações)"
+                .to_string(),
+        ),
+        _ => explanation.push(
+            "Resultado indisponível: falta cotação de fechamento ou PTAX (atualize as cotações)"
+                .to_string(),
+        ),
     }
 
     Some(MonthResult {
@@ -334,6 +535,7 @@ fn month_result(trades: &[&Trade], prices: &dyn PriceSource, month_start: NaiveD
         profit,
         average_capital,
         rate,
+        currency: out.to_string(),
         formula_id: FORMULA_ID,
         formula_version: FORMULA_VERSION,
         explanation,
@@ -366,7 +568,13 @@ pub fn yearly_returns(months: &[MonthResult]) -> Vec<YearResult> {
                 Some(r) => format!("{} − 1 = {}", factors.join(" × "), pct(r, 2)),
                 None => format!("{} − 1: indisponível", factors.join(" × ")),
             };
-            YearResult { year, profit, rate, months: ms.len(), explanation }
+            YearResult {
+                year,
+                profit,
+                rate,
+                months: ms.len(),
+                explanation,
+            }
         })
         .collect()
 }
@@ -381,7 +589,11 @@ mod tests {
 
     impl Prices {
         fn new(list: &[(&str, (i32, u32, u32), Decimal)]) -> Self {
-            Prices(list.iter().map(|(a, (y, m, d), p)| ((a.to_string(), day(*y, *m, *d)), *p)).collect())
+            Prices(
+                list.iter()
+                    .map(|(a, (y, m, d), p)| ((a.to_string(), day(*y, *m, *d)), *p))
+                    .collect(),
+            )
         }
     }
 
@@ -404,8 +616,26 @@ mod tests {
         NaiveDate::from_ymd_opt(y, m, d).unwrap()
     }
 
-    fn trade(id: &str, asset: &str, date: NaiveDate, side: Side, q: Decimal, price: Decimal, fees: Decimal) -> Trade {
-        Trade { id: id.into(), asset: asset.into(), date, side, quantity: q, price, gross: q * price, fees }
+    fn trade(
+        id: &str,
+        asset: &str,
+        date: NaiveDate,
+        side: Side,
+        q: Decimal,
+        price: Decimal,
+        fees: Decimal,
+    ) -> Trade {
+        Trade {
+            id: id.into(),
+            asset: asset.into(),
+            date,
+            side,
+            quantity: q,
+            price,
+            gross: q * price,
+            fees,
+            currency: "BRL".into(),
+        }
     }
 
     fn round2(v: Decimal) -> Decimal {
@@ -415,9 +645,22 @@ mod tests {
     #[test]
     fn exemplo_da_documentacao_petr4_janeiro() {
         // Compra em 15/01, fechamento de 30/01 (último pregão) a R$ 40,00.
-        let trades = vec![trade("t1", "PETR4", day(2026, 1, 15), Side::Compra, dec!(100), dec!(38), dec!(1.13))];
+        let trades = vec![trade(
+            "t1",
+            "PETR4",
+            day(2026, 1, 15),
+            Side::Compra,
+            dec!(100),
+            dec!(38),
+            dec!(1.13),
+        )];
         let prices = Prices::new(&[("PETR4", (2026, 1, 30), dec!(40))]);
-        let r = monthly_returns(&trades, &prices, day(2026, 1, 31), &Scope::Ativo("PETR4".into()));
+        let r = monthly_returns(
+            &trades,
+            &prices,
+            day(2026, 1, 31),
+            &Scope::Ativo("PETR4".into()),
+        );
         assert_eq!(r.len(), 1);
         let m = &r[0];
         assert_eq!(m.period_start, day(2026, 1, 15));
@@ -431,8 +674,24 @@ mod tests {
     #[test]
     fn segundo_aporte_pesa_so_pelos_dias_investido() {
         let trades = vec![
-            trade("t1", "PETR4", day(2026, 1, 15), Side::Compra, dec!(100), dec!(38), dec!(1.13)),
-            trade("t2", "PETR4", day(2026, 1, 22), Side::Compra, dec!(50), dec!(39), dec!(0.57)),
+            trade(
+                "t1",
+                "PETR4",
+                day(2026, 1, 15),
+                Side::Compra,
+                dec!(100),
+                dec!(38),
+                dec!(1.13),
+            ),
+            trade(
+                "t2",
+                "PETR4",
+                day(2026, 1, 22),
+                Side::Compra,
+                dec!(50),
+                dec!(39),
+                dec!(0.57),
+            ),
         ];
         let prices = Prices::new(&[("PETR4", (2026, 1, 30), dec!(40))]);
         let m = &monthly_returns(&trades, &prices, day(2026, 1, 31), &Scope::Carteira)[0];
@@ -441,14 +700,31 @@ mod tests {
         // Lucro = 6.000 − 0 − (3.801,13 + 1.950,57) = 248,30
         assert_eq!(m.profit, Some(dec!(248.30)));
         let capital = dec!(3801.13) + dec!(1950.57) * dec!(10) / dec!(17);
-        assert_eq!(m.average_capital.unwrap().round_dp(10), capital.round_dp(10));
-        assert_eq!(m.rate.unwrap().round_dp(10), (dec!(248.30) / capital).round_dp(10));
+        assert_eq!(
+            m.average_capital.unwrap().round_dp(10),
+            capital.round_dp(10)
+        );
+        assert_eq!(
+            m.rate.unwrap().round_dp(10),
+            (dec!(248.30) / capital).round_dp(10)
+        );
     }
 
     #[test]
     fn mes_seguinte_comeca_com_o_valor_do_fim_do_mes_anterior() {
-        let trades = vec![trade("t1", "VALE3", day(2026, 1, 15), Side::Compra, dec!(10), dec!(60), dec!(0))];
-        let prices = Prices::new(&[("VALE3", (2026, 1, 30), dec!(62)), ("VALE3", (2026, 2, 27), dec!(65.10))]);
+        let trades = vec![trade(
+            "t1",
+            "VALE3",
+            day(2026, 1, 15),
+            Side::Compra,
+            dec!(10),
+            dec!(60),
+            dec!(0),
+        )];
+        let prices = Prices::new(&[
+            ("VALE3", (2026, 1, 30), dec!(62)),
+            ("VALE3", (2026, 2, 27), dec!(65.10)),
+        ]);
         let r = monthly_returns(&trades, &prices, day(2026, 2, 28), &Scope::Carteira);
         assert_eq!(r.len(), 2);
         let feb = &r[1];
@@ -465,8 +741,24 @@ mod tests {
     #[test]
     fn venda_total_encerra_o_periodo_na_vespera() {
         let trades = vec![
-            trade("t1", "ITSA4", day(2026, 3, 2), Side::Compra, dec!(100), dec!(10), dec!(0)),
-            trade("t2", "ITSA4", day(2026, 3, 12), Side::Venda, dec!(100), dec!(11), dec!(0)),
+            trade(
+                "t1",
+                "ITSA4",
+                day(2026, 3, 2),
+                Side::Compra,
+                dec!(100),
+                dec!(10),
+                dec!(0),
+            ),
+            trade(
+                "t2",
+                "ITSA4",
+                day(2026, 3, 12),
+                Side::Venda,
+                dec!(100),
+                dec!(11),
+                dec!(0),
+            ),
         ];
         let prices = Prices::new(&[]);
         let r = monthly_returns(&trades, &prices, day(2026, 4, 30), &Scope::Carteira);
@@ -483,10 +775,31 @@ mod tests {
     #[test]
     fn compra_e_venda_no_mesmo_dia() {
         let trades = vec![
-            trade("t1", "BBAS3", day(2026, 5, 6), Side::Compra, dec!(100), dec!(20), dec!(0)),
-            trade("t2", "BBAS3", day(2026, 5, 6), Side::Venda, dec!(100), dec!(20.5), dec!(0)),
+            trade(
+                "t1",
+                "BBAS3",
+                day(2026, 5, 6),
+                Side::Compra,
+                dec!(100),
+                dec!(20),
+                dec!(0),
+            ),
+            trade(
+                "t2",
+                "BBAS3",
+                day(2026, 5, 6),
+                Side::Venda,
+                dec!(100),
+                dec!(20.5),
+                dec!(0),
+            ),
         ];
-        let m = &monthly_returns(&trades, &Prices::new(&[]), day(2026, 5, 31), &Scope::Carteira)[0];
+        let m = &monthly_returns(
+            &trades,
+            &Prices::new(&[]),
+            day(2026, 5, 31),
+            &Scope::Carteira,
+        )[0];
         assert_eq!(m.days, 1);
         assert_eq!(m.profit, Some(dec!(50)));
         assert_eq!(m.rate, Some(dec!(0.025)));
@@ -495,8 +808,24 @@ mod tests {
     #[test]
     fn venda_parcial_reduz_o_capital_a_partir_da_data_da_venda() {
         let trades = vec![
-            trade("t1", "WEGE3", day(2026, 6, 1), Side::Compra, dec!(100), dec!(50), dec!(0)),
-            trade("t2", "WEGE3", day(2026, 6, 16), Side::Venda, dec!(50), dec!(52), dec!(0)),
+            trade(
+                "t1",
+                "WEGE3",
+                day(2026, 6, 1),
+                Side::Compra,
+                dec!(100),
+                dec!(50),
+                dec!(0),
+            ),
+            trade(
+                "t2",
+                "WEGE3",
+                day(2026, 6, 16),
+                Side::Venda,
+                dec!(50),
+                dec!(52),
+                dec!(0),
+            ),
         ];
         let prices = Prices::new(&[("WEGE3", (2026, 6, 30), dec!(53))]);
         let m = &monthly_returns(&trades, &prices, day(2026, 6, 30), &Scope::Carteira)[0];
@@ -510,8 +839,21 @@ mod tests {
 
     #[test]
     fn sem_cotacao_o_resultado_fica_indisponivel() {
-        let trades = vec![trade("t1", "ABEV3", day(2026, 1, 10), Side::Compra, dec!(10), dec!(12), dec!(0))];
-        let r = monthly_returns(&trades, &Prices::new(&[]), day(2026, 1, 31), &Scope::Carteira);
+        let trades = vec![trade(
+            "t1",
+            "ABEV3",
+            day(2026, 1, 10),
+            Side::Compra,
+            dec!(10),
+            dec!(12),
+            dec!(0),
+        )];
+        let r = monthly_returns(
+            &trades,
+            &Prices::new(&[]),
+            day(2026, 1, 31),
+            &Scope::Carteira,
+        );
         assert_eq!(r[0].profit, None);
         assert_eq!(r[0].rate, None);
         assert!(r[0].explanation.last().unwrap().contains("falta cotação"));
@@ -520,11 +862,102 @@ mod tests {
 
     #[test]
     fn mes_corrente_vai_ate_a_data_de_referencia() {
-        let trades = vec![trade("t1", "PETR4", day(2026, 10, 1), Side::Compra, dec!(10), dec!(40), dec!(0))];
+        let trades = vec![trade(
+            "t1",
+            "PETR4",
+            day(2026, 10, 1),
+            Side::Compra,
+            dec!(10),
+            dec!(40),
+            dec!(0),
+        )];
         let prices = Prices::new(&[("PETR4", (2026, 10, 13), dec!(42))]);
         let m = &monthly_returns(&trades, &prices, day(2026, 10, 14), &Scope::Carteira)[0];
         assert_eq!(m.period_end, day(2026, 10, 14));
-        assert_eq!(m.end.holdings[0].quote.as_ref().unwrap().date, day(2026, 10, 13));
+        assert_eq!(
+            m.end.holdings[0].quote.as_ref().unwrap().date,
+            day(2026, 10, 13)
+        );
         assert_eq!(m.profit, Some(dec!(20)));
+    }
+
+    struct TwoRates;
+    impl FxSource for TwoRates {
+        fn usd_brl_on_or_before(&self, date: NaiveDate) -> Option<FxRate> {
+            let rate = if date < day(2026, 2, 1) {
+                dec!(5)
+            } else {
+                dec!(5.5)
+            };
+            Some(FxRate {
+                date,
+                rate,
+                source: "teste".into(),
+            })
+        }
+    }
+
+    #[test]
+    fn exterior_em_reais_separa_ativo_e_cambio() {
+        // US$ 1.000 em 15/01 (PTAX 5) que vira US$ 1.100 no fim de fevereiro (PTAX 5,5).
+        let mut t = trade(
+            "t1",
+            "TEST",
+            day(2026, 1, 15),
+            Side::Compra,
+            dec!(10),
+            dec!(100),
+            dec!(0),
+        );
+        t.currency = "USD".into();
+        let prices = Prices::new(&[
+            ("TEST", (2026, 1, 30), dec!(100)),
+            ("TEST", (2026, 2, 27), dec!(110)),
+        ]);
+        let scope = Scope::Ativo("TEST".into());
+        let brl = monthly_returns_in(
+            &[t.clone()],
+            &prices,
+            day(2026, 2, 28),
+            &scope,
+            Conversion::ToBrl(&TwoRates),
+        );
+        let usd = monthly_returns_in(
+            &[t.clone()],
+            &prices,
+            day(2026, 2, 28),
+            &scope,
+            Conversion::Native,
+        );
+        assert_eq!(brl[0].profit, Some(dec!(0)));
+        assert_eq!(brl[1].profit, Some(dec!(1050))); // 6.050 − 5.000
+        assert_eq!(usd[1].profit, Some(dec!(100)));
+        assert_eq!(brl[1].currency, "BRL");
+        assert!(
+            brl[1].explanation.iter().any(|l| l.contains("PTAX")),
+            "{:?}",
+            brl[1].explanation
+        );
+        // (1 + 21%) = (1 + 10%) × (1 + 10%)
+        let y_brl = yearly_returns(&brl)[0].rate.unwrap();
+        let y_usd = yearly_returns(&usd)[0].rate.unwrap();
+        assert_eq!(y_brl.round_dp(10), dec!(0.21));
+        assert_eq!(y_usd.round_dp(10), dec!(0.1));
+
+        // Sem PTAX o resultado em reais fica indisponível.
+        struct Nada;
+        impl FxSource for Nada {
+            fn usd_brl_on_or_before(&self, _: NaiveDate) -> Option<FxRate> {
+                None
+            }
+        }
+        let none = monthly_returns_in(
+            &[t],
+            &prices,
+            day(2026, 2, 28),
+            &scope,
+            Conversion::ToBrl(&Nada),
+        );
+        assert!(none.iter().all(|m| m.rate.is_none()));
     }
 }

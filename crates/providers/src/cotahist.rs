@@ -50,18 +50,26 @@ impl Record {
             "12" => "FII",
             "14" if spec.starts_with("CI") => "ETF",
             _ if spec.starts_with("DR") => "BDR",
-            "02" | "96" if spec.starts_with("ON") || spec.starts_with("PN") || spec.starts_with("UNT") => "ACAO",
+            "02" | "96"
+                if spec.starts_with("ON") || spec.starts_with("PN") || spec.starts_with("UNT") =>
+            {
+                "ACAO"
+            }
             _ => "OUTRO",
         }
     }
 }
 
 fn field(line: &str, from: usize, to: usize) -> Result<&str> {
-    line.get(from..to).ok_or_else(|| ProviderError::Format(format!("linha curta: {} caracteres", line.len())))
+    line.get(from..to)
+        .ok_or_else(|| ProviderError::Format(format!("linha curta: {} caracteres", line.len())))
 }
 
 fn price(raw: &str, factor: &Decimal) -> Result<Decimal> {
-    let cents: i64 = raw.trim().parse().map_err(|_| ProviderError::Format(format!("preço inválido: {raw}")))?;
+    let cents: i64 = raw
+        .trim()
+        .parse()
+        .map_err(|_| ProviderError::Format(format!("preço inválido: {raw}")))?;
     Ok(Decimal::new(cents, 2) / factor)
 }
 
@@ -108,11 +116,14 @@ pub fn parse_text(bytes: &[u8]) -> Result<Vec<Record>> {
 
 /// Extrai o primeiro arquivo de dentro do ZIP.
 pub fn unzip_first(zip_bytes: &[u8]) -> Result<Vec<u8>> {
-    let mut archive =
-        zip::ZipArchive::new(std::io::Cursor::new(zip_bytes)).map_err(|e| ProviderError::Format(format!("zip inválido: {e}")))?;
-    let mut file = archive.by_index(0).map_err(|e| ProviderError::Format(format!("zip vazio: {e}")))?;
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes))
+        .map_err(|e| ProviderError::Format(format!("zip inválido: {e}")))?;
+    let mut file = archive
+        .by_index(0)
+        .map_err(|e| ProviderError::Format(format!("zip vazio: {e}")))?;
     let mut buf = Vec::new();
-    file.read_to_end(&mut buf).map_err(|e| ProviderError::Format(e.to_string()))?;
+    file.read_to_end(&mut buf)
+        .map_err(|e| ProviderError::Format(e.to_string()))?;
     Ok(buf)
 }
 
@@ -123,7 +134,10 @@ pub fn fetch(url: &str) -> Result<Vec<Record>> {
 }
 
 /// Último pregão disponível: tenta os arquivos diários de `today` para trás.
-pub fn fetch_latest_daily(today: NaiveDate, max_days_back: i64) -> Result<(NaiveDate, Vec<Record>)> {
+pub fn fetch_latest_daily(
+    today: NaiveDate,
+    max_days_back: i64,
+) -> Result<(NaiveDate, Vec<Record>)> {
     let mut last_err = ProviderError::NotFound("nenhum pregão recente".into());
     for back in 0..=max_days_back {
         let d = today - chrono::Duration::days(back);
@@ -143,7 +157,16 @@ pub(crate) mod tests {
     use rust_decimal_macros::dec;
 
     /// Monta uma linha sintética no layout oficial.
-    pub fn line(date: &str, bdi: &str, ticker: &str, market: &str, name: &str, spec: &str, close_cents: i64, factor: i64) -> String {
+    pub fn line(
+        date: &str,
+        bdi: &str,
+        ticker: &str,
+        market: &str,
+        name: &str,
+        spec: &str,
+        close_cents: i64,
+        factor: i64,
+    ) -> String {
         let mut s = String::new();
         s.push_str("01");
         s.push_str(date);
@@ -174,11 +197,49 @@ pub(crate) mod tests {
     fn interpreta_registro_e_ignora_cabecalho() {
         let text = [
             "00COTAHIST.2026BOVESPA 20260302".to_string(),
-            line("20260302", "02", "TEST3", "010", "EMPRESA TES", "ON NM", 1234, 1),
-            line("20260302", "02", "TEST3F", "020", "EMPRESA TES", "ON NM", 1235, 1),
-            line("20260302", "12", "FUND11", "010", "FUNDO TESTE", "CI", 9850, 1),
-            line("20260302", "14", "INDX11", "010", "ETF TESTE", "CI", 10012, 1),
-            line("20260302", "02", "MIL3", "010", "COTA MIL", "ON", 4500, 1000),
+            line(
+                "20260302",
+                "02",
+                "TEST3",
+                "010",
+                "EMPRESA TES",
+                "ON NM",
+                1234,
+                1,
+            ),
+            line(
+                "20260302",
+                "02",
+                "TEST3F",
+                "020",
+                "EMPRESA TES",
+                "ON NM",
+                1235,
+                1,
+            ),
+            line(
+                "20260302",
+                "12",
+                "FUND11",
+                "010",
+                "FUNDO TESTE",
+                "CI",
+                9850,
+                1,
+            ),
+            line(
+                "20260302",
+                "14",
+                "INDX11",
+                "010",
+                "ETF TESTE",
+                "CI",
+                10012,
+                1,
+            ),
+            line(
+                "20260302", "02", "MIL3", "010", "COTA MIL", "ON", 4500, 1000,
+            ),
             "99COTAHIST.2026BOVESPA 2026030200000000005".to_string(),
         ]
         .join("\r\n");

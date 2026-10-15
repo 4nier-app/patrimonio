@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { date, maskDecimal, parseDecimalInput, passwordStrength, percent, shortHash } from "./format";
+import { cashMask, date, decimalMask, maskDecimal, money, parseDecimalInput, passwordStrength, percent, shortHash, toCashMask } from "./format";
 
 describe("shortHash", () => {
   it("encurta hashes longos", () => {
@@ -59,5 +59,46 @@ describe("maskDecimal", () => {
   });
   it("mantém texto inválido", () => {
     expect(maskDecimal("abc", "money")).toBe("abc");
+  });
+});
+
+describe("cashMask", () => {
+  it("preenche da direita para a esquerda", () => {
+    expect(cashMask("1", 2)).toBe("R$ 0,01");
+    expect(cashMask("1234", 2)).toBe("R$ 12,34");
+    expect(cashMask("123456789", 2)).toBe("R$ 1.234.567,89");
+    expect(cashMask("R$ 0,012", 2)).toBe("R$ 0,12");
+    expect(cashMask("1", 4, "USD")).toBe("US$ 0,0001");
+    expect(cashMask("1501234", 4, "USD")).toBe("US$ 150,1234");
+  });
+  it("ignora letras e fica vazio sem dígitos", () => {
+    expect(cashMask("a1b2", 2)).toBe("R$ 0,12");
+    expect(cashMask("R$ 0,00", 2)).toBe("");
+    expect(parseDecimalInput(cashMask("1234", 2))).toBe("12.34");
+    expect(parseDecimalInput(cashMask("1501234", 4, "USD"))).toBe("150.1234");
+  });
+  it("carrega um valor gravado", () => {
+    expect(toCashMask("12.5", 2)).toEqual({ text: "R$ 12,50", decimals: 2 });
+    expect(toCashMask("50.0033", 2)).toEqual({ text: "R$ 50,0033", decimals: 4 });
+    expect(toCashMask("100", 4, "USD")).toEqual({ text: "US$ 100,0000", decimals: 4 });
+  });
+});
+
+describe("money", () => {
+  it("formata reais e dólares", () => {
+    expect(money("1234.5")).toBe("R$ 1.234,50");
+    expect(money("1234.5", "USD")).toBe("US$ 1.234,50");
+  });
+});
+
+describe("decimalMask", () => {
+  it("aceita vírgula e até 8 casas", () => {
+    expect(decimalMask("95,84058663", 8)).toBe("US$ 95,84058663");
+    expect(decimalMask("95,840586631", 8)).toBe("US$ 95,84058663");
+    expect(decimalMask("1234", 8)).toBe("US$ 1.234");
+    expect(decimalMask("US$ 1.234,5", 8)).toBe("US$ 1.234,5");
+    expect(decimalMask("US$ 1.234.", 8)).toBe("US$ 1.234,");
+    expect(decimalMask("abc", 8)).toBe("");
+    expect(parseDecimalInput(decimalMask("1234,56789", 8))).toBe("1234.56789");
   });
 });

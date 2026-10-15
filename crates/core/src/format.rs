@@ -19,7 +19,10 @@ pub fn number(v: Decimal, dp: u32) -> String {
     let s = format!("{:.*}", dp as usize, r);
     let neg = s.starts_with('-');
     let s = s.trim_start_matches('-');
-    let (int, frac) = s.split_once('.').map(|(a, b)| (a, Some(b))).unwrap_or((s, None));
+    let (int, frac) = s
+        .split_once('.')
+        .map(|(a, b)| (a, Some(b)))
+        .unwrap_or((s, None));
     let mut out = String::new();
     if neg && !r.is_zero() {
         out.push('-');
