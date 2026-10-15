@@ -31,6 +31,12 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - O PDF é lido no próprio computador, com o pdf.js, e não é enviado para
   lugar nenhum.
 
+### Corrigido
+- Operações antigas lançadas depois das mais novas ficavam
+  sem cotação e a Rentabilidade mostrava só "—". Agora o histórico de preços é
+  buscado desde a operação mais antiga, também nos meses da B3 já baixados que
+  não tinham o ativo novo.
+
 ## [0.5.0] - Não lançada
 
 ### Adicionado
@@ -57,7 +63,7 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ### Alterado
 - Código do mercado fracionário da B3 (ABCD3F, como aparece nas notas) é
   gravado como o do lote padrão (ABCD3): mesmo ativo, cotação e preço médio.
-- O motivo da remoção de um lançamento passa a ser opcional.
+- Remover um lançamento não pede mais motivo: basta confirmar.
 
 
 ## [0.4.0] - Não lançada

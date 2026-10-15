@@ -181,7 +181,6 @@ export default function Operations() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [reason, setReason] = useState("");
   const [removing, setRemoving] = useState<string | null>(null);
-  const [removeReason, setRemoveReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -292,9 +291,8 @@ export default function Operations() {
   async function confirmRemove(id: string) {
     setError(null);
     try {
-      await market.remove(id, removeReason);
+      await market.remove(id);
       setRemoving(null);
-      setRemoveReason("");
       setMessage("Lançamento removido. Ele continua visível na Auditoria.");
       if (form.id === id) setForm(EMPTY);
       load();
@@ -555,13 +553,8 @@ export default function Operations() {
                   <tr className="detail">
                     <td colSpan={9}>
                       <div className="remove-box">
-                        <input
-                          autoFocus
-                          value={removeReason}
-                          onChange={(e) => setRemoveReason(e.target.value)}
-                          placeholder="Motivo da remoção (opcional)"
-                        />
-                        <button onClick={() => confirmRemove(p.operation.id)}>
+                        <span>Remover este lançamento?</span>
+                        <button autoFocus onClick={() => confirmRemove(p.operation.id)}>
                           Confirmar remoção
                         </button>
                         <button className="secondary" onClick={() => setRemoving(null)}>

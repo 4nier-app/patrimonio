@@ -13,7 +13,8 @@ use carteira_core::operations::{Operation, PricedOperation};
 use carteira_ledger::Event;
 use carteira_storage::{
     backup_summary, looks_like_email, Account, Asset, BackupInfo, BackupSummary, IntegrityReport,
-    NoteImport, NoteStatus, QuoteUpdate, RecoveryStatus, Vault, VaultError, VersionEntry, BACKUP_EXTENSION,
+    NoteImport, NoteStatus, QuoteUpdate, RecoveryStatus, Vault, VaultError, VersionEntry,
+    BACKUP_EXTENSION,
 };
 use serde::Serialize;
 use tauri::{Manager, State};
@@ -344,7 +345,9 @@ fn remove_operation(
 
 #[tauri::command]
 fn note_status(hashes: Vec<String>, state: State<AppState>) -> Result<Vec<NoteStatus>, String> {
-    with_vault(&state, |v| hashes.iter().map(|h| v.note_status(h)).collect())
+    with_vault(&state, |v| {
+        hashes.iter().map(|h| v.note_status(h)).collect()
+    })
 }
 
 /// Para cada (nome de pregão, classe), os códigos da B3 que batem.

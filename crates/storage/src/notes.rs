@@ -46,7 +46,11 @@ impl Vault {
             )
             .optional()?;
         let Some((ids, at)) = row else {
-            return Ok(NoteStatus { hash: hash.into(), imported: false, imported_at: None });
+            return Ok(NoteStatus {
+                hash: hash.into(),
+                imported: false,
+                imported_at: None,
+            });
         };
         let ids: Vec<String> = serde_json::from_str(&ids).unwrap_or_default();
         let mut alive = false;
@@ -56,7 +60,11 @@ impl Vault {
                 break;
             }
         }
-        Ok(NoteStatus { hash: hash.into(), imported: alive, imported_at: alive.then_some(at) })
+        Ok(NoteStatus {
+            hash: hash.into(),
+            imported: alive,
+            imported_at: alive.then_some(at),
+        })
     }
 
     /// Grava os lançamentos da nota e registra a importação no histórico.
@@ -98,7 +106,14 @@ impl Vault {
             "conta": account,
             "lancamentos": ids,
         });
-        self.append_event("NOTA", &note.hash, Action::Criada, None, Some(&summary.to_string()), None)?;
+        self.append_event(
+            "NOTA",
+            &note.hash,
+            Action::Criada,
+            None,
+            Some(&summary.to_string()),
+            None,
+        )?;
         Ok(created)
     }
 
@@ -125,9 +140,13 @@ impl Vault {
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(tickers
             .into_iter()
-            .filter(|t| suffixes.iter().any(|s| {
-                t.strip_suffix(s).is_some_and(|base| base.len() == 4 && base.chars().all(|c| c.is_ascii_alphabetic()))
-            }))
+            .filter(|t| {
+                suffixes.iter().any(|s| {
+                    t.strip_suffix(s).is_some_and(|base| {
+                        base.len() == 4 && base.chars().all(|c| c.is_ascii_alphabetic())
+                    })
+                })
+            })
             .collect())
     }
 }
@@ -159,21 +178,34 @@ mod tests {
     #[test]
     fn importa_uma_vez_e_libera_quando_os_lancamentos_somem() {
         let tmp = tempfile::tempdir().unwrap();
-        let mut v = Vault::create_with_params(tmp.path(), "senha-de-teste-123", "0.6.0", KdfParams::fast_for_tests()).unwrap();
+        let mut v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-123",
+            "0.6.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
         let note = NoteImport {
             hash: "abc".into(),
             broker: "Corretora Sintética".into(),
             number: Some("1".into()),
             date: NaiveDate::from_ymd_opt(2026, 3, 2).unwrap(),
             account: " Conta Teste ".into(),
-            operations: vec![op("test3f", dec!(7), dec!(10.5)), op("TEST11", dec!(100), dec!(9.87))],
+            operations: vec![
+                op("test3f", dec!(7), dec!(10.5)),
+                op("TEST11", dec!(100), dec!(9.87)),
+            ],
         };
         let created = v.import_note(note.clone()).unwrap();
         assert_eq!(created.len(), 2);
         assert_eq!(created[0].asset, "TEST3");
         assert_eq!(created[0].account, "Conta Teste");
         assert!(v.note_status("abc").unwrap().imported);
-        assert!(v.import_note(note.clone()).unwrap_err().to_string().contains("já foi importada"));
+        assert!(v
+            .import_note(note.clone())
+            .unwrap_err()
+            .to_string()
+            .contains("já foi importada"));
         assert!(v.verify_integrity().unwrap().ok);
         for o in &created {
             v.remove_operation(&o.id, Some("teste")).unwrap();
@@ -185,7 +217,13 @@ mod tests {
     #[test]
     fn linha_invalida_nao_grava_nada() {
         let tmp = tempfile::tempdir().unwrap();
-        let mut v = Vault::create_with_params(tmp.path(), "senha-de-teste-123", "0.6.0", KdfParams::fast_for_tests()).unwrap();
+        let mut v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-123",
+            "0.6.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
         let note = NoteImport {
             hash: "x".into(),
             broker: "B".into(),
@@ -201,8 +239,19 @@ mod tests {
     #[test]
     fn acha_codigo_pelo_nome_de_pregao() {
         let tmp = tempfile::tempdir().unwrap();
-        let v = Vault::create_with_params(tmp.path(), "senha-de-teste-123", "0.6.0", KdfParams::fast_for_tests()).unwrap();
-        for (t, n) in [("ABCD3", "EMPRESA A"), ("ABCD4", "EMPRESA A"), ("EFGH11", "FII TESTE"), ("XYZW3", "OUTRA")] {
+        let v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-123",
+            "0.6.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
+        for (t, n) in [
+            ("ABCD3", "EMPRESA A"),
+            ("ABCD4", "EMPRESA A"),
+            ("EFGH11", "FII TESTE"),
+            ("XYZW3", "OUTRA"),
+        ] {
             v.conn
                 .execute(
                     "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at) VALUES (?1, ?2, 'ACAO', 'B3', 'BRL', 'T', '')",
@@ -212,7 +261,10 @@ mod tests {
         }
         assert_eq!(v.find_b3_by_name("Empresa A", "PN").unwrap(), vec!["ABCD4"]);
         assert_eq!(v.find_b3_by_name("EMPRESA A", "ON").unwrap(), vec!["ABCD3"]);
-        assert_eq!(v.find_b3_by_name("FII TESTE", "CI").unwrap(), vec!["EFGH11"]);
+        assert_eq!(
+            v.find_b3_by_name("FII TESTE", "CI").unwrap(),
+            vec!["EFGH11"]
+        );
         assert!(v.find_b3_by_name("NAO EXISTE", "ON").unwrap().is_empty());
     }
 }

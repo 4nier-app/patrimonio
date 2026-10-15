@@ -511,6 +511,26 @@ impl Vault {
         d.map(|s| date(s, 0)).transpose().map_err(Into::into)
     }
 
+    /// Primeira data com cotação do ativo na fonte.
+    pub fn first_quote_date(&self, ticker: &str, source: &str) -> Result<Option<NaiveDate>> {
+        let d: Option<String> = self.conn.query_row(
+            "SELECT min(quote_date) FROM quotes WHERE ticker = ?1 AND source = ?2",
+            params![ticker, source],
+            |r| r.get(0),
+        )?;
+        d.map(|s| date(s, 0)).transpose().map_err(Into::into)
+    }
+
+    /// Há alguma cotação do ativo (qualquer fonte) entre as duas datas?
+    pub fn has_quote_between(&self, ticker: &str, from: NaiveDate, to: NaiveDate) -> Result<bool> {
+        let n: i64 = self.conn.query_row(
+            "SELECT count(*) FROM quotes WHERE ticker = ?1 AND quote_date BETWEEN ?2 AND ?3",
+            params![ticker, from.to_string(), to.to_string()],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
     /// Carrega as cotações dos ativos para uso nos cálculos.
     pub fn price_table(&self, tickers: &[String]) -> Result<PriceTable> {
         let mut table = PriceTable::default();

@@ -413,11 +413,35 @@ pub fn update_all(
     let mut month_errors = Vec::new();
     for (&(y, m), tickers) in held.iter().filter(|(k, _)| **k < current) {
         let key = month_key(y, m);
+        // Mês já baixado só conta se tem todos os ativos de agora: uma nota
+        // antiga importada depois traz ativos que não estavam no download.
+        let with_tickers = format!(
+            "{key}|{}",
+            tickers.iter().cloned().collect::<Vec<_>>().join(",")
+        );
+        let first = NaiveDate::from_ymd_opt(y, m, 1).expect("dia 1");
         let done = with(vault, |v| {
-            v.last_successful_update(cotahist::SOURCE, Some(&key))
-                .map_err(|e| e.to_string())
+            let e = |e: carteira_storage::VaultError| e.to_string();
+            if v.last_successful_update(cotahist::SOURCE, Some(&key))
+                .map_err(e)?
+                .is_none()
+            {
+                return Ok(false);
+            }
+            if v.last_successful_update(cotahist::SOURCE, Some(&with_tickers))
+                .map_err(e)?
+                .is_some()
+            {
+                return Ok(true);
+            }
+            for t in tickers {
+                if !v.has_quote_between(t, first, month_end(y, m)).map_err(e)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
         })?;
-        if done.is_some() {
+        if done {
             continue;
         }
         match fetcher.monthly(y, m) {
@@ -426,14 +450,17 @@ pub fn update_all(
                 let msg = format!("{} fechamentos de {m:02}/{y}", quotes.len());
                 with(vault, |v| {
                     v.save_quotes(&quotes).map_err(|e| e.to_string())?;
-                    v.record_quote_update(
-                        cotahist::SOURCE,
-                        Some(&key),
-                        true,
-                        quotes.len() as i64,
-                        &msg,
-                    )
-                    .map_err(|e| e.to_string())
+                    for k in [&key, &with_tickers] {
+                        v.record_quote_update(
+                            cotahist::SOURCE,
+                            Some(k),
+                            true,
+                            quotes.len() as i64,
+                            &msg,
+                        )
+                        .map_err(|e| e.to_string())?;
+                    }
+                    Ok(())
                 })?;
                 months_ok += 1;
             }
@@ -494,13 +521,20 @@ pub fn update_all(
         .map(|t| (t.clone(), yahoo::b3_symbol(t), from))
         .collect();
     for (t, first) in &us_first {
-        let last = with(vault, |v| {
-            v.last_quote_date(t, yahoo::SOURCE)
-                .map_err(|e| e.to_string())
+        let (oldest, last) = with(vault, |v| {
+            Ok::<_, String>((
+                v.first_quote_date(t, yahoo::SOURCE)
+                    .map_err(|e| e.to_string())?,
+                v.last_quote_date(t, yahoo::SOURCE)
+                    .map_err(|e| e.to_string())?,
+            ))
         })?;
-        let start = last
-            .map(|d| d - Duration::days(5))
-            .unwrap_or(*first - Duration::days(10));
+        // Uma operação anterior às cotações gravadas (nota antiga importada
+        // depois) pede o histórico desde ela.
+        let start = match (oldest, last) {
+            (Some(o), Some(l)) if o <= *first + Duration::days(7) => l - Duration::days(5),
+            _ => *first - Duration::days(10),
+        };
         plan.push((t.clone(), yahoo::us_symbol(t), start));
     }
     for (t, symbol, from) in &plan {
@@ -755,7 +789,10 @@ mod tests {
             self.yahoo_calls
                 .borrow_mut()
                 .push((symbol.to_string(), from));
-            Ok(vec![(to, Decimal::from(99))])
+            Ok(vec![
+                (from + Duration::days(10), Decimal::from(99)),
+                (to, Decimal::from(99)),
+            ])
         }
         fn us_catalog(&self) -> Result<Vec<nasdaq::Listing>, ProviderError> {
             Ok((0..120)
@@ -952,8 +989,52 @@ mod tests {
             "depois só busca a partir da última cotação"
         );
 
+        // Nota antiga importada depois: busca o histórico desde ela.
+        let old = NaiveDate::from_ymd_opt(2025, 6, 2).unwrap();
+        {
+            let mut g = vault.lock().unwrap();
+            let v = g.as_mut().unwrap();
+            for (asset, currency) in [("BRK.B", "USD"), ("OUTRO3", "BRL")] {
+                v.create_operation(Operation {
+                    id: String::new(),
+                    account: format!("Antiga {currency}"),
+                    asset: asset.into(),
+                    date: if currency == "USD" {
+                        old
+                    } else {
+                        NaiveDate::from_ymd_opt(2026, 1, 5).unwrap()
+                    },
+                    side: Side::Compra,
+                    quantity: Decimal::from(1),
+                    price: Decimal::from(10),
+                    manual_fees: None,
+                    note: None,
+                    currency: currency.into(),
+                    from_account: None,
+                    residue: None,
+                })
+                .unwrap();
+            }
+        }
+        let before = f.monthly_calls.borrow().len();
+        update_all(&vault, &f, today).unwrap();
+        let calls = f.yahoo_calls.borrow().clone();
+        assert!(
+            calls.contains(&("BRK-B".into(), old - Duration::days(10))),
+            "{calls:?}"
+        );
+        assert!(
+            f.monthly_calls.borrow()[before..].contains(&(2026, 1)),
+            "mês baixado de novo para o ativo que faltava: {:?}",
+            f.monthly_calls.borrow()
+        );
+        let after = f.monthly_calls.borrow().len();
+        update_all(&vault, &f, today).unwrap();
+        assert_eq!(f.monthly_calls.borrow().len(), after, "e só uma vez");
+
         let g = vault.lock().unwrap();
         let v = g.as_ref().unwrap();
+        assert!(v.fx_table().unwrap().usd_brl_on_or_before(old).is_some());
         assert!(v.fx_table().unwrap().usd_brl_on_or_before(today).is_some());
         assert_eq!(v.search_assets("U000", 5).unwrap()[0].kind, "ETF");
     }
