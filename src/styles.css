@@ -181,3 +181,22 @@ tr.total-row td { background: var(--bg); }
 .memo .section-head { align-items: center; }
 .memo-lines { padding-left: 20px; margin: 8px 0; }
 .memo-lines li { margin: 4px 0; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.85rem; }
+
+/* Etapa 3: chave de recuperação e backup */
+.recovery-card { display: flex; flex-direction: column; gap: 12px; }
+.recovery-card h3 { margin: 0; }
+.recovery-key {
+  font-size: 0.95rem; letter-spacing: 0; white-space: nowrap; word-break: normal; text-align: center; padding: 12px 8px; margin: 0;
+  background: var(--surface); border: 2px dashed var(--accent); border-radius: 8px; user-select: all;
+}
+.actions.wrap { flex-wrap: wrap; }
+.footnote.left { text-align: left; }
+.login-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.security-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.stack h3, .stack h4 { margin: 0; }
+.restore { display: flex; flex-direction: column; gap: 12px; }
+.summary { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.summary dt { color: var(--muted); }
+.summary dd { margin: 0; }
+.banner { margin: 12px 24px 0; border-radius: 8px; }

@@ -6,7 +6,32 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.3.0] - Não lançada
+## [0.4.0] - Não lançada
+
+### Adicionado
+- Chave de recuperação: criada junto com o cofre (ou depois, na tela
+  Segurança). O aplicativo abre o seu programa de e-mail com a chave numa
+  mensagem para você mesmo; nada é enviado pela internet pelo aplicativo.
+- "Esqueci minha senha" na tela de entrada: com a chave de recuperação, cria
+  uma senha nova sem perder nenhum dado.
+- Backup: "Fazer backup agora" grava um arquivo único (.cabackup) onde você
+  escolher, ainda criptografado. Também há um backup automático por semana na
+  pasta de dados (ficam os 5 mais recentes).
+- Restaurar backup, na tela de entrada (útil num computador novo) e na tela
+  Segurança. O backup é conferido (senha, versão e cadeia de hash) antes de
+  substituir os dados atuais, que ficam guardados na pasta "anteriores".
+- Aviso no topo enquanto a carteira não tiver chave de recuperação.
+
+### Alterado
+- O cofre passa a usar uma chave de banco aleatória protegida pela senha e pela
+  chave de recuperação. Cofres da versão 0.3.0 são convertidos na primeira
+  abertura, sem recriptografar os dados.
+- Trocar a senha não invalida a chave de recuperação.
+- Relatório de atualização: os catálogos aparecem como "lista de ativos", com
+  a data em que foram baixados e a data da próxima atualização (a cada 7 dias).
+  Os preços do dia continuam sendo buscados a cada abertura.
+
+## [0.3.0] - 2026-10-15
 
 ### Adicionado
 - Contas em dólar (exterior): a moeda de cada corretora é definida no primeiro

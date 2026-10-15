@@ -19,7 +19,9 @@ const TABS = [
 
 type Tab = (typeof TABS)[number]["id"];
 
-export default function Home({ status, onLocked }: { status: VaultStatus; onLocked: () => void }) {
+type Props = { status: VaultStatus; onLocked: () => void; onChanged: () => void };
+
+export default function Home({ status, onLocked, onChanged }: Props) {
   const [tab, setTab] = useState<Tab>("carteira");
   const [updating, setUpdating] = useState(false);
   const [report, setReport] = useState<UpdateLine[] | null>(null);
@@ -88,13 +90,33 @@ export default function Home({ status, onLocked }: { status: VaultStatus; onLock
         </div>
       )}
 
+      {!status.has_recovery_key && tab !== "seguranca" && (
+        <div className="banner warning" role="status">
+          Sua carteira ainda não tem chave de recuperação. Sem ela, se você esquecer a senha, não há como abrir os dados.{" "}
+          <button className="link" onClick={() => setTab("seguranca")}>
+            Criar agora
+          </button>
+        </div>
+      )}
+
       <main className="content">
         {tab === "carteira" && <Portfolio refresh={refresh} />}
         {tab === "lancamentos" && <Operations />}
         {tab === "rentabilidade" && <Returns key={refresh} />}
         {tab === "auditoria" && <Audit />}
         {tab === "sistema" && <SystemHistory status={status} />}
-        {tab === "seguranca" && <Security status={status} />}
+        {tab === "seguranca" && (
+          <Security
+            status={status}
+            onChanged={onChanged}
+            onRestored={() => {
+              setTab("carteira");
+              setReport([{ source: "Backup", ok: true, message: "restaurado e conferido; os dados do backup já estão em uso" }]);
+              setRefresh((n) => n + 1);
+              onChanged();
+            }}
+          />
+        )}
       </main>
     </div>
   );
