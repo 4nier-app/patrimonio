@@ -532,11 +532,13 @@ pub fn update_all(
         }
     }
 
-    if report.is_empty() {
+    // Sem ativos na carteira não há cotação a buscar; diz isso em vez de
+    // simplesmente omitir as linhas.
+    if plan.is_empty() && us_ops.is_empty() {
         report.push(UpdateLine {
             source: "Cotações".into(),
             ok: true,
-            message: "nada a atualizar".into(),
+            message: "nenhum ativo na carteira para buscar cotação".into(),
         });
     }
     Ok(report)
