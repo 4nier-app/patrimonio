@@ -31,6 +31,7 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ### Alterado
 - Código do mercado fracionário da B3 (ABCD3F, como aparece nas notas) é
   gravado como o do lote padrão (ABCD3): mesmo ativo, cotação e preço médio.
+- O motivo da remoção de um lançamento passa a ser opcional.
 
 
 ## [0.4.0] - Não lançada

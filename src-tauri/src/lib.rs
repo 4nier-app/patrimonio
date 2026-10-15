@@ -334,8 +334,8 @@ fn update_operation(
 }
 
 #[tauri::command]
-fn remove_operation(id: String, reason: String, state: State<AppState>) -> Result<(), String> {
-    with_vault(&state, |v| v.remove_operation(&id, &reason))
+fn remove_operation(id: String, reason: Option<String>, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_operation(&id, reason.as_deref()))
 }
 
 #[tauri::command]
