@@ -49,6 +49,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   escrita.
 
 ### Corrigido
+- A atualização mostrava falha no CDI quando o Banco Central ainda não tinha
+  publicado o dia; agora aparece "em dia".
 - Operações antigas lançadas depois das mais novas ficavam
   sem cotação e a Rentabilidade mostrava só "—". Agora o histórico de preços é
   buscado desde a operação mais antiga, também nos meses da B3 já baixados que

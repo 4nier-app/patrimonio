@@ -790,6 +790,11 @@ fn update_indexes(
                     None => format!("{} em dia", def.name),
                 });
             }
+            // O Banco Central responde "não encontrado" quando o dia ainda não
+            // foi publicado: nada novo, não é falha.
+            Err(ProviderError::NotFound(_)) if start + Duration::days(10) >= today => {
+                done.push(format!("{} em dia", def.name))
+            }
             Err(e) => failed.push(format!("{}: {}", def.name, describe(&e))),
         }
     }
@@ -903,7 +908,11 @@ mod tests {
             _from: NaiveDate,
             to: NaiveDate,
         ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError> {
-            Ok(vec![(to, Decimal::ONE)])
+            // Como o SGS: dia ainda não publicado responde 404.
+            if _from + Duration::days(2) > to {
+                return Err(ProviderError::NotFound("sgs".into()));
+            }
+            Ok(vec![(_from, Decimal::ONE), (to, Decimal::ONE)])
         }
         fn ptax(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<ptax::Ptax>, ProviderError> {
             self.ptax_calls.borrow_mut().push((from, to));
@@ -1054,6 +1063,22 @@ mod tests {
             "só grava ativos da carteira"
         );
         assert!(v.asset_count().unwrap() >= 150);
+    }
+
+    #[test]
+    fn indice_sem_dia_novo_publicado_nao_e_falha() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = setup(tmp.path());
+        let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
+        let f = fake(true);
+        update_all(&vault, &f, today).unwrap();
+        let next = update_all(&vault, &f, today + Duration::days(1)).unwrap();
+        let line = next
+            .iter()
+            .find(|l| l.source.starts_with("Índices"))
+            .unwrap();
+        assert!(line.ok, "{line:?}");
+        assert!(line.message.contains("CDI em dia"), "{line:?}");
     }
 
     #[test]
