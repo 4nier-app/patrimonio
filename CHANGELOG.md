@@ -6,6 +6,56 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.6.0] - Não lançada
+
+### Adicionado
+- Aba **Importar notas**: escolha um ou mais PDFs e o aplicativo lê as notas,
+  mostra cada uma para conferir e grava os lançamentos.
+  - Notas da B3 no padrão SINACOR (Itaú, Nubank e outras), nos dois formatos
+    (com e sem "R$"); um PDF pode ter várias notas e uma nota pode ter várias
+    folhas.
+  - Confirmações da Nomad nos dois layouts (DriveWealth e Apex). A parte
+    inteira e a fração da mesma ordem viram um lançamento; vendas de fração
+    mínima com valor zero da troca de custodiante vêm desmarcadas.
+  - Quando a nota traz o nome de pregão ("EMPRESA PN N2") em vez do código, o
+    código é procurado no catálogo da B3; se houver mais de um, você escolhe.
+  - Conferência antes de gravar: quantidade × preço de cada linha, valor das
+    operações e líquido da nota (operações − taxas − IRRF). Nota que não
+    confere não é importada.
+  - As taxas da nota entram como taxa de cada lançamento, rateadas pelo valor
+    de cada linha.
+  - PDF com senha: o aplicativo pede a senha (muitas corretoras usam o CPF).
+  - A mesma nota não entra duas vezes, mesmo vinda de outro arquivo; se os
+    lançamentos dela forem removidos, ela pode ser importada de novo.
+  - Cada importação fica registrada na Auditoria.
+- O PDF é lido no próprio computador, com o pdf.js, e não é enviado para
+  lugar nenhum.
+- **Criptomoedas** em carteira própria (BTC, ETH, SOL, USDT e outras 20):
+  lançamento à mão numa conta em dólar, quantidade e preço com até 8 casas,
+  sem taxas da B3. A conversão para reais usa a PTAX do dia, como no
+  exterior. A cotação diária em dólar vem do Yahoo (par BTC-USD). No Painel
+  aparecem como "Criptomoedas".
+
+### Alterado
+- Aba **Rentabilidade** refeita, sem rolagem para os lados: a carteira em
+  cima, com o ano e o "desde o início", e os 12 meses em blocos; os ativos
+  embaixo, separados em "Na carteira" e "Já vendidos", e um clique abre os
+  meses do ativo. Cada ano lista só os ativos com rentabilidade nele.
+- Rentabilidade também tem o botão "Desde o início", com um bloco por ano.
+- Sobra de fração menor que 0,0001 cota (arredondamento da corretora ou troca
+  de custodiante) conta como posição zerada: o ativo não aparece mais com
+  R$ 0,00 na Carteira e no Painel.
+- Mês sem lançamento fica em branco, sem traço; falta de cotação aparece
+  escrita.
+
+### Corrigido
+- A atualização mostrava falha no CDI quando o Banco Central ainda não tinha
+  publicado o dia; agora aparece "em dia".
+- Operações antigas lançadas depois das mais novas ficavam
+  sem cotação e a Rentabilidade mostrava só "—". Agora o histórico de preços é
+  buscado desde a operação mais antiga, também nos meses da B3 já baixados que
+  não tinham o ativo novo.
+
 ## [0.5.0] - Não lançada
 
 ### Adicionado
@@ -32,7 +82,13 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ### Alterado
 - Código do mercado fracionário da B3 (ABCD3F, como aparece nas notas) é
   gravado como o do lote padrão (ABCD3): mesmo ativo, cotação e preço médio.
-- O motivo da remoção de um lançamento passa a ser opcional.
+- Remover um lançamento não pede mais motivo: basta confirmar.
+- Lista de lançamentos com filtros de ano (o mais recente ao abrir), mês,
+  conta e ativo. Lançamentos da mesma conta no mesmo dia (uma nota, importada
+  ou digitada) ficam agrupados numa linha que abre com um clique, com o botão
+  "Remover todos" para tirar o grupo inteiro de uma vez.
+- Depois de incluir, alterar, remover ou importar lançamentos, as cotações são
+  atualizadas sozinhas.
 
 
 ## [0.4.0] - Não lançada

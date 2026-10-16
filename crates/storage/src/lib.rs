@@ -8,6 +8,7 @@
 mod backup;
 mod kdf;
 mod migrations;
+mod notes;
 mod records;
 
 use std::fs;
@@ -23,6 +24,7 @@ pub use backup::{
 };
 use kdf::DataKey;
 pub use kdf::KdfParams;
+pub use notes::{NoteImport, NoteStatus};
 pub use records::{
     normalize_ticker, Account, Asset, FxTable, NewFxRate, NewQuote, PriceTable, QuoteUpdate,
     USD_BRL,

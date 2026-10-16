@@ -2,6 +2,7 @@
 //! reproduzível e testável.
 
 pub mod benchmark;
+pub mod crypto;
 pub mod fees;
 pub mod format;
 pub mod model;

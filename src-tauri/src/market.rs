@@ -14,6 +14,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
+use carteira_core::crypto;
 use carteira_core::model::{Side, BRL};
 use carteira_core::operations::Operation;
 use carteira_providers::{cotahist, nasdaq, ptax, sgs, yahoo, ProviderError};
@@ -198,7 +199,7 @@ fn tickers_by_month(ops: &[Operation], today: NaiveDate) -> BTreeMap<(i32, u32),
                 .map(|o| signed(o))
                 .sum();
             let traded = list.iter().any(|o| o.date >= cursor && o.date <= end);
-            if traded || !start_qty.is_zero() {
+            if traded || !carteira_core::model::is_dust(start_qty) {
                 out.entry((cursor.year(), cursor.month()))
                     .or_default()
                     .insert(asset.to_string());
@@ -244,6 +245,9 @@ pub fn update_all(
     today: NaiveDate,
 ) -> Result<Vec<UpdateLine>, String> {
     let mut report = Vec::new();
+    with(vault, |v| {
+        v.seed_crypto().map(|_| ()).map_err(|e| e.to_string())
+    })?;
 
     // 1. Catálogo.
     let catalog_state = |source: &str, market: &str| {
@@ -279,6 +283,8 @@ pub fn update_all(
     let (catalog_age, catalog_info) = catalog_state(CATALOG_SOURCE, "B3")?;
     let ops = with(vault, |v| v.list_operations().map_err(|e| e.to_string()))?;
     let ops_dates: Vec<NaiveDate> = ops.iter().map(|o| o.date).collect();
+    let (crypto_ops, ops): (Vec<Operation>, Vec<Operation>) =
+        ops.into_iter().partition(|o| crypto::is_crypto(&o.asset));
     let (b3_ops, us_ops): (Vec<Operation>, Vec<Operation>) =
         ops.into_iter().partition(|o| o.currency == BRL);
     let held = tickers_by_month(&b3_ops, today);
@@ -413,11 +419,35 @@ pub fn update_all(
     let mut month_errors = Vec::new();
     for (&(y, m), tickers) in held.iter().filter(|(k, _)| **k < current) {
         let key = month_key(y, m);
+        // Mês já baixado só conta se tem todos os ativos de agora: uma nota
+        // antiga importada depois traz ativos que não estavam no download.
+        let with_tickers = format!(
+            "{key}|{}",
+            tickers.iter().cloned().collect::<Vec<_>>().join(",")
+        );
+        let first = NaiveDate::from_ymd_opt(y, m, 1).expect("dia 1");
         let done = with(vault, |v| {
-            v.last_successful_update(cotahist::SOURCE, Some(&key))
-                .map_err(|e| e.to_string())
+            let e = |e: carteira_storage::VaultError| e.to_string();
+            if v.last_successful_update(cotahist::SOURCE, Some(&key))
+                .map_err(e)?
+                .is_none()
+            {
+                return Ok(false);
+            }
+            if v.last_successful_update(cotahist::SOURCE, Some(&with_tickers))
+                .map_err(e)?
+                .is_some()
+            {
+                return Ok(true);
+            }
+            for t in tickers {
+                if !v.has_quote_between(t, first, month_end(y, m)).map_err(e)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
         })?;
-        if done.is_some() {
+        if done {
             continue;
         }
         match fetcher.monthly(y, m) {
@@ -426,14 +456,17 @@ pub fn update_all(
                 let msg = format!("{} fechamentos de {m:02}/{y}", quotes.len());
                 with(vault, |v| {
                     v.save_quotes(&quotes).map_err(|e| e.to_string())?;
-                    v.record_quote_update(
-                        cotahist::SOURCE,
-                        Some(&key),
-                        true,
-                        quotes.len() as i64,
-                        &msg,
-                    )
-                    .map_err(|e| e.to_string())
+                    for k in [&key, &with_tickers] {
+                        v.record_quote_update(
+                            cotahist::SOURCE,
+                            Some(k),
+                            true,
+                            quotes.len() as i64,
+                            &msg,
+                        )
+                        .map_err(|e| e.to_string())?;
+                    }
+                    Ok(())
                 })?;
                 months_ok += 1;
             }
@@ -494,13 +527,20 @@ pub fn update_all(
         .map(|t| (t.clone(), yahoo::b3_symbol(t), from))
         .collect();
     for (t, first) in &us_first {
-        let last = with(vault, |v| {
-            v.last_quote_date(t, yahoo::SOURCE)
-                .map_err(|e| e.to_string())
+        let (oldest, last) = with(vault, |v| {
+            Ok::<_, String>((
+                v.first_quote_date(t, yahoo::SOURCE)
+                    .map_err(|e| e.to_string())?,
+                v.last_quote_date(t, yahoo::SOURCE)
+                    .map_err(|e| e.to_string())?,
+            ))
         })?;
-        let start = last
-            .map(|d| d - Duration::days(5))
-            .unwrap_or(*first - Duration::days(10));
+        // Uma operação anterior às cotações gravadas (nota antiga importada
+        // depois) pede o histórico desde ela.
+        let start = match (oldest, last) {
+            (Some(o), Some(l)) if o <= *first + Duration::days(7) => l - Duration::days(5),
+            _ => *first - Duration::days(10),
+        };
         plan.push((t.clone(), yahoo::us_symbol(t), start));
     }
     for (t, symbol, from) in &plan {
@@ -544,8 +584,9 @@ pub fn update_all(
             message: msg,
         });
     }
-    // 4. PTAX desde a primeira operação em dólar.
-    if let Some(first) = us_ops.iter().map(|o| o.date).min() {
+    // 4. PTAX desde a primeira operação em dólar (ou cripto, para a cotação
+    // em dólar quando não houver par em reais).
+    if let Some(first) = us_ops.iter().chain(&crypto_ops).map(|o| o.date).min() {
         let range = with(vault, |v| v.fx_range().map_err(|e| e.to_string()))?;
         // Começa alguns dias antes da primeira operação para cobrir fins de
         // semana e feriados; se o histórico já cobre, só busca o que falta.
@@ -608,14 +649,19 @@ pub fn update_all(
         }
     }
 
-    // 5. Índices de comparação (CDI, IPCA, Ibovespa, IVVB11) desde a primeira operação.
+    // 5. Criptomoedas: par em reais; sem ele, par em dólar × PTAX.
+    if !crypto_ops.is_empty() {
+        report.push(update_crypto(vault, fetcher, &crypto_ops, today)?);
+    }
+
+    // 6. Índices de comparação (CDI, IPCA, Ibovespa, IVVB11) desde a primeira operação.
     if let Some(first) = ops_dates.iter().min().copied() {
         report.push(update_indexes(vault, fetcher, first, today)?);
     }
 
     // Sem ativos na carteira não há cotação a buscar; diz isso em vez de
     // simplesmente omitir as linhas.
-    if plan.is_empty() && us_ops.is_empty() {
+    if plan.is_empty() && us_ops.is_empty() && crypto_ops.is_empty() {
         report.push(UpdateLine {
             source: "Cotações".into(),
             ok: true,
@@ -623,6 +669,71 @@ pub fn update_all(
         });
     }
     Ok(report)
+}
+
+/// Cotações das criptomoedas em dólar, desde a primeira operação de cada uma.
+fn update_crypto(
+    vault: Shared,
+    fetcher: &dyn Fetcher,
+    ops: &[Operation],
+    today: NaiveDate,
+) -> Result<UpdateLine, String> {
+    let mut first: BTreeMap<String, NaiveDate> = BTreeMap::new();
+    for o in ops {
+        let e = first.entry(o.asset.clone()).or_insert(o.date);
+        *e = (*e).min(o.date);
+    }
+    let mut saved = 0;
+    let mut failures = Vec::new();
+    for (t, first) in &first {
+        let (oldest, last) = with(vault, |v| {
+            Ok::<_, String>((
+                v.first_quote_date(t, yahoo::SOURCE)
+                    .map_err(|e| e.to_string())?,
+                v.last_quote_date(t, yahoo::SOURCE)
+                    .map_err(|e| e.to_string())?,
+            ))
+        })?;
+        let from = match (oldest, last) {
+            (Some(o), Some(l)) if o <= *first + Duration::days(7) => l - Duration::days(5),
+            _ => *first - Duration::days(10),
+        };
+        let closes = fetcher
+            .yahoo(&crypto::yahoo_symbol(t), from, today)
+            .map_err(|e| describe(&e));
+        match closes {
+            Ok(closes) => {
+                let quotes: Vec<NewQuote> = closes
+                    .into_iter()
+                    .map(|(date, close)| NewQuote {
+                        ticker: t.clone(),
+                        date,
+                        close,
+                        source: yahoo::SOURCE.into(),
+                    })
+                    .collect();
+                saved += quotes.len();
+                with(vault, |v| {
+                    v.save_quotes(&quotes)
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
+                })?;
+            }
+            Err(e) => failures.push(format!("{t}: {e}")),
+        }
+    }
+    let mut message = format!(
+        "{saved} cotações de {} cripto(s)",
+        first.len() - failures.len()
+    );
+    if !failures.is_empty() {
+        message.push_str(&format!("; falhas: {}", failures.join("; ")));
+    }
+    Ok(UpdateLine {
+        source: "Criptomoedas (Yahoo)".into(),
+        ok: failures.is_empty(),
+        message,
+    })
 }
 
 /// Baixa o que falta de cada índice. Um índice que falha não impede os outros.
@@ -661,6 +772,11 @@ fn update_indexes(
                     Some(d) => format!("{} até {}", def.name, d.format("%d/%m/%Y")),
                     None => format!("{} em dia", def.name),
                 });
+            }
+            // O Banco Central responde "não encontrado" quando o dia ainda não
+            // foi publicado: nada novo, não é falha.
+            Err(ProviderError::NotFound(_)) if start + Duration::days(10) >= today => {
+                done.push(format!("{} em dia", def.name))
             }
             Err(e) => failed.push(format!("{}: {}", def.name, describe(&e))),
         }
@@ -755,7 +871,10 @@ mod tests {
             self.yahoo_calls
                 .borrow_mut()
                 .push((symbol.to_string(), from));
-            Ok(vec![(to, Decimal::from(99))])
+            Ok(vec![
+                (from + Duration::days(10), Decimal::from(99)),
+                (to, Decimal::from(99)),
+            ])
         }
         fn us_catalog(&self) -> Result<Vec<nasdaq::Listing>, ProviderError> {
             Ok((0..120)
@@ -772,7 +891,11 @@ mod tests {
             _from: NaiveDate,
             to: NaiveDate,
         ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError> {
-            Ok(vec![(to, Decimal::ONE)])
+            // Como o SGS: dia ainda não publicado responde 404.
+            if _from + Duration::days(2) > to {
+                return Err(ProviderError::NotFound("sgs".into()));
+            }
+            Ok(vec![(_from, Decimal::ONE), (to, Decimal::ONE)])
         }
         fn ptax(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<ptax::Ptax>, ProviderError> {
             self.ptax_calls.borrow_mut().push((from, to));
@@ -813,6 +936,66 @@ mod tests {
         })
         .unwrap();
         Mutex::new(Some(v))
+    }
+
+    #[test]
+    fn cripto_busca_par_em_dolar_e_entra_no_catalogo() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = setup(tmp.path());
+        let first = NaiveDate::from_ymd_opt(2026, 2, 3).unwrap();
+        {
+            let mut g = vault.lock().unwrap();
+            let v = g.as_mut().unwrap();
+            let btc = |account: &str, currency: &str| Operation {
+                id: String::new(),
+                account: account.into(),
+                asset: "btc".into(),
+                date: first,
+                side: Side::Compra,
+                quantity: Decimal::new(123, 4),
+                price: Decimal::from(350000),
+                manual_fees: None,
+                note: None,
+                currency: currency.into(),
+                from_account: None,
+                residue: None,
+            };
+            assert!(
+                v.create_operation(btc("Itaú", "BRL")).is_err(),
+                "cripto só em dólar"
+            );
+            v.create_operation(btc("Carteira cripto", "USD")).unwrap();
+        }
+        let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
+        let f = fake(true);
+        let report = update_all(&vault, &f, today).unwrap();
+        assert!(
+            report
+                .iter()
+                .any(|l| l.source.starts_with("Cripto") && l.ok),
+            "{report:?}"
+        );
+        let calls = f.yahoo_calls.borrow().clone();
+        assert!(
+            calls.contains(&("BTC-USD".into(), first - Duration::days(10))),
+            "{calls:?}"
+        );
+        assert!(
+            !calls.iter().any(|c| c.0 == "BTC.SA"),
+            "não é ativo da B3: {calls:?}"
+        );
+        let g = vault.lock().unwrap();
+        let v = g.as_ref().unwrap();
+        let hit = &v.search_assets("ETH", 5).unwrap()[0];
+        assert_eq!(
+            (hit.kind.as_str(), hit.currency.as_str()),
+            ("CRIPTO", "USD")
+        );
+        assert!(v
+            .price_table(&["BTC".into()])
+            .unwrap()
+            .latest("BTC")
+            .is_some());
     }
 
     #[test]
@@ -863,6 +1046,22 @@ mod tests {
             "só grava ativos da carteira"
         );
         assert!(v.asset_count().unwrap() >= 150);
+    }
+
+    #[test]
+    fn indice_sem_dia_novo_publicado_nao_e_falha() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = setup(tmp.path());
+        let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
+        let f = fake(true);
+        update_all(&vault, &f, today).unwrap();
+        let next = update_all(&vault, &f, today + Duration::days(1)).unwrap();
+        let line = next
+            .iter()
+            .find(|l| l.source.starts_with("Índices"))
+            .unwrap();
+        assert!(line.ok, "{line:?}");
+        assert!(line.message.contains("CDI em dia"), "{line:?}");
     }
 
     #[test]
@@ -952,8 +1151,52 @@ mod tests {
             "depois só busca a partir da última cotação"
         );
 
+        // Nota antiga importada depois: busca o histórico desde ela.
+        let old = NaiveDate::from_ymd_opt(2025, 6, 2).unwrap();
+        {
+            let mut g = vault.lock().unwrap();
+            let v = g.as_mut().unwrap();
+            for (asset, currency) in [("BRK.B", "USD"), ("OUTRO3", "BRL")] {
+                v.create_operation(Operation {
+                    id: String::new(),
+                    account: format!("Antiga {currency}"),
+                    asset: asset.into(),
+                    date: if currency == "USD" {
+                        old
+                    } else {
+                        NaiveDate::from_ymd_opt(2026, 1, 5).unwrap()
+                    },
+                    side: Side::Compra,
+                    quantity: Decimal::from(1),
+                    price: Decimal::from(10),
+                    manual_fees: None,
+                    note: None,
+                    currency: currency.into(),
+                    from_account: None,
+                    residue: None,
+                })
+                .unwrap();
+            }
+        }
+        let before = f.monthly_calls.borrow().len();
+        update_all(&vault, &f, today).unwrap();
+        let calls = f.yahoo_calls.borrow().clone();
+        assert!(
+            calls.contains(&("BRK-B".into(), old - Duration::days(10))),
+            "{calls:?}"
+        );
+        assert!(
+            f.monthly_calls.borrow()[before..].contains(&(2026, 1)),
+            "mês baixado de novo para o ativo que faltava: {:?}",
+            f.monthly_calls.borrow()
+        );
+        let after = f.monthly_calls.borrow().len();
+        update_all(&vault, &f, today).unwrap();
+        assert_eq!(f.monthly_calls.borrow().len(), after, "e só uma vez");
+
         let g = vault.lock().unwrap();
         let v = g.as_ref().unwrap();
+        assert!(v.fx_table().unwrap().usd_brl_on_or_before(old).is_some());
         assert!(v.fx_table().unwrap().usd_brl_on_or_before(today).is_some());
         assert_eq!(v.search_assets("U000", 5).unwrap()[0].kind, "ETF");
     }

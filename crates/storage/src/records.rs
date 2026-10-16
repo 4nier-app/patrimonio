@@ -69,7 +69,7 @@ pub struct QuoteUpdate {
     pub message: String,
 }
 
-fn bad(msg: impl Into<String>) -> VaultError {
+pub(crate) fn bad(msg: impl Into<String>) -> VaultError {
     VaultError::Invalid(msg.into())
 }
 
@@ -144,15 +144,48 @@ fn row_to_op(r: &rusqlite::Row<'_>) -> rusqlite::Result<Operation> {
     })
 }
 
-fn op_json(op: &Operation) -> String {
+pub(crate) fn op_json(op: &Operation) -> String {
     serde_json::to_string(op).expect("operação serializável")
 }
 
 impl Vault {
     // ---------- ativos ----------
 
+    /// Coloca as criptomoedas conhecidas no catálogo (busca do lançamento).
+    /// Na primeira vez depois da mudança de reais para dólar, apaga as
+    /// cotações em reais que ficaram gravadas, para serem baixadas em dólar.
+    pub fn seed_crypto(&mut self) -> Result<usize> {
+        use carteira_core::crypto::{COINS, KIND};
+        self.conn.execute(
+            "DELETE FROM quotes WHERE ticker IN
+               (SELECT ticker FROM assets WHERE kind = ?1 AND currency = 'BRL')",
+            [KIND],
+        )?;
+        let coins: Vec<Asset> = COINS
+            .iter()
+            .map(|c| Asset {
+                ticker: c.ticker.into(),
+                name: c.name.into(),
+                kind: KIND.into(),
+                market: KIND.into(),
+                currency: USD.into(),
+                isin: None,
+                source: KIND.into(),
+            })
+            .collect();
+        self.upsert_assets(&coins)
+    }
+
     /// Grava ou atualiza o catálogo. Retorna quantos ativos foram gravados.
+    /// Código de criptomoeda conhecida fica sempre como cripto.
     pub fn upsert_assets(&mut self, assets: &[Asset]) -> Result<usize> {
+        let assets: Vec<&Asset> = assets
+            .iter()
+            .filter(|a| {
+                a.kind == carteira_core::crypto::KIND
+                    || !carteira_core::crypto::is_crypto(&a.ticker)
+            })
+            .collect();
         let now = now_iso();
         let tx = self.conn.transaction()?;
         {
@@ -163,7 +196,7 @@ impl Vault {
                    market = excluded.market, currency = excluded.currency, isin = excluded.isin,
                    source = excluded.source, updated_at = excluded.updated_at",
             )?;
-            for a in assets {
+            for a in &assets {
                 stmt.execute(params![
                     a.ticker, a.name, a.kind, a.market, a.currency, a.isin, a.source, now
                 ])?;
@@ -235,6 +268,21 @@ impl Vault {
     /// Garante que o ativo existe e é da moeda da conta. Um código fora do
     /// catálogo entra como "OUTRO" no mercado da conta (B3 ou exterior).
     fn ensure_asset(&self, ticker: &str, currency: &str) -> Result<()> {
+        if let Some(name) = carteira_core::crypto::name_of(ticker) {
+            if currency != USD {
+                return Err(bad(format!(
+                    "{ticker} é criptomoeda e entra numa conta em dólar (por exemplo, \"Carteira cripto\")"
+                )));
+            }
+            self.conn.execute(
+                "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at)
+                 VALUES (?1, ?2, ?3, ?3, 'USD', ?3, ?4)
+                 ON CONFLICT (ticker) DO UPDATE SET name = excluded.name, kind = excluded.kind,
+                   market = excluded.market, currency = excluded.currency, source = excluded.source",
+                params![ticker, name, carteira_core::crypto::KIND, now_iso()],
+            )?;
+            return Ok(());
+        }
         let existing: Option<String> = self
             .conn
             .query_row(
@@ -297,7 +345,7 @@ impl Vault {
     /// Ajusta a operação às contas: a moeda vem da conta (uma conta nova é
     /// criada com a moeda informada) e, na transferência, a conta de origem
     /// precisa existir e ter a mesma moeda.
-    fn prepare_operation(&mut self, op: &mut Operation) -> Result<()> {
+    pub(crate) fn prepare_operation(&mut self, op: &mut Operation) -> Result<()> {
         op.asset = normalize_ticker(&op.asset);
         op.account = op.account.trim().to_string();
         op.from_account = op
@@ -450,6 +498,20 @@ impl Vault {
         Ok(())
     }
 
+    /// Remove vários lançamentos de uma vez (uma nota inteira), cada um com
+    /// seu registro na Auditoria. Confere todos antes de remover qualquer um.
+    pub fn remove_operations(&mut self, ids: &[String]) -> Result<usize> {
+        for id in ids {
+            if self.get_operation(id)?.is_none() {
+                return Err(bad("lançamento não encontrado"));
+            }
+        }
+        for id in ids {
+            self.remove_operation(id, Some("nota removida inteira"))?;
+        }
+        Ok(ids.len())
+    }
+
     /// Lançamentos ativos, do mais antigo para o mais recente.
     pub fn list_operations(&self) -> Result<Vec<Operation>> {
         let mut stmt = self.conn.prepare(&format!(
@@ -509,6 +571,26 @@ impl Vault {
             |r| r.get(0),
         )?;
         d.map(|s| date(s, 0)).transpose().map_err(Into::into)
+    }
+
+    /// Primeira data com cotação do ativo na fonte.
+    pub fn first_quote_date(&self, ticker: &str, source: &str) -> Result<Option<NaiveDate>> {
+        let d: Option<String> = self.conn.query_row(
+            "SELECT min(quote_date) FROM quotes WHERE ticker = ?1 AND source = ?2",
+            params![ticker, source],
+            |r| r.get(0),
+        )?;
+        d.map(|s| date(s, 0)).transpose().map_err(Into::into)
+    }
+
+    /// Há alguma cotação do ativo (qualquer fonte) entre as duas datas?
+    pub fn has_quote_between(&self, ticker: &str, from: NaiveDate, to: NaiveDate) -> Result<bool> {
+        let n: i64 = self.conn.query_row(
+            "SELECT count(*) FROM quotes WHERE ticker = ?1 AND quote_date BETWEEN ?2 AND ?3",
+            params![ticker, from.to_string(), to.to_string()],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
     }
 
     /// Carrega as cotações dos ativos para uso nos cálculos.
@@ -782,6 +864,10 @@ impl PriceSource for PriceTable {
 #[cfg(test)]
 mod tests {
 
+    use super::*;
+    use crate::KdfParams;
+    use rust_decimal_macros::dec;
+
     #[test]
     fn fracionario_vira_lote_padrao() {
         assert_eq!(normalize_ticker(" klbn4f "), "KLBN4");
@@ -792,10 +878,6 @@ mod tests {
         assert_eq!(normalize_ticker("F"), "F");
     }
 
-    use super::*;
-    use crate::KdfParams;
-    use rust_decimal_macros::dec;
-
     fn vault(dir: &std::path::Path) -> Vault {
         Vault::create_with_params(
             dir,
@@ -804,6 +886,35 @@ mod tests {
             KdfParams::fast_for_tests(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn cripto_em_reais_vira_dolar_e_perde_cotacoes_antigas() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = vault(tmp.path());
+        let d = NaiveDate::from_ymd_opt(2026, 2, 10).unwrap();
+        v.conn
+            .execute(
+                "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at)
+                 VALUES ('BTC', 'Bitcoin', 'CRIPTO', 'CRIPTO', 'BRL', 'CRIPTO', '')",
+                [],
+            )
+            .unwrap();
+        let q = |t: &str| NewQuote {
+            ticker: t.into(),
+            date: d,
+            close: dec!(500000),
+            source: "yahoo".into(),
+        };
+        v.save_quotes(&[q("BTC"), q("VOO")]).unwrap();
+        v.seed_crypto().unwrap();
+        assert_eq!(v.get_asset("BTC").unwrap().unwrap().currency, USD);
+        assert_eq!(v.last_quote_date("BTC", "yahoo").unwrap(), None);
+        assert_eq!(v.last_quote_date("VOO", "yahoo").unwrap(), Some(d));
+        // Já em dólar: as cotações ficam.
+        v.save_quotes(&[q("BTC")]).unwrap();
+        v.seed_crypto().unwrap();
+        assert_eq!(v.last_quote_date("BTC", "yahoo").unwrap(), Some(d));
     }
 
     fn sample() -> Operation {
@@ -839,6 +950,7 @@ mod tests {
 
         v.remove_operation(&op.id, Some("lançamento duplicado"))
             .unwrap();
+        assert!(v.remove_operations(&["nao-existe".into()]).is_err());
         assert!(v.list_operations().unwrap().is_empty());
 
         let events = v.list_events(10, 0).unwrap();

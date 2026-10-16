@@ -34,6 +34,15 @@ impl Side {
 }
 
 pub const BRL: &str = "BRL";
+
+/// Sobra de fração abaixo disto (0,0001 cota) conta como posição zerada:
+/// é o arredondamento da corretora, não um ativo na carteira.
+pub const DUST: Decimal = Decimal::from_parts(1, 0, 0, false, 4);
+
+/// Quantidade que, para a carteira, é zero.
+pub fn is_dust(q: Decimal) -> bool {
+    q.abs() < DUST
+}
 pub const USD: &str = "USD";
 
 fn brl() -> String {

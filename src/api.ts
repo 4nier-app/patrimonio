@@ -191,11 +191,30 @@ export const market = {
   preview: (operation: Operation) => invoke<Preview>("preview_operation", { operation }),
   create: (operation: Operation) => invoke<Operation>("create_operation", { operation }),
   update: (operation: Operation, reason: string) => invoke<Operation>("update_operation", { operation, reason }),
-  remove: (id: string, reason: string) => invoke<void>("remove_operation", { id, reason: reason.trim() || null }),
+  remove: (id: string) => invoke<void>("remove_operation", { id, reason: null }),
+  removeMany: (ids: string[]) => invoke<number>("remove_operations", { ids }),
   portfolio: () => invoke<PortfolioView>("portfolio"),
   returns: () => invoke<ReturnsView>("returns_report"),
   updateQuotes: () => invoke<UpdateLine[]>("update_quotes"),
   quoteUpdates: () => invoke<QuoteUpdate[]>("list_quote_updates"),
+};
+
+// ---------- notas de corretagem (etapa 4) ----------
+
+export type NoteStatus = { hash: string; imported: boolean; imported_at: string | null };
+export type NoteImport = {
+  hash: string;
+  broker: string;
+  number: string | null;
+  date: string;
+  account: string;
+  operations: Operation[];
+};
+
+export const notesApi = {
+  status: (hashes: string[]) => invoke<NoteStatus[]>("note_status", { hashes }),
+  resolveNames: (items: [string, string][]) => invoke<string[][]>("resolve_b3_names", { items }),
+  importNote: (note: NoteImport) => invoke<number>("import_note", { note }),
 };
 
 // ---------- painel (etapa 3) ----------

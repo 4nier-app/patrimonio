@@ -186,7 +186,7 @@ fn positions_before(trades: &[&Trade], date: NaiveDate) -> BTreeMap<String, Deci
     for t in trades.iter().filter(|t| t.date < date) {
         *map.entry(t.asset.clone()).or_default() += t.signed_quantity();
     }
-    map.retain(|_, q| !q.is_zero());
+    map.retain(|_, q| !crate::model::is_dust(*q));
     map
 }
 

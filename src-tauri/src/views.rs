@@ -341,6 +341,7 @@ fn kind_label(kind: Option<&str>, currency: &str) -> &'static str {
         (true, Some("FII")) => "FIIs",
         (true, Some("ETF")) => "ETFs",
         (true, Some("BDR")) => "BDRs",
+        (true, Some("CRIPTO")) => "Criptomoedas",
         (true, _) => "Outros (B3)",
         (false, Some("ETF")) => "ETFs no exterior",
         (false, _) => "Ações no exterior",
@@ -738,7 +739,7 @@ fn timeline(ops: &[PricedOperation]) -> Vec<Span> {
             entry.1.accounts.push(op.account.clone());
         }
         entry.0 += delta;
-        if entry.0 <= Decimal::ZERO {
+        if entry.0 <= Decimal::ZERO || carteira_core::model::is_dust(entry.0) {
             let (_, mut span) = open.remove(&op.asset).expect("existe");
             span.end = Some(op.date);
             spans.push(span);

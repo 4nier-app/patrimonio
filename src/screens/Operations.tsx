@@ -63,6 +63,8 @@ const EMPTY: Form = {
   residue: "",
 };
 
+const MONTH_NAMES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
 const SIDE_LABEL: Record<Side, string> = { COMPRA: "Compra", VENDA: "Venda", TRANSFERENCIA: "Transferência" };
 const SIDE_BADGE: Record<Side, string> = { COMPRA: "criada", VENDA: "removida", TRANSFERENCIA: "alterada" };
 
@@ -173,7 +175,8 @@ function toOperation(f: Form, currency: Currency): Operation | string {
   };
 }
 
-export default function Operations() {
+/** `onChanged`: chamado depois de incluir, alterar ou remover, para atualizar as cotações. */
+export default function Operations({ onChanged }: { onChanged: () => void }) {
   const [list, setList] = useState<PricedOperation[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [suggestions, setSuggestions] = useState<Asset[]>([]);
@@ -181,7 +184,6 @@ export default function Operations() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [reason, setReason] = useState("");
   const [removing, setRemoving] = useState<string | null>(null);
-  const [removeReason, setRemoveReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -206,6 +208,7 @@ export default function Operations() {
   // (Nomad → dólar) ou, se o nome não disser, pelo ativo.
   const currency: Currency = existing?.currency ?? currencyOfNewAccount(form.account, form.asset, suggestions);
   const transfer = form.side === "TRANSFERENCIA";
+  const coin = suggestions.find((a) => a.ticker === normalizeTicker(form.asset) && a.kind === "CRIPTO");
   const draft = useMemo(() => toOperation(form, currency), [form, currency]);
 
   // Ao trocar a moeda, o preço passa a ter as casas da nova moeda.
@@ -260,6 +263,7 @@ export default function Operations() {
       setForm({ ...EMPTY, account: form.account, date: form.date, priceDecimals: priceDecimals(currency) });
       setReason("");
       load();
+      onChanged();
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -292,16 +296,128 @@ export default function Operations() {
   async function confirmRemove(id: string) {
     setError(null);
     try {
-      await market.remove(id, removeReason);
+      await market.remove(id);
       setRemoving(null);
-      setRemoveReason("");
       setMessage("Lançamento removido. Ele continua visível na Auditoria.");
       if (form.id === id) setForm(EMPTY);
       load();
+      onChanged();
     } catch (err) {
       setError(errorMessage(err));
     }
   }
+
+  /** Mesma nota: mesma conta e mesmo dia. */
+  const noteOf = (o: Operation) => list.filter((x) => x.operation.account === o.account && x.operation.date === o.date);
+
+  async function confirmRemoveNote(o: Operation) {
+    setError(null);
+    const ids = noteOf(o).map((x) => x.operation.id);
+    try {
+      const n = await market.removeMany(ids);
+      setRemoving(null);
+      setMessage(`${n} lançamentos removidos. Eles continuam visíveis na Auditoria.`);
+      if (ids.includes(form.id)) setForm(EMPTY);
+      load();
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  // Filtros da lista: ano (o mais recente ao abrir), mês, conta e ativo.
+  const years = useMemo(() => [...new Set(list.map((p) => Number(p.operation.date.slice(0, 4))))].sort(), [list]);
+  const [fYear, setFYear] = useState<number | "todos" | null>(null);
+  const [fMonth, setFMonth] = useState(0);
+  const [fAccount, setFAccount] = useState("");
+  const [fAsset, setFAsset] = useState("");
+  const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (fYear == null && years.length) setFYear(years[years.length - 1]);
+  }, [years, fYear]);
+  const shown = list.filter((p) => {
+    const o = p.operation;
+    if (fYear != null && fYear !== "todos" && Number(o.date.slice(0, 4)) !== fYear) return false;
+    if (fMonth && Number(o.date.slice(5, 7)) !== fMonth) return false;
+    if (fAccount && o.account !== fAccount) return false;
+    const q = fAsset.trim().toUpperCase();
+    return !q || o.asset.includes(q);
+  });
+  // Nota: mesma conta e mesmo dia, na ordem da lista (mais recente primeiro).
+  const groups: { key: string; items: PricedOperation[] }[] = [];
+  for (const p of shown) {
+    const key = `${p.operation.date}|${p.operation.account}`;
+    const g = groups.find((x) => x.key === key);
+    if (g) g.items.push(p);
+    else groups.push({ key, items: [p] });
+  }
+  function toggleNote(key: string) {
+    setOpenNotes((s) => {
+      const n = new Set(s);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  }
+  const row = (p: PricedOperation) => (
+      <Fragment key={p.operation.id}>
+        <tr>
+          <td>{date(p.operation.date)}</td>
+          <td>
+            {p.operation.account}
+            {p.operation.from_account && <div className="muted small">vindo de {p.operation.from_account}</div>}
+          </td>
+          <td>
+            <strong>{p.operation.asset}</strong>
+            {p.operation.note && <div className="muted small">{p.operation.note}</div>}
+          </td>
+          <td>
+            <span className={`badge ${SIDE_BADGE[p.operation.side]}`}>{SIDE_LABEL[p.operation.side]}</span>
+          </td>
+          <td className="num">
+            {quantity(p.operation.quantity)}
+            {p.operation.residue && Number(p.operation.residue) > 0 && (
+              <div className="muted small">resíduo {quantity(p.operation.residue)}</div>
+            )}
+          </td>
+          <td className="num">{p.operation.side === "TRANSFERENCIA" ? "—" : price(p.operation.price, p.operation.currency)}</td>
+          <td className="num">{p.operation.side === "TRANSFERENCIA" ? "—" : money(p.gross, p.operation.currency)}</td>
+          <td className="num">
+            {money(p.fees, p.operation.currency)}
+            {p.fee_origin === "informada" && <div className="muted small">informada</div>}
+          </td>
+          <td className="row-actions">
+            <button className="link" onClick={() => edit(p)}>
+              Alterar
+            </button>
+            <button className="link danger" onClick={() => setRemoving(p.operation.id)}>
+              Remover
+            </button>
+          </td>
+        </tr>
+        {removing === p.operation.id && (
+          <tr className="detail">
+            <td colSpan={9}>
+              <div className="remove-box">
+                <span>Remover este lançamento?</span>
+                <button autoFocus onClick={() => confirmRemove(p.operation.id)}>
+                  {noteOf(p.operation).length > 1 ? "Remover só este" : "Confirmar remoção"}
+                </button>
+                {noteOf(p.operation).length > 1 && (
+                  <button className="danger" onClick={() => confirmRemoveNote(p.operation)}>
+                    Remover todos do dia ({noteOf(p.operation).length} lançamentos de {date(p.operation.date)} em{" "}
+                    {p.operation.account})
+                  </button>
+                )}
+                <button className="secondary" onClick={() => setRemoving(null)}>
+                  Cancelar
+                </button>
+              </div>
+            </td>
+          </tr>
+        )}
+      </Fragment>
+  );
 
   const total =
     preview && !preview.valid && !transfer
@@ -415,6 +531,14 @@ export default function Operations() {
           )}
         </div>
 
+        {coin && (
+          <p className="muted small">
+            {coin.name} é criptomoeda: lance numa conta em dólar (por exemplo, "Carteira cripto"), com a quantidade como está
+            na carteira (ex.: 0,00123456) e o preço de cada unidade em dólar. A conversão para reais usa a PTAX do dia, como
+            no exterior. Não há taxas da B3; se a corretora cobrou taxa, informe abaixo. A cotação é atualizada sozinha.
+          </p>
+        )}
+
         {transfer && (
           <p className="muted small">
             A posição muda de corretora sem compra nem venda: o preço médio e as datas de compra continuam os mesmos. Se
@@ -426,7 +550,9 @@ export default function Operations() {
         {!transfer && (
           <label className="inline">
             <input type="checkbox" checked={form.manual} onChange={(e) => set("manual", e.target.checked)} />
-            {currency === "USD" ? "Informar taxas da corretora" : "Informar as taxas à mão (substitui o cálculo automático)"}
+            {currency === "USD" || coin
+              ? "Informar taxas da corretora"
+              : "Informar as taxas à mão (substitui o cálculo automático)"}
           </label>
         )}
         {form.manual && !transfer && (
@@ -492,8 +618,51 @@ export default function Operations() {
         </div>
       </form>
 
-      <div className="scroll spaced">
-        <table>
+      <div className="ops-filters spaced">
+        <label>
+          Ano
+          <select value={String(fYear ?? "")} onChange={(e) => setFYear(e.target.value === "todos" ? "todos" : Number(e.target.value))}>
+            {[...years].reverse().map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+            <option value="todos">Todos</option>
+          </select>
+        </label>
+        <label>
+          Mês
+          <select value={fMonth} onChange={(e) => setFMonth(Number(e.target.value))}>
+            <option value={0}>Todos</option>
+            {MONTH_NAMES.map((m, i) => (
+              <option key={m} value={i + 1}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Conta
+          <select value={fAccount} onChange={(e) => setFAccount(e.target.value)}>
+            <option value="">Todas</option>
+            {[...new Set(list.map((p) => p.operation.account))].sort().map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Ativo
+          <input value={fAsset} onChange={(e) => setFAsset(e.target.value)} placeholder="Ex.: ABCD3" />
+        </label>
+        <span className="muted small">
+          {shown.length} lançamento{shown.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div className="scroll">
+        <table className="ops-table">
           <thead>
             <tr>
               <th>Data</th>
@@ -508,71 +677,67 @@ export default function Operations() {
             </tr>
           </thead>
           <tbody>
-            {list.length === 0 && (
+            {groups.length === 0 && (
               <tr>
                 <td colSpan={9} className="muted">
-                  Nenhum lançamento.
+                  {list.length === 0 ? "Nenhum lançamento." : "Nenhum lançamento com esses filtros."}
                 </td>
               </tr>
             )}
-            {list.map((p) => (
-              <Fragment key={p.operation.id}>
-                <tr>
-                  <td>{date(p.operation.date)}</td>
-                  <td>
-                    {p.operation.account}
-                    {p.operation.from_account && <div className="muted small">vindo de {p.operation.from_account}</div>}
-                  </td>
-                  <td>
-                    <strong>{p.operation.asset}</strong>
-                    {p.operation.note && <div className="muted small">{p.operation.note}</div>}
-                  </td>
-                  <td>
-                    <span className={`badge ${SIDE_BADGE[p.operation.side]}`}>{SIDE_LABEL[p.operation.side]}</span>
-                  </td>
-                  <td className="num">
-                    {quantity(p.operation.quantity)}
-                    {p.operation.residue && Number(p.operation.residue) > 0 && (
-                      <div className="muted small">resíduo {quantity(p.operation.residue)}</div>
-                    )}
-                  </td>
-                  <td className="num">{p.operation.side === "TRANSFERENCIA" ? "—" : price(p.operation.price, p.operation.currency)}</td>
-                  <td className="num">{p.operation.side === "TRANSFERENCIA" ? "—" : money(p.gross, p.operation.currency)}</td>
-                  <td className="num">
-                    {money(p.fees, p.operation.currency)}
-                    {p.fee_origin === "informada" && <div className="muted small">informada</div>}
-                  </td>
-                  <td className="row-actions">
-                    <button className="link" onClick={() => edit(p)}>
-                      Alterar
-                    </button>
-                    <button className="link danger" onClick={() => setRemoving(p.operation.id)}>
-                      Remover
-                    </button>
-                  </td>
-                </tr>
-                {removing === p.operation.id && (
-                  <tr className="detail">
-                    <td colSpan={9}>
-                      <div className="remove-box">
-                        <input
-                          autoFocus
-                          value={removeReason}
-                          onChange={(e) => setRemoveReason(e.target.value)}
-                          placeholder="Motivo da remoção (opcional)"
-                        />
-                        <button onClick={() => confirmRemove(p.operation.id)}>
-                          Confirmar remoção
-                        </button>
-                        <button className="secondary" onClick={() => setRemoving(null)}>
-                          Cancelar
-                        </button>
-                      </div>
+            {groups.map((g) => {
+              if (g.items.length === 1) return row(g.items[0]);
+              const isOpen = openNotes.has(g.key) || fAsset.trim() !== "";
+              const cur = g.items[0].operation.currency;
+              const gross = g.items.reduce((t, p) => t + Number(p.gross), 0);
+              const fees = g.items.reduce((t, p) => t + Number(p.fees), 0);
+              return (
+                <Fragment key={g.key}>
+                  <tr className="ops-group clickable" onClick={() => toggleNote(g.key)}>
+                    <td>
+                      <span className="ret-caret">{isOpen ? "▾" : "▸"}</span>
+                      {date(g.items[0].operation.date)}
+                    </td>
+                    <td>{g.items[0].operation.account}</td>
+                    <td colSpan={4}>
+                      <strong>{g.items.length} lançamentos neste dia</strong>
+                      <span className="muted small"> · {[...new Set(g.items.map((p) => p.operation.asset))].slice(0, 6).join(", ")}{new Set(g.items.map((p) => p.operation.asset)).size > 6 ? "…" : ""}</span>
+                    </td>
+                    <td className="num">{money(gross.toFixed(2), cur)}</td>
+                    <td className="num">{money(fees.toFixed(2), cur)}</td>
+                    <td className="row-actions">
+                      <button
+                        className="link danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRemoving(`nota:${g.key}`);
+                        }}
+                      >
+                        Remover todos
+                      </button>
                     </td>
                   </tr>
-                )}
-              </Fragment>
-            ))}
+                  {removing === `nota:${g.key}` && (
+                    <tr className="detail">
+                      <td colSpan={9}>
+                        <div className="remove-box">
+                          <span>
+                            Remover os {g.items.length} lançamentos de {date(g.items[0].operation.date)} em{" "}
+                            {g.items[0].operation.account}?
+                          </span>
+                          <button autoFocus className="danger" onClick={() => confirmRemoveNote(g.items[0].operation)}>
+                            Remover todos
+                          </button>
+                          <button className="secondary" onClick={() => setRemoving(null)}>
+                            Cancelar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {isOpen && g.items.map(row)}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

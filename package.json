@@ -1,7 +1,7 @@
 {
   "name": "carteira-auditavel",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Controle de investimentos B3 + exterior com rentabilidade auditável, 100% local e gratuito",
   "license": "GPL-3.0-or-later",
   "type": "module",
@@ -15,6 +15,7 @@
   "dependencies": {
     "@tauri-apps/api": "2.12.3",
     "echarts": "5.6.0",
+    "pdfjs-dist": "6.3.289",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api, errorMessage, market, type UpdateLine, type VaultStatus } from "../api";
 import Logo from "../components/Logo";
 import Audit from "./Audit";
@@ -8,10 +8,14 @@ import Portfolio from "./Portfolio";
 import Returns from "./Returns";
 import Security from "./Security";
 
+// A leitura de PDF (pdf.js) só carrega quando a aba é aberta.
+const ImportNotes = lazy(() => import("./ImportNotes"));
+
 const TABS = [
   { id: "painel", label: "Painel" },
   { id: "carteira", label: "Carteira" },
   { id: "lancamentos", label: "Lançamentos" },
+  { id: "importar", label: "Importar notas" },
   { id: "rentabilidade", label: "Rentabilidade" },
   { id: "auditoria", label: "Auditoria" },
   { id: "seguranca", label: "Segurança" },
@@ -33,14 +37,29 @@ export default function Home({ status, onLocked, onChanged }: Props) {
     onLocked();
   }
 
+  // Um pedido durante uma atualização roda de novo quando ela terminar.
+  const running = useRef(false);
+  const again = useRef(false);
+
   async function updateQuotes() {
+    if (running.current) {
+      again.current = true;
+      return;
+    }
+    running.current = true;
     setUpdating(true);
     setReport(null);
     try {
-      setReport(await market.updateQuotes());
-    } catch (e) {
-      setReport([{ source: "Cotações", ok: false, message: errorMessage(e) }]);
+      do {
+        again.current = false;
+        try {
+          setReport(await market.updateQuotes());
+        } catch (e) {
+          setReport([{ source: "Cotações", ok: false, message: errorMessage(e) }]);
+        }
+      } while (again.current);
     } finally {
+      running.current = false;
       setUpdating(false);
       setRefresh((n) => n + 1);
     }
@@ -102,7 +121,12 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       <main className="content">
         {tab === "painel" && <Dashboard refresh={refresh} />}
         {tab === "carteira" && <Portfolio refresh={refresh} />}
-        {tab === "lancamentos" && <Operations />}
+        {tab === "lancamentos" && <Operations onChanged={() => void updateQuotes()} />}
+        {tab === "importar" && (
+          <Suspense fallback={<p className="muted">Carregando…</p>}>
+            <ImportNotes onImported={() => void updateQuotes()} />
+          </Suspense>
+        )}
         {tab === "rentabilidade" && <Returns key={refresh} />}
         {tab === "auditoria" && <Audit status={status} />}
         {tab === "seguranca" && (
