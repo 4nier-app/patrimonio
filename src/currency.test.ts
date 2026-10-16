@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Asset } from "./api";
-import { currencyOfAsset, currencyOfNewAccount } from "./currency";
+import { currencyOfAsset, currencyOfNewAccount, normalizeTicker } from "./currency";
 
 const asset = (ticker: string, currency: string): Asset => ({
   ticker,
@@ -34,5 +34,14 @@ describe("currencyOfNewAccount", () => {
     expect(currencyOfNewAccount("Itaú", "ABCD3", [])).toBe("BRL");
     expect(currencyOfNewAccount("Corretora Y", "XYZ", [])).toBe("USD");
     expect(currencyOfNewAccount("Itaú", "", [])).toBe("BRL");
+  });
+});
+
+describe("código do fracionário", () => {
+  it("vira o do lote padrão e continua em reais", () => {
+    expect(normalizeTicker(" abcd3f ")).toBe("ABCD3");
+    expect(normalizeTicker("ABCD11F")).toBe("ABCD11");
+    expect(normalizeTicker("SCHF")).toBe("SCHF");
+    expect(currencyOfAsset("ABCD4F", [])).toBe("BRL");
   });
 });

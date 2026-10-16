@@ -1,11 +1,20 @@
 import type { Asset, Currency } from "./api";
 
 /**
+ * Código como o aplicativo grava: maiúsculas, sem espaços, e o do mercado
+ * fracionário da B3 ("ABCD3F") no do lote padrão ("ABCD3").
+ */
+export function normalizeTicker(ticker: string): string {
+  const t = ticker.trim().toUpperCase();
+  return /^[A-Z]{4}\d{1,2}F$/.test(t) ? t.slice(0, -1) : t;
+}
+
+/**
  * Moeda do ativo digitado: pelo catálogo quando o código está nele; senão pelo
  * formato (códigos da B3 terminam em número, como ABCD3 ou ABCD11).
  */
 export function currencyOfAsset(ticker: string, catalog: Asset[]): Currency | null {
-  const t = ticker.trim().toUpperCase();
+  const t = normalizeTicker(ticker);
   if (!t) return null;
   const found = catalog.find((a) => a.ticker === t);
   if (found) return found.currency === "USD" ? "USD" : "BRL";

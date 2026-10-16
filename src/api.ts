@@ -191,9 +191,59 @@ export const market = {
   preview: (operation: Operation) => invoke<Preview>("preview_operation", { operation }),
   create: (operation: Operation) => invoke<Operation>("create_operation", { operation }),
   update: (operation: Operation, reason: string) => invoke<Operation>("update_operation", { operation, reason }),
-  remove: (id: string, reason: string) => invoke<void>("remove_operation", { id, reason }),
+  remove: (id: string, reason: string) => invoke<void>("remove_operation", { id, reason: reason.trim() || null }),
   portfolio: () => invoke<PortfolioView>("portfolio"),
   returns: () => invoke<ReturnsView>("returns_report"),
   updateQuotes: () => invoke<UpdateLine[]>("update_quotes"),
   quoteUpdates: () => invoke<QuoteUpdate[]>("list_quote_updates"),
+};
+
+// ---------- painel (etapa 3) ----------
+
+export type DashMonth = {
+  year: number;
+  month: number;
+  period_start: string;
+  period_end: string;
+  value: Dec | null;
+  invested: Dec;
+  profit: Dec | null;
+  rate: Dec | null;
+  drawdown: Dec | null;
+  explanation: string[];
+};
+
+export type Card = { label: string; from: string; to: string; rate: Dec | null; cdi: Dec | null; explanation: string[] };
+
+export type Benchmark = {
+  id: string;
+  name: string;
+  kind: "DAILY_RATE" | "MONTHLY_RATE" | "LEVEL";
+  source: string;
+  rates: (Dec | null)[];
+  same_flows: (Dec | null)[];
+  explanations: string[][];
+};
+
+export type Slice = { label: string; value: Dec | null; assets: { asset: string; value: Dec | null }[] };
+export type AssetMonths = { asset: string; profits: (Dec | null)[] };
+export type Span = { asset: string; accounts: string[]; start: string; end: string | null };
+
+export type DashboardView = {
+  as_of: string;
+  months: DashMonth[];
+  cards: Card[];
+  benchmarks: Benchmark[];
+  allocation: Slice[];
+  contributions: AssetMonths[];
+  positions: Position[];
+  timeline: Span[];
+};
+
+/** Dias úteis de um mês: resultado de cada dia, no mesmo formato dos meses. */
+export type DaysView = { days: DashMonth[]; benchmarks: Benchmark[]; contributions: AssetMonths[] };
+
+export const dashboardApi = {
+  load: () => invoke<DashboardView>("dashboard"),
+  days: (year: number, month: number) => invoke<DaysView>("dashboard_days", { year, month }),
 };

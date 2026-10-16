@@ -33,6 +33,8 @@ pub fn chart_url(symbol: &str, from: NaiveDate, to: NaiveDate) -> String {
         .expect("fim do dia")
         .and_utc()
         .timestamp();
+    // Índices começam com "^" (^BVSP), que precisa ir codificado no endereço.
+    let symbol = symbol.replace('^', "%5E");
     format!("https://{{host}}/v8/finance/chart/{symbol}?period1={p1}&period2={p2}&interval=1d")
 }
 

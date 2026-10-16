@@ -334,8 +334,12 @@ fn update_operation(
 }
 
 #[tauri::command]
-fn remove_operation(id: String, reason: String, state: State<AppState>) -> Result<(), String> {
-    with_vault(&state, |v| v.remove_operation(&id, &reason))
+fn remove_operation(
+    id: String,
+    reason: Option<String>,
+    state: State<AppState>,
+) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_operation(&id, reason.as_deref()))
 }
 
 #[tauri::command]
@@ -346,6 +350,20 @@ fn portfolio(state: State<AppState>) -> Result<views::PortfolioView, String> {
 #[tauri::command]
 fn returns_report(state: State<AppState>) -> Result<views::ReturnsView, String> {
     with_vault_str(&state, |v| views::returns(v, today()))
+}
+
+#[tauri::command]
+fn dashboard(state: State<AppState>) -> Result<views::DashboardView, String> {
+    with_vault_str(&state, |v| views::dashboard(v, today()))
+}
+
+#[tauri::command]
+fn dashboard_days(
+    year: i32,
+    month: u32,
+    state: State<AppState>,
+) -> Result<views::DaysView, String> {
+    with_vault_str(&state, |v| views::dashboard_days(v, year, month, today()))
 }
 
 #[tauri::command]
@@ -411,6 +429,8 @@ pub fn run() {
             remove_operation,
             portfolio,
             returns_report,
+            dashboard,
+            dashboard_days,
             list_quote_updates,
             update_quotes,
             reset_password,

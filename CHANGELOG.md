@@ -6,6 +6,35 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.5.0] - Não lançada
+
+### Adicionado
+- Aba **Painel**, a primeira ao abrir:
+  - Período dos gráficos: 12 meses, este ano, desde o início, um ano
+    escolhido (sempre com os 12 meses, de janeiro a dezembro) ou meses
+    escolhidos (de/até). O mesmo mês nos dois mostra os dias úteis dele.
+  - Cartões de rentabilidade (desde o início, 12 meses e último mês) com o CDI
+    do mesmo período e a diferença em pontos percentuais.
+  - Comparação com CDI, IPCA, Ibovespa, IVVB11 e dólar, num gráfico só com
+    botão "%" / "R$". Em %: rentabilidade acumulada, medida nos mesmos dias em
+    que havia dinheiro na carteira. Em R$: quanto você teria se cada compra e
+    venda tivesse ido para o índice, nas mesmas datas.
+  - Evolução do patrimônio: valor aplicado e ganho de capital por mês.
+  - Lucro ou prejuízo em reais por mês ou por ano.
+  - O que puxou o resultado: lucro de cada ativo no período.
+  - Ativos na carteira por tipo (rosca e lista que abre os ativos).
+  - Queda desde o pico.
+  - Lucro realizado (vendas) e não realizado (no papel) por ativo.
+  - Linha do tempo das posições: o tempo real de cada ativo na carteira.
+  - Clique em qualquer cartão para ver a memória de cálculo.
+- CDI e IPCA do Banco Central (SGS) e Ibovespa e IVVB11 (Yahoo) baixados
+  automaticamente desde a primeira operação.
+### Alterado
+- Código do mercado fracionário da B3 (ABCD3F, como aparece nas notas) é
+  gravado como o do lote padrão (ABCD3): mesmo ativo, cotação e preço médio.
+- O motivo da remoção de um lançamento passa a ser opcional.
+
+
 ## [0.4.0] - Não lançada
 
 ### Adicionado
@@ -27,9 +56,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   chave de recuperação. Cofres da versão 0.3.0 são convertidos na primeira
   abertura, sem recriptografar os dados.
 - Trocar a senha não invalida a chave de recuperação.
-- Preço em dólar aceita ponto ou vírgula como decimal, como nas notas do
-  exterior (534.7361 vira US$ 534,7361), sem separador de milhar. Na conta em
-  dólar, a quantidade também usa o ponto como decimal (1.234 = 1,234).
+- Preço em dólar com a mesma máscara de caixa do real, só números, sempre com
+  8 casas (53473610000 vira US$ 534,73610000). Ao colar um valor das notas do
+  exterior, ponto ou vírgula valem como decimal (534.7361 vira
+  US$ 534,73610000). Na conta em dólar, a quantidade usa o ponto como decimal
+  (1.234 = 1,234).
 - O histórico de versões do aplicativo saiu da barra de abas e virou a seção
   "Versões do aplicativo", no fim da aba Auditoria.
 - Relatório de atualização: os catálogos aparecem como "lista de ativos", com

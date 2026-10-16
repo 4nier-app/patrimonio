@@ -23,7 +23,7 @@ import {
   quantity,
   toCashMask,
 } from "../format";
-import { currencyOfNewAccount } from "../currency";
+import { currencyOfNewAccount, normalizeTicker } from "../currency";
 
 type Form = {
   id: string;
@@ -120,16 +120,21 @@ function CashInput({
 }
 
 /**
- * Preço digitado: em reais, máscara de caixa (só números, 2 casas); em dólar,
- * números e vírgula com até 8 casas, como o preço médio das notas da Nomad.
+ * Preço digitado: máscara de caixa (só números, preenche da direita), com 2
+ * casas em reais e 8 em dólar, como o preço médio das notas da Nomad.
  */
 function maskPrice(raw: string, currency: Currency, decimals: number): string {
-  return currency === "USD" ? decimalMask(raw, priceDecimals("USD"), "USD") : cashMask(raw, decimals, currency);
+  return cashMask(raw, decimals, currency);
+}
+
+/** Preço colado ("534.7361" ou "534,7361"): ponto ou vírgula valem como decimal. */
+function pastedPrice(text: string, currency: Currency): { text: string; decimals: number } | null {
+  const dec = parseDecimalInput(decimalMask(text, priceDecimals(currency), currency));
+  return dec == null ? null : priceText(dec, currency);
 }
 
 /** Valor exato ("95.84") no formato do campo de preço. */
 function priceText(dec: string, currency: Currency): { text: string; decimals: number } {
-  if (currency === "USD") return { text: decimalMask(dec.replace(".", ","), priceDecimals("USD"), "USD"), decimals: 8 };
   return toCashMask(dec, priceDecimals(currency), currency);
 }
 
@@ -366,6 +371,7 @@ export default function Operations() {
               list="ativos"
               value={form.asset}
               onChange={(e) => set("asset", e.target.value.toUpperCase())}
+              onBlur={(e) => set("asset", normalizeTicker(e.target.value))}
               placeholder={currency === "USD" ? "Ex.: VOO" : "Ex.: ABCD3"}
               required
             />
@@ -390,13 +396,21 @@ export default function Operations() {
             <label>
               Preço unitário
               <input
-                inputMode={currency === "USD" ? "decimal" : "numeric"}
+                inputMode="numeric"
                 value={form.price}
-                placeholder={currency === "USD" ? "US$ 0,00" : "R$ 0,00"}
+                placeholder={currency === "USD" ? "US$ 0,00000000" : "R$ 0,00"}
                 required
                 onChange={(e) => set("price", maskPrice(e.target.value, currency, form.priceDecimals))}
+                onPaste={(e) => {
+                  const p = pastedPrice(e.clipboardData.getData("text"), currency);
+                  if (!p) return;
+                  e.preventDefault();
+                  setForm((f) => ({ ...f, price: p.text, priceDecimals: p.decimals }));
+                }}
               />
-              {currency === "USD" && <span className="muted small">Use vírgula para os centavos; até 8 casas.</span>}
+              {currency === "USD" && (
+                <span className="muted small">Digite só os números, com 8 casas: 53473610000 = US$ 534,73610000.</span>
+              )}
             </label>
           )}
         </div>
@@ -545,9 +559,9 @@ export default function Operations() {
                           autoFocus
                           value={removeReason}
                           onChange={(e) => setRemoveReason(e.target.value)}
-                          placeholder="Motivo da remoção (obrigatório)"
+                          placeholder="Motivo da remoção (opcional)"
                         />
-                        <button onClick={() => confirmRemove(p.operation.id)} disabled={!removeReason.trim()}>
+                        <button onClick={() => confirmRemove(p.operation.id)}>
                           Confirmar remoção
                         </button>
                         <button className="secondary" onClick={() => setRemoving(null)}>
