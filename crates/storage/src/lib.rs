@@ -5,6 +5,7 @@
 //! gravada. O sal e os parâmetros da derivação ficam em `cofre.json`, ao lado
 //! do banco. Sem a senha, o arquivo do banco é ilegível.
 
+mod backup;
 mod kdf;
 mod migrations;
 mod records;
@@ -17,6 +18,10 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use zeroize::Zeroizing;
 
+pub use backup::{
+    summary as backup_summary, BackupInfo, BackupSummary, PreparedRestore, BACKUP_EXTENSION,
+};
+use kdf::DataKey;
 pub use kdf::KdfParams;
 pub use records::{
     normalize_ticker, Account, Asset, FxTable, NewFxRate, NewQuote, PriceTable, QuoteUpdate,
@@ -34,6 +39,10 @@ pub enum VaultError {
     NotFound,
     #[error("senha incorreta")]
     WrongPassword,
+    #[error("chave de recuperação incorreta")]
+    WrongRecoveryKey,
+    #[error("este cofre não tem chave de recuperação")]
+    NoRecoveryKey,
     #[error("a senha precisa ter pelo menos {0} caracteres")]
     WeakPassword(usize),
     #[error("arquivo do cofre inválido: {0}")]
@@ -49,6 +58,19 @@ pub enum VaultError {
 }
 
 pub type Result<T> = std::result::Result<T, VaultError>;
+
+/// Conferência simples: algo@algo.algo, sem espaços.
+pub fn looks_like_email(e: &str) -> bool {
+    let Some((user, domain)) = e.split_once('@') else {
+        return false;
+    };
+    !user.is_empty()
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && !e.chars().any(char::is_whitespace)
+        && !domain.contains('@')
+}
 
 pub const MIN_PASSWORD_LEN: usize = 8;
 
@@ -71,6 +93,9 @@ pub struct Vault {
     conn: Connection,
     dir: PathBuf,
     app_version: String,
+    /// Chave do banco em memória enquanto o cofre está aberto; permite trocar
+    /// a senha e gerar nova chave de recuperação sem recriptografar o banco.
+    data_key: DataKey,
 }
 
 fn now_iso() -> String {
@@ -84,6 +109,33 @@ fn apply_key(conn: &Connection, key: &[u8]) -> Result<()> {
     conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key.as_str()))?;
     Ok(())
 }
+
+/// Abre o banco com a chave; `None` quando a chave não abre o arquivo.
+fn open_db(path: &Path, key: &DataKey) -> Result<Option<Connection>> {
+    let conn = Connection::open(path)?;
+    apply_key(&conn, key.as_slice())?;
+    // Com a chave errada o SQLCipher só falha na primeira leitura.
+    if conn
+        .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+            r.get::<_, i64>(0)
+        })
+        .is_err()
+    {
+        return Ok(None);
+    }
+    Ok(Some(conn))
+}
+
+/// Situação da chave de recuperação, para a tela de Segurança.
+#[derive(Debug, Clone, Serialize)]
+pub struct RecoveryStatus {
+    pub configured: bool,
+    pub email: Option<String>,
+    pub created_at: Option<String>,
+}
+
+const SETTING_EMAIL: &str = "recuperacao.email";
+const SETTING_RECOVERY_AT: &str = "recuperacao.gerada_em";
 
 impl Vault {
     /// Indica se já existe um cofre na pasta.
@@ -109,11 +161,11 @@ impl Vault {
             return Err(VaultError::AlreadyExists);
         }
         fs::create_dir_all(dir)?;
-        let header = kdf::VaultHeader::new(params)?;
-        let key = header.derive_key(password)?;
+        let data_key = kdf::new_data_key()?;
+        let header = kdf::VaultHeader::new(params, &data_key, password)?;
 
         let conn = Connection::open(dir.join(DB_FILE))?;
-        apply_key(&conn, key.as_slice())?;
+        apply_key(&conn, data_key.as_slice())?;
         migrations::run(&conn)?;
         header.write(&dir.join(VAULT_FILE))?;
 
@@ -121,6 +173,7 @@ impl Vault {
             conn,
             dir: dir.to_path_buf(),
             app_version: app_version.to_string(),
+            data_key,
         };
         vault.append_event(
             "SISTEMA",
@@ -134,61 +187,106 @@ impl Vault {
     }
 
     /// Abre um cofre existente. Senha errada resulta em [`VaultError::WrongPassword`].
+    /// Um cofre do formato antigo (até a 0.3.0) é convertido na primeira abertura.
     pub fn open(dir: &Path, password: &str, app_version: &str) -> Result<Self> {
         let vault_file = dir.join(VAULT_FILE);
         if !vault_file.exists() {
             return Err(VaultError::NotFound);
         }
-        let header = kdf::VaultHeader::read(&vault_file)?;
-        let key = header.derive_key(password)?;
-        let conn = Connection::open(dir.join(DB_FILE))?;
-        apply_key(&conn, key.as_slice())?;
-        // Com a chave errada o SQLCipher só falha na primeira leitura.
-        if conn
-            .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
-                r.get::<_, i64>(0)
-            })
-            .is_err()
-        {
-            return Err(VaultError::WrongPassword);
-        }
+        let mut header = kdf::VaultHeader::read(&vault_file)?;
+        let data_key = header
+            .key_from_password(password)?
+            .ok_or(VaultError::WrongPassword)?;
+        let conn = open_db(&dir.join(DB_FILE), &data_key)?.ok_or(VaultError::WrongPassword)?;
         migrations::run(&conn)?;
-        Ok(Vault {
+        let mut vault = Vault {
             conn,
             dir: dir.to_path_buf(),
             app_version: app_version.to_string(),
-        })
+            data_key,
+        };
+        if header.is_legacy() {
+            header.set_password(&vault.data_key, password)?;
+            header.write(&vault_file)?;
+            vault.append_event(
+                "SISTEMA",
+                "cofre",
+                Action::Alterada,
+                None,
+                Some(r#"{"evento":"cofre convertido para o formato 2 (permite chave de recuperação)"}"#),
+                None,
+            )?;
+        }
+        Ok(vault)
+    }
+
+    /// "Esqueci minha senha": abre o cofre com a chave de recuperação e grava
+    /// a nova senha. A chave de recuperação continua valendo.
+    pub fn reset_password(
+        dir: &Path,
+        recovery_key: &str,
+        new_password: &str,
+        app_version: &str,
+    ) -> Result<Self> {
+        if new_password.chars().count() < MIN_PASSWORD_LEN {
+            return Err(VaultError::WeakPassword(MIN_PASSWORD_LEN));
+        }
+        let vault_file = dir.join(VAULT_FILE);
+        if !vault_file.exists() {
+            return Err(VaultError::NotFound);
+        }
+        let mut header = kdf::VaultHeader::read(&vault_file)?;
+        if !header.has_recovery() {
+            return Err(VaultError::NoRecoveryKey);
+        }
+        let data_key = header
+            .key_from_recovery(recovery_key)?
+            .ok_or(VaultError::WrongRecoveryKey)?;
+        let conn = open_db(&dir.join(DB_FILE), &data_key)?.ok_or(VaultError::WrongRecoveryKey)?;
+        migrations::run(&conn)?;
+        header.set_password(&data_key, new_password)?;
+        header.write(&vault_file)?;
+        let mut vault = Vault {
+            conn,
+            dir: dir.to_path_buf(),
+            app_version: app_version.to_string(),
+            data_key,
+        };
+        vault.append_event(
+            "SISTEMA",
+            "cofre",
+            Action::Alterada,
+            None,
+            Some(r#"{"evento":"senha redefinida com a chave de recuperação"}"#),
+            None,
+        )?;
+        Ok(vault)
+    }
+
+    /// Indica se o cofre da pasta tem chave de recuperação, sem abri-lo.
+    pub fn has_recovery_key(dir: &Path) -> bool {
+        kdf::VaultHeader::read(&dir.join(VAULT_FILE))
+            .map(|h| h.has_recovery())
+            .unwrap_or(false)
     }
 
     pub fn dir(&self) -> &Path {
         &self.dir
     }
 
-    /// Troca a senha: novo sal, nova chave, banco recriptografado.
+    /// Troca a senha. A chave do banco não muda: ela passa a ser protegida
+    /// pela nova senha (com novo sal), e a chave de recuperação continua valendo.
     pub fn change_password(&mut self, current: &str, new: &str) -> Result<()> {
         if new.chars().count() < MIN_PASSWORD_LEN {
             return Err(VaultError::WeakPassword(MIN_PASSWORD_LEN));
         }
         let vault_file = self.dir.join(VAULT_FILE);
-        let old_header = kdf::VaultHeader::read(&vault_file)?;
-        // Confere a senha atual antes de trocar.
-        let probe = Connection::open(self.dir.join(DB_FILE))?;
-        apply_key(&probe, old_header.derive_key(current)?.as_slice())?;
-        if probe
-            .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
-                r.get::<_, i64>(0)
-            })
-            .is_err()
-        {
-            return Err(VaultError::WrongPassword);
+        let mut header = kdf::VaultHeader::read(&vault_file)?;
+        match header.key_from_password(current)? {
+            Some(k) if *k == *self.data_key => {}
+            _ => return Err(VaultError::WrongPassword),
         }
-        drop(probe);
-
-        let header = kdf::VaultHeader::new(old_header.params())?;
-        let key = header.derive_key(new)?;
-        let hex_key = Zeroizing::new(hex::encode(&*key));
-        self.conn
-            .execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", hex_key.as_str()))?;
+        header.set_password(&self.data_key, new)?;
         header.write(&vault_file)?;
         self.append_event(
             "SISTEMA",
@@ -198,6 +296,76 @@ impl Vault {
             Some(r#"{"evento":"senha alterada"}"#),
             None,
         )?;
+        Ok(())
+    }
+
+    /// Gera uma chave de recuperação nova (a anterior deixa de valer) e guarda
+    /// o e-mail para onde ela será enviada. Retorna a chave, que não é gravada.
+    pub fn setup_recovery(&mut self, email: Option<&str>) -> Result<String> {
+        let email = email.map(str::trim).filter(|e| !e.is_empty());
+        if let Some(e) = email {
+            if !looks_like_email(e) {
+                return Err(VaultError::Invalid(format!("e-mail inválido: {e}")));
+            }
+        }
+        let key = kdf::new_recovery_key()?;
+        let vault_file = self.dir.join(VAULT_FILE);
+        let mut header = kdf::VaultHeader::read(&vault_file)?;
+        let replaced = header.has_recovery();
+        header.set_recovery(&self.data_key, &key)?;
+        header.write(&vault_file)?;
+        let now = now_iso();
+        match email {
+            Some(e) => self.set_setting(SETTING_EMAIL, e)?,
+            None => self.delete_setting(SETTING_EMAIL)?,
+        }
+        self.set_setting(SETTING_RECOVERY_AT, &now)?;
+        let after = serde_json::json!({
+            "evento": if replaced { "nova chave de recuperação gerada (a anterior deixou de valer)" } else { "chave de recuperação gerada" },
+            "email": email,
+        })
+        .to_string();
+        self.append_event(
+            "SISTEMA",
+            "cofre",
+            Action::Alterada,
+            None,
+            Some(&after),
+            None,
+        )?;
+        Ok(key)
+    }
+
+    pub fn recovery_status(&self) -> Result<RecoveryStatus> {
+        let header = kdf::VaultHeader::read(&self.dir.join(VAULT_FILE))?;
+        Ok(RecoveryStatus {
+            configured: header.has_recovery(),
+            email: self.setting(SETTING_EMAIL)?,
+            created_at: self.setting(SETTING_RECOVERY_AT)?,
+        })
+    }
+
+    pub fn setting(&self, key: &str) -> Result<Option<String>> {
+        Ok(self
+            .conn
+            .query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| {
+                r.get(0)
+            })
+            .optional()?)
+    }
+
+    pub fn set_setting(&self, key: &str, value: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            params![key, value, now_iso()],
+        )?;
+        Ok(())
+    }
+
+    fn delete_setting(&self, key: &str) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM settings WHERE key = ?1", [key])?;
         Ok(())
     }
 
@@ -536,5 +704,106 @@ mod tests {
         ));
         let v = Vault::open(tmp.path(), "nova-senha-456", "0.1.0").unwrap();
         assert!(v.verify_integrity().unwrap().ok);
+    }
+
+    #[test]
+    fn chave_de_recuperacao_redefine_a_senha() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = create(tmp.path());
+        assert!(!v.recovery_status().unwrap().configured);
+        assert!(v.setup_recovery(Some("nao e email")).is_err());
+        let rk = v.setup_recovery(Some("eu@exemplo.com")).unwrap();
+        let st = v.recovery_status().unwrap();
+        assert!(st.configured);
+        assert_eq!(st.email.as_deref(), Some("eu@exemplo.com"));
+        // Trocar a senha não invalida a chave de recuperação.
+        v.change_password(SENHA, "segunda-senha-2").unwrap();
+        drop(v);
+        assert!(Vault::has_recovery_key(tmp.path()));
+        assert!(matches!(
+            Vault::reset_password(tmp.path(), "AAAA-AAAA", "terceira-senha-3", "0.1.0"),
+            Err(VaultError::WrongRecoveryKey)
+        ));
+        let v = Vault::reset_password(tmp.path(), &rk.to_lowercase(), "terceira-senha-3", "0.1.0")
+            .unwrap();
+        assert!(v.verify_integrity().unwrap().ok);
+        drop(v);
+        assert!(matches!(
+            Vault::open(tmp.path(), "segunda-senha-2", "0.1.0"),
+            Err(VaultError::WrongPassword)
+        ));
+        let mut v = Vault::open(tmp.path(), "terceira-senha-3", "0.1.0").unwrap();
+        // Uma chave nova substitui a anterior.
+        let rk2 = v.setup_recovery(None).unwrap();
+        assert_eq!(v.recovery_status().unwrap().email, None);
+        drop(v);
+        assert!(Vault::reset_password(tmp.path(), &rk, "quarta-senha-44", "0.1.0").is_err());
+        assert!(Vault::reset_password(tmp.path(), &rk2, "quarta-senha-44", "0.1.0").is_ok());
+    }
+
+    #[test]
+    fn cofre_sem_chave_de_recuperacao_avisa() {
+        let tmp = tempfile::tempdir().unwrap();
+        drop(create(tmp.path()));
+        assert!(!Vault::has_recovery_key(tmp.path()));
+        assert!(matches!(
+            Vault::reset_password(tmp.path(), "AAAA", "nova-senha-123", "0.1.0"),
+            Err(VaultError::NoRecoveryKey)
+        ));
+    }
+
+    /// Cofre criado pela versão 0.3.0 (chave do banco = Argon2id da senha).
+    #[test]
+    fn converte_cofre_do_formato_antigo_sem_perder_dados() {
+        let tmp = tempfile::tempdir().unwrap();
+        let params = KdfParams::fast_for_tests();
+        let salt = [7u8; 16];
+        let key = kdf::derive(params, SENHA, &salt).unwrap();
+        let conn = Connection::open(tmp.path().join(DB_FILE)).unwrap();
+        apply_key(&conn, key.as_slice()).unwrap();
+        migrations::run(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO settings (key, value, updated_at) VALUES ('x', 'antigo', '')",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        let header = serde_json::json!({
+            "formato": 1, "kdf": "argon2id",
+            "memory_kib": params.memory_kib, "iterations": params.iterations,
+            "parallelism": params.parallelism, "sal": hex::encode(salt),
+        });
+        fs::write(tmp.path().join(VAULT_FILE), header.to_string()).unwrap();
+
+        assert!(matches!(
+            Vault::open(tmp.path(), "senha-errada-9", "0.4.0"),
+            Err(VaultError::WrongPassword)
+        ));
+        let mut v = Vault::open(tmp.path(), SENHA, "0.4.0").unwrap();
+        assert_eq!(v.setting("x").unwrap().as_deref(), Some("antigo"));
+        let text = fs::read_to_string(tmp.path().join(VAULT_FILE)).unwrap();
+        assert!(text.contains("\"formato\": 2"), "{text}");
+        let rk = v.setup_recovery(None).unwrap();
+        drop(v);
+        assert!(Vault::open(tmp.path(), SENHA, "0.4.0").is_ok());
+        let v = Vault::reset_password(tmp.path(), &rk, "nova-senha-123", "0.4.0").unwrap();
+        assert_eq!(v.setting("x").unwrap().as_deref(), Some("antigo"));
+    }
+
+    #[test]
+    fn confere_formato_de_email() {
+        assert!(looks_like_email("fulano.tal@gmail.com"));
+        for e in [
+            "",
+            "fulano",
+            "fulano@",
+            "@gmail.com",
+            "a b@c.com",
+            "a@b",
+            "a@b.",
+            "a@@b.com",
+        ] {
+            assert!(!looks_like_email(e), "{e}");
+        }
     }
 }

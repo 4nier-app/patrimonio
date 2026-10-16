@@ -6,7 +6,22 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("migrations/0001_inicial.sql")),
     (2, include_str!("migrations/0002_lancamentos.sql")),
     (3, include_str!("migrations/0003_exterior.sql")),
+    (4, include_str!("migrations/0004_backup_recuperacao.sql")),
 ];
+
+/// Versão mais nova do esquema que este aplicativo conhece.
+pub fn latest() -> i64 {
+    MIGRATIONS.last().map(|(v, _)| *v).unwrap_or(0)
+}
+
+/// Versão do esquema gravada no banco.
+pub fn current(conn: &Connection) -> rusqlite::Result<i64> {
+    conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+        [],
+        |r| r.get(0),
+    )
+}
 
 pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(

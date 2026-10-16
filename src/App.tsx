@@ -16,5 +16,5 @@ export default function App() {
   if (error) return <main className="center"><p className="error">{error}</p></main>;
   if (!status) return <main className="center"><p className="muted">Carregando…</p></main>;
   if (!status.unlocked) return <Login status={status} onUnlocked={refresh} />;
-  return <Home status={status} onLocked={refresh} />;
+  return <Home status={status} onLocked={refresh} onChanged={refresh} />;
 }

@@ -195,9 +195,19 @@ pub fn update_all(
                 || last_date
                     .map(|d| (today - d).num_days() >= CATALOG_MAX_AGE_DAYS)
                     .unwrap_or(true);
-            let info = last
-                .as_deref()
-                .map(|iso| format!("em dia: {count} ativos, atualizado em {}", local_stamp(iso)));
+            let info = last.as_deref().map(|iso| {
+                let next = last_date
+                    .map(|d| {
+                        (d + Duration::days(CATALOG_MAX_AGE_DAYS))
+                            .format("%d/%m/%Y")
+                            .to_string()
+                    })
+                    .unwrap_or_default();
+                format!(
+                    "em dia: {count} ativos, baixado em {}; próxima atualização em {next}",
+                    local_stamp(iso)
+                )
+            });
             Ok((stale, info))
         })
     };
@@ -210,7 +220,7 @@ pub fn update_all(
 
     if !catalog_age {
         report.push(UpdateLine {
-            source: "Catálogo B3".into(),
+            source: "Catálogo B3 (lista de ativos)".into(),
             ok: true,
             message: catalog_info.unwrap_or_default(),
         });
@@ -250,7 +260,7 @@ pub fn update_all(
                     .map_err(|e| e.to_string())
                 })?;
                 report.push(UpdateLine {
-                    source: "Catálogo B3".into(),
+                    source: "Catálogo B3 (lista de ativos)".into(),
                     ok: true,
                     message: msg,
                 });
@@ -262,7 +272,7 @@ pub fn update_all(
                         .map_err(|e| e.to_string())
                 })?;
                 report.push(UpdateLine {
-                    source: "Catálogo B3".into(),
+                    source: "Catálogo B3 (lista de ativos)".into(),
                     ok: false,
                     message: msg,
                 });
@@ -274,7 +284,7 @@ pub fn update_all(
     let (us_stale, us_info) = catalog_state(US_CATALOG_SOURCE, "US")?;
     if !us_stale {
         report.push(UpdateLine {
-            source: "Catálogo EUA".into(),
+            source: "Catálogo EUA (lista de ativos)".into(),
             ok: true,
             message: us_info.unwrap_or_default(),
         });
@@ -310,7 +320,7 @@ pub fn update_all(
                     .map_err(|e| e.to_string())
                 })?;
                 report.push(UpdateLine {
-                    source: "Catálogo EUA".into(),
+                    source: "Catálogo EUA (lista de ativos)".into(),
                     ok: true,
                     message: msg,
                 });
@@ -322,7 +332,7 @@ pub fn update_all(
                         .map_err(|e| e.to_string())
                 })?;
                 report.push(UpdateLine {
-                    source: "Catálogo EUA".into(),
+                    source: "Catálogo EUA (lista de ativos)".into(),
                     ok: false,
                     message: msg,
                 });
@@ -686,7 +696,7 @@ mod tests {
         assert!(
             again
                 .iter()
-                .any(|l| l.source == "Catálogo B3" && l.message.starts_with("em dia")),
+                .any(|l| l.source.starts_with("Catálogo B3") && l.message.starts_with("em dia")),
             "{again:?}"
         );
         assert!(
@@ -761,7 +771,7 @@ mod tests {
         let f = fake(true);
         let report = update_all(&vault, &f, today).unwrap();
         assert!(report.iter().all(|l| l.ok), "{report:?}");
-        assert!(report.iter().any(|l| l.source == "Catálogo EUA"));
+        assert!(report.iter().any(|l| l.source.starts_with("Catálogo EUA")));
         assert!(
             report
                 .iter()

@@ -91,13 +91,27 @@ describe("money", () => {
   });
 });
 
+describe("quantidade em conta no exterior", () => {
+  it("ponto é decimal, como nas notas", () => {
+    expect(parseDecimalInput("1.234", true)).toBe("1.234");
+    expect(parseDecimalInput("1.234")).toBe("1234");
+    expect(parseDecimalInput("1,5", true)).toBe("1.5");
+    expect(maskDecimal("1.234", "quantity", "USD", true)).toBe("1,234");
+    expect(parseDecimalInput(maskDecimal("1234.5", "quantity", "USD", true), true)).toBe("1234.5");
+  });
+});
+
 describe("decimalMask", () => {
   it("aceita vírgula e até 8 casas", () => {
     expect(decimalMask("95,84058663", 8)).toBe("US$ 95,84058663");
     expect(decimalMask("95,840586631", 8)).toBe("US$ 95,84058663");
-    expect(decimalMask("1234", 8)).toBe("US$ 1.234");
-    expect(decimalMask("US$ 1.234,5", 8)).toBe("US$ 1.234,5");
-    expect(decimalMask("US$ 1.234.", 8)).toBe("US$ 1.234,");
+    expect(decimalMask("1234", 8)).toBe("US$ 1234");
+    expect(decimalMask("534.7361", 8)).toBe("US$ 534,7361");
+    expect(decimalMask("US$ 534,7361", 8)).toBe("US$ 534,7361");
+    expect(decimalMask("1,234.56", 8)).toBe("US$ 1234,56");
+    expect(decimalMask("1.234,5", 8)).toBe("US$ 1234,5");
+    expect(decimalMask("1.234.567", 8)).toBe("US$ 1234567");
+    expect(decimalMask("US$ 1234.", 8)).toBe("US$ 1234,");
     expect(decimalMask("abc", 8)).toBe("");
     expect(parseDecimalInput(decimalMask("1234,56789", 8))).toBe("1234.56789");
   });

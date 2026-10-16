@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type VaultStatus = {
   exists: boolean;
+  /** O cofre tem chave de recuperação ("Esqueci minha senha"). */
+  has_recovery_key: boolean;
   unlocked: boolean;
   app_version: string;
   data_dir: string;
@@ -24,13 +26,44 @@ export type LedgerEvent = {
   hash: string;
 };
 
+export type RecoveryStatus = { configured: boolean; email: string | null; created_at: string | null };
+
+export type BackupStatus = { auto_dir: string; last_auto: string | null; last_backup: string | null };
+
+export type BackupInfo = { path: string; created_at: string; events: number; bytes: number };
+
+export type BackupSummary = {
+  path: string;
+  created_at: string;
+  app_version: string;
+  schema_version: number;
+  events: number;
+  has_recovery_key: boolean;
+};
+
+export type RestoreResult = { previous: string | null };
+
 export type IntegrityReport = { ok: boolean; events_checked: number; problem: string | null };
 
 export type VersionEntry = { version: string; installed_at: string; changelog: string };
 
 export const api = {
   vaultStatus: () => invoke<VaultStatus>("vault_status"),
-  createVault: (password: string, confirmation: string) => invoke<void>("create_vault", { password, confirmation }),
+  /** Cria o cofre e devolve a chave de recuperação gerada. */
+  createVault: (password: string, confirmation: string, email: string) =>
+    invoke<string>("create_vault", { password, confirmation, email }),
+  resetPassword: (recoveryKey: string, next: string, confirmation: string) =>
+    invoke<void>("reset_password", { recoveryKey, new: next, confirmation }),
+  recoveryStatus: () => invoke<RecoveryStatus>("recovery_status"),
+  generateRecoveryKey: (email: string) => invoke<string>("generate_recovery_key", { email }),
+  sendRecoveryEmail: (email: string, key: string) => invoke<void>("send_recovery_email", { email, key }),
+  backupStatus: () => invoke<BackupStatus>("backup_status"),
+  /** Abre a janela "Salvar como"; null se o usuário cancelar. */
+  exportBackup: () => invoke<BackupInfo | null>("export_backup"),
+  /** Abre a janela "Abrir"; null se o usuário cancelar. */
+  pickBackup: () => invoke<BackupSummary | null>("pick_backup"),
+  restoreBackup: (path: string, password: string) => invoke<RestoreResult>("restore_backup", { path, password }),
+  openDataFolder: () => invoke<void>("open_data_folder"),
   unlock: (password: string) => invoke<void>("unlock", { password }),
   lock: () => invoke<void>("lock"),
   changePassword: (current: string, next: string, confirmation: string) =>

@@ -10,7 +10,7 @@ rust-version.workspace = true
 carteira-core = { path = "../core" }
 carteira-ledger = { path = "../ledger" }
 rust_decimal.workspace = true
-rusqlite = { version = "0.37", features = ["bundled-sqlcipher-vendored-openssl"] }
+rusqlite = { version = "0.37", features = ["bundled-sqlcipher-vendored-openssl", "backup"] }
 argon2 = "0.5"
 getrandom = "0.2"
 zeroize = "1"
@@ -19,6 +19,9 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
+chacha20poly1305 = "0.10"
+base64 = "0.22"
+sha2.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

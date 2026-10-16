@@ -72,12 +72,15 @@ function NumberInput({
   onChange,
   placeholder,
   required,
+  usd,
 }: {
   value: string;
   kind: "money" | "quantity";
   onChange: (v: string) => void;
   placeholder?: string;
   required?: boolean;
+  /** Conta no exterior: ponto vale como decimal, como nas notas. */
+  usd?: boolean;
 }) {
   return (
     <input
@@ -86,7 +89,7 @@ function NumberInput({
       placeholder={placeholder}
       required={required}
       onChange={(e) => onChange(keepNumberChars(e.target.value))}
-      onBlur={() => onChange(maskDecimal(value, kind))}
+      onBlur={() => onChange(maskDecimal(value, kind, usd ? "USD" : "BRL", usd))}
     />
   );
 }
@@ -133,7 +136,8 @@ function priceText(dec: string, currency: Currency): { text: string; decimals: n
 /** Converte o formulário; devolve a mensagem do primeiro campo inválido. */
 function toOperation(f: Form, currency: Currency): Operation | string {
   const transfer = f.side === "TRANSFERENCIA";
-  const q = parseDecimalInput(f.quantity);
+  const usd = currency === "USD";
+  const q = parseDecimalInput(f.quantity, usd);
   if (!q) return "Quantidade inválida.";
   const p = transfer ? "0" : parseDecimalInput(f.price);
   if (!p) return "Preço inválido.";
@@ -144,7 +148,7 @@ function toOperation(f: Form, currency: Currency): Operation | string {
   }
   let residue: string | null = null;
   if (transfer && f.residue.trim()) {
-    residue = parseDecimalInput(f.residue);
+    residue = parseDecimalInput(f.residue, usd);
     if (residue == null) return "Resíduo inválido.";
   }
   if (!f.date) return "Informe a data.";
@@ -266,14 +270,14 @@ export default function Operations() {
       asset: o.asset,
       date: o.date,
       side: o.side,
-      quantity: maskDecimal(o.quantity, "quantity"),
+      quantity: maskDecimal(o.quantity, "quantity", cur, cur === "USD"),
       price: pr.text,
       priceDecimals: pr.decimals,
       manual: o.manual_fees != null,
       fees: o.manual_fees != null ? toCashMask(o.manual_fees, 2, cur).text : "",
       note: o.note ?? "",
       fromAccount: o.from_account ?? "",
-      residue: o.residue ? maskDecimal(o.residue, "quantity") : "",
+      residue: o.residue ? maskDecimal(o.residue, "quantity", cur, cur === "USD") : "",
     });
     setReason("");
     setMessage(null);
@@ -375,12 +379,12 @@ export default function Operations() {
           </label>
           <label>
             {transfer ? "Quantidade transferida" : "Quantidade"}
-            <NumberInput kind="quantity" value={form.quantity} onChange={(v) => set("quantity", v)} required />
+            <NumberInput kind="quantity" value={form.quantity} onChange={(v) => set("quantity", v)} usd={currency === "USD"} required />
           </label>
           {transfer ? (
             <label>
               Resíduo que ficou na origem (opcional)
-              <NumberInput kind="quantity" value={form.residue} onChange={(v) => set("residue", v)} placeholder="Ex.: 0,0000012" />
+              <NumberInput kind="quantity" value={form.residue} onChange={(v) => set("residue", v)} usd={currency === "USD"} placeholder="Ex.: 0,0000012" />
             </label>
           ) : (
             <label>

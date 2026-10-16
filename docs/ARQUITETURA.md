@@ -263,13 +263,13 @@ interface BrokerModule {
 - Regras ficam em tabela versionada por vigência. O app é ferramenta de apoio; o documento recomendará conferência com contador.
 
 ## 11. Segurança
-- Primeiro uso: usuário cria a senha. Chave do banco = Argon2id(senha, salt aleatório). O salt fica no cabeçalho, a senha não fica em lugar nenhum.
+- Primeiro uso: usuário cria a senha. O banco é criptografado com uma chave aleatória de 32 bytes, guardada em `cofre.json` duas vezes, cada uma cifrada (ChaCha20-Poly1305) com uma chave derivada por Argon2id: uma da senha e outra da **chave de recuperação**. Nem a senha, nem a chave de recuperação, nem a chave do banco em aberto ficam gravadas. (Até a 0.3.0 a chave do banco era o próprio Argon2id da senha; esses cofres são convertidos na primeira abertura, sem recriptografar.)
 - Bloqueio automático após inatividade (configurável).
-- **Sem recuperação de senha** (é o preço de não ter servidor). O app avisa isso e incentiva backups.
-- Troca de senha recriptografa o banco (`PRAGMA rekey`).
+- **Chave de recuperação** (aprovada em 14/10/2026), sem servidor: 32 caracteres aleatórios gerados ao criar o cofre (ou depois, na tela Segurança). O app abre o programa de e-mail do próprio usuário com a chave numa mensagem para ele mesmo (`mailto:`); nada é enviado pelo app. "Esqueci minha senha", na tela de entrada, aceita a chave e define uma senha nova. Gerar uma chave nova invalida a anterior.
+- Troca de senha protege a mesma chave do banco com a nova senha (novo sal); a chave de recuperação continua valendo.
 
 ## 12. Exportar e importar banco
-- **Exportar backup**: cópia do arquivo SQLCipher (criptografado com a senha atual) + manifesto com versão do esquema e hash.
+- **Exportar backup**: arquivo único `.cabackup` com manifesto (versão do app e do esquema, data, número de eventos, último hash da cadeia, SHA-256 do banco), o `cofre.json` e a cópia do banco ainda criptografada. Além do backup manual, o app faz um backup automático por semana na pasta de dados e guarda os 5 mais recentes.
 - **Exportar dados abertos**: CSV/JSON de operações, proventos, cotações e histórico, para planilha ou outro sistema.
 - **Importar backup**: valida senha, versão do esquema (migra se for antiga) e cadeia de hash antes de substituir o banco atual; o banco anterior é preservado como cópia.
 
