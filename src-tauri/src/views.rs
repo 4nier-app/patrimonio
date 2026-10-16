@@ -11,6 +11,7 @@ use carteira_core::portfolio::{positions_with_fx, Position};
 use carteira_core::returns::{
     monthly_returns_in, window_result, yearly_returns, Conversion, MonthResult, Scope, YearResult,
 };
+use carteira_core::savings::{SavingsMove, SavingsReport};
 use carteira_storage::{normalize_ticker, DarfPayment, PriceTable, Vault};
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
@@ -27,7 +28,39 @@ pub fn engine_operations(v: &Vault) -> Result<Vec<Operation>, String> {
     let events = v.list_corporate_events().map_err(s)?;
     let (_, adjustments) = carteira_core::corporate::apply(&ops, &events);
     ops.extend(adjustments);
+    // Cofrinhos entram como cotas; FGTS, conta e benefício ficam de fora.
+    for r in savings_reports(v)? {
+        if r.savings.kind.is_investment() {
+            ops.extend(r.operations);
+        }
+    }
     Ok(ops)
+}
+
+fn today() -> NaiveDate {
+    chrono::Local::now().date_naive()
+}
+
+/// Cada saldo cadastrado, calculado pelos movimentos e pelo CDI baixado.
+pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
+    let list = v.list_savings().map_err(s)?;
+    if list.is_empty() {
+        return Ok(Vec::new());
+    }
+    let moves = v.list_savings_moves().map_err(s)?;
+    let (cdi, _) = v.index_points("CDI").map_err(s)?;
+    let today = today();
+    Ok(list
+        .iter()
+        .map(|sv| {
+            let mine: Vec<SavingsMove> = moves
+                .iter()
+                .filter(|m| m.savings_id == sv.id)
+                .cloned()
+                .collect();
+            carteira_core::savings::build(sv, &mine, &cdi, today)
+        })
+        .collect())
 }
 
 fn priced(v: &Vault) -> Result<Vec<PricedOperation>, String> {
@@ -42,7 +75,30 @@ fn prices_for(v: &Vault, ops: &[PricedOperation]) -> Result<PriceTable, String> 
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
-    v.price_table(&tickers).map_err(s)
+    let mut table = v.price_table(&tickers).map_err(s)?;
+    if tickers
+        .iter()
+        .any(|t| carteira_core::savings::is_savings(t))
+    {
+        add_savings_quotes(v, &mut table)?;
+    }
+    Ok(table)
+}
+
+/// Valor da cota de cada cofrinho, calculado (não vem de nenhuma fonte).
+pub fn add_savings_quotes(v: &Vault, table: &mut PriceTable) -> Result<(), String> {
+    for r in savings_reports(v)? {
+        for (date, close) in &r.unit_values {
+            table.insert(carteira_core::model::Quote {
+                id: 0,
+                asset: r.ticker.clone(),
+                date: *date,
+                close: *close,
+                source: carteira_core::savings::SOURCE.into(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Lançamentos do mais recente para o mais antigo.
@@ -379,12 +435,41 @@ pub struct DashboardView {
     pub positions: Vec<Position>,
     pub timeline: Vec<Span>,
     pub names: BTreeMap<String, String>,
+    /// FGTS, conta corrente e cartões benefício: patrimônio que não é
+    /// investimento, fora da rentabilidade.
+    pub other_balances: Vec<OtherBalance>,
+}
+
+#[derive(Serialize)]
+pub struct OtherBalance {
+    pub id: String,
+    pub name: String,
+    pub account: String,
+    pub kind: &'static str,
+    pub balance: Decimal,
+    pub last_informed: Option<NaiveDate>,
+}
+
+fn other_balances(v: &Vault) -> Result<Vec<OtherBalance>, String> {
+    Ok(savings_reports(v)?
+        .into_iter()
+        .filter(|r| !r.savings.kind.is_investment())
+        .map(|r| OtherBalance {
+            id: r.savings.id.clone(),
+            name: r.savings.name.clone(),
+            account: r.savings.account.clone(),
+            kind: r.savings.kind.label(),
+            balance: r.balance,
+            last_informed: r.last_informed,
+        })
+        .collect())
 }
 
 fn kind_label(kind: Option<&str>, currency: &str) -> &'static str {
     match (currency == BRL, kind) {
         (_, Some("CRIPTO")) => "Criptomoedas",
         (_, Some("FUNDO")) => "Fundos de investimento",
+        (_, Some("RENDA_FIXA")) => "Renda fixa (cofrinhos)",
         (true, Some("ACAO")) => "Ações",
         (true, Some("FII")) => "FIIs",
         (true, Some("ETF")) => "ETFs",
@@ -567,6 +652,7 @@ pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
         contributions,
         positions,
         timeline: timeline(&ops),
+        other_balances: other_balances(v)?,
     })
 }
 
@@ -775,6 +861,17 @@ pub struct TaxView {
     pub names: BTreeMap<String, String>,
     pub warnings: Vec<String>,
     pub darf_code: &'static str,
+    /// Saldos em 31/12 (cofrinhos, FGTS, conta): Bens e Direitos.
+    pub savings_year_end: Vec<SavingsYearEnd>,
+}
+
+#[derive(Serialize)]
+pub struct SavingsYearEnd {
+    pub year: i32,
+    pub name: String,
+    pub account: String,
+    pub kind: &'static str,
+    pub value: Decimal,
 }
 
 pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
@@ -823,7 +920,7 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
         .filter(|p| {
             p.operation.currency == BRL
                 && !carteira_core::crypto::is_crypto(&p.operation.asset)
-                && !carteira_core::fund::is_fund(&p.operation.asset)
+                && !carteira_core::fund::bank_withholds(&p.operation.asset)
         })
         .map(|p| &p.operation.asset)
         .filter(|t| kinds.get(*t).map_or(true, |k| k == "OUTRO"))
@@ -840,7 +937,23 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                 .join(", ")
         ));
     }
+    let savings_year_end = savings_reports(v)?
+        .into_iter()
+        .flat_map(|r| {
+            r.year_end
+                .iter()
+                .map(|(year, value)| SavingsYearEnd {
+                    year: *year,
+                    name: r.savings.name.clone(),
+                    account: r.savings.account.clone(),
+                    kind: r.savings.kind.label(),
+                    value: *value,
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
     Ok(TaxView {
+        savings_year_end,
         months,
         annual,
         names,
@@ -1242,7 +1355,7 @@ pub fn corporate_events(v: &Vault) -> Result<EventsView, String> {
     let assets: Vec<String> = ops
         .iter()
         .map(|o| o.asset.clone())
-        .filter(|a| !carteira_core::fund::is_fund(a) && !carteira_core::crypto::is_crypto(a))
+        .filter(|a| !carteira_core::fund::bank_withholds(a) && !carteira_core::crypto::is_crypto(a))
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
@@ -1353,5 +1466,156 @@ mod event_tests {
         let march = report.months.iter().find(|m| m.month == "2026-03").unwrap();
         // Venda comum (isenta) com o preço médio já ajustado: 10 × (20 − 19).
         assert_eq!(march.exempt_profit, dec!(10));
+    }
+}
+
+/// Tela de saldos e reservas: cada saldo com o que o app estima hoje e os
+/// movimentos lançados.
+#[derive(Serialize)]
+pub struct SavingsItem {
+    pub savings: carteira_core::savings::Savings,
+    pub kind_label: &'static str,
+    pub ticker: String,
+    pub balance: Decimal,
+    pub balance_net: Decimal,
+    pub invested: Decimal,
+    /// Rendimento estimado ainda no saldo (saldo − dinheiro depositado).
+    pub earned: Decimal,
+    pub last_informed: Option<NaiveDate>,
+    pub checks: Vec<carteira_core::savings::BalanceCheck>,
+    pub redemptions: Vec<carteira_core::savings::Redemption>,
+    /// Do mais recente para o mais antigo.
+    pub moves: Vec<SavingsMove>,
+}
+
+#[derive(Serialize)]
+pub struct SavingsView {
+    pub items: Vec<SavingsItem>,
+    pub total_investments: Decimal,
+    pub total_others: Decimal,
+    /// Último dia com CDI baixado (a estimativa dos cofrinhos vai até ele).
+    pub cdi_until: Option<NaiveDate>,
+}
+
+pub fn savings_view(v: &Vault) -> Result<SavingsView, String> {
+    let mut moves = v.list_savings_moves().map_err(s)?;
+    moves.reverse();
+    let items: Vec<SavingsItem> = savings_reports(v)?
+        .into_iter()
+        .map(|r| SavingsItem {
+            kind_label: r.savings.kind.label(),
+            ticker: r.ticker.clone(),
+            balance: r.balance,
+            balance_net: r.balance_net,
+            invested: r.invested,
+            earned: r.balance - r.invested,
+            last_informed: r.last_informed,
+            moves: moves
+                .iter()
+                .filter(|m| m.savings_id == r.savings.id)
+                .cloned()
+                .collect(),
+            checks: r.checks,
+            redemptions: r.redemptions,
+            savings: r.savings,
+        })
+        .collect();
+    let total = |inv: bool| {
+        items
+            .iter()
+            .filter(|i| i.savings.kind.is_investment() == inv)
+            .map(|i| i.balance)
+            .sum()
+    };
+    Ok(SavingsView {
+        total_investments: total(true),
+        total_others: total(false),
+        cdi_until: v
+            .index_points("CDI")
+            .map_err(s)?
+            .0
+            .keys()
+            .next_back()
+            .copied(),
+        items,
+    })
+}
+
+#[cfg(test)]
+mod savings_tests {
+    use super::*;
+    use carteira_core::savings::{MoveKind, Savings, SavingsKind};
+    use carteira_storage::KdfParams;
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn cofrinho_entra_na_carteira_e_fgts_so_no_patrimonio() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-123",
+            "0.2.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
+        let mk = |kind| Savings {
+            id: String::new(),
+            kind,
+            account: "Banco X".into(),
+            name: "Reserva".into(),
+            rate_pct: dec!(100),
+            tax_free: false,
+            note: None,
+        };
+        let c = v.create_savings(mk(SavingsKind::Cofrinho)).unwrap();
+        let f = v.create_savings(mk(SavingsKind::Fgts)).unwrap();
+        let d = NaiveDate::from_ymd_opt(2026, 1, 5).unwrap();
+        for (id, amount) in [(&c.id, dec!(1000)), (&f.id, dec!(5000))] {
+            v.create_savings_move(SavingsMove {
+                id: String::new(),
+                savings_id: id.clone(),
+                date: d,
+                kind: MoveKind::Deposito,
+                amount,
+                ir: None,
+                iof: None,
+                note: None,
+            })
+            .unwrap();
+        }
+        v.create_savings_move(SavingsMove {
+            id: String::new(),
+            savings_id: c.id.clone(),
+            date: NaiveDate::from_ymd_opt(2026, 2, 5).unwrap(),
+            kind: MoveKind::Resgate,
+            amount: dec!(100),
+            ir: None,
+            iof: None,
+            note: None,
+        })
+        .unwrap();
+        let p = portfolio(&v, today()).unwrap();
+        assert_eq!(p.positions.len(), 1, "só o cofrinho é investimento");
+        assert_eq!(p.positions[0].asset, carteira_core::savings::ticker(&c.id));
+        assert_eq!(
+            p.market_value,
+            Some(dec!(900)),
+            "sem CDI baixado, não rende"
+        );
+        assert_eq!(
+            p.kinds.get(&p.positions[0].asset).map(String::as_str),
+            Some("RENDA_FIXA")
+        );
+        let t = taxes(&v, today()).unwrap();
+        assert!(
+            t.months.iter().all(|m| m.tax.sales.is_empty()),
+            "cofrinho não é venda na B3"
+        );
+        let dash = dashboard(&v, today()).unwrap();
+        assert_eq!(dash.other_balances.len(), 1);
+        assert_eq!(dash.allocation[0].label, "Renda fixa (cofrinhos)");
+        let sv = savings_view(&v).unwrap();
+        assert_eq!(sv.total_investments, dec!(900));
+        assert!(sv.total_others > dec!(5000), "FGTS rende 3% ao ano");
     }
 }

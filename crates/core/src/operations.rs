@@ -197,7 +197,7 @@ pub fn price_operations(
             && o.currency == BRL
             && matches!(o.side, Side::Compra | Side::Venda)
             && !crate::crypto::is_crypto(&o.asset)
-            && !crate::fund::is_fund(&o.asset)
+            && !crate::fund::bank_withholds(&o.asset)
     }) {
         groups
             .entry((op.account.clone(), op.date))
@@ -225,7 +225,7 @@ pub fn price_operations(
             // Fundo: o que o banco reteve no resgate entra como desconto do
             // valor recebido, somado a alguma taxa informada.
             let (fees, fee_origin) = match op.manual_fees {
-                _ if crate::fund::is_fund(&op.asset) => {
+                _ if crate::fund::bank_withholds(&op.asset) => {
                     (op.manual_fees.unwrap_or_default() + op.withheld(), "IR/IOF")
                 }
                 Some(f) => (f, "informada"),

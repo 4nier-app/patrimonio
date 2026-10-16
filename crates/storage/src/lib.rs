@@ -12,6 +12,7 @@ mod kdf;
 mod migrations;
 mod notes;
 mod records;
+mod savings;
 
 use std::fs;
 use std::path::{Path, PathBuf};

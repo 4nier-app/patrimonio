@@ -302,6 +302,158 @@ pub fn chart(
     }
 }
 
+/// Variação de hoje de um ativo da carteira, para o Home broker.
+#[derive(Debug, Serialize)]
+pub struct DayMove {
+    pub asset: String,
+    pub name: String,
+    pub currency: String,
+    pub venue: Venue,
+    pub quantity: Decimal,
+    pub price: Option<f64>,
+    pub previous_close: Option<f64>,
+    /// Variação do preço no dia, em fração (0,012 = 1,2%).
+    pub change: Option<f64>,
+    /// Ganho ou perda do dia na moeda do ativo e em reais.
+    pub result: Option<f64>,
+    pub result_brl: Option<f64>,
+    /// Valor da posição agora, em reais (para o peso de cada ativo).
+    pub value_brl: Option<f64>,
+    pub price_time: Option<i64>,
+    /// Fundos: data da última cota (a CVM publica uma por dia).
+    pub quote_date: Option<NaiveDate>,
+    pub offline: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DayView {
+    pub items: Vec<DayMove>,
+    pub total_brl: Option<f64>,
+    pub total_change: Option<f64>,
+    /// PTAX usada para converter os ativos em dólar.
+    pub fx: Option<f64>,
+}
+
+/// O que é preciso do cofre para buscar a variação do dia (sem segurar o
+/// cofre durante a rede).
+pub struct DayInput {
+    detail: AssetDetail,
+    quantity: Decimal,
+    fx: Option<f64>,
+}
+
+pub fn day_inputs(v: &Vault, today: NaiveDate) -> Result<Vec<DayInput>, String> {
+    let view = crate::views::portfolio(v, today)?;
+    let fx = view.fx.as_ref().and_then(|f| f.rate.to_f64());
+    let mut out = Vec::new();
+    for p in view.positions.iter().filter(|p| !p.quantity.is_zero()) {
+        if carteira_core::savings::is_savings(&p.asset) {
+            continue;
+        }
+        let mut detail = detail(v, &p.asset, today)?;
+        if detail.name.is_empty() {
+            detail.name = view.names.get(&p.asset).cloned().unwrap_or_default();
+        }
+        out.push(DayInput {
+            fx: if detail.currency == USD {
+                fx
+            } else {
+                Some(1.0)
+            },
+            quantity: p.quantity,
+            detail,
+        });
+    }
+    Ok(out)
+}
+
+pub fn day_moves(inputs: Vec<DayInput>, net: &(dyn ChartNet + Sync)) -> DayView {
+    let fetch = |i: &DayInput| -> DayMove {
+        let d = &i.detail;
+        let qty = i.quantity.to_f64().unwrap_or_default();
+        let (price, previous_close, price_time, quote_date, offline) = if d.venue == Venue::Fundo {
+            // Fundos: a última cota contra a anterior.
+            let n = d.history.len();
+            let last = d.history.last();
+            let prev = n.checked_sub(2).and_then(|k| d.history.get(k));
+            (
+                last.and_then(|q| q.close.to_f64()),
+                prev.and_then(|q| q.close.to_f64()),
+                None,
+                last.map(|q| q.date),
+                None,
+            )
+        } else {
+            match net.yahoo(&yahoo_symbol(d), "15m", "1d") {
+                Ok(c) => (c.price, c.previous_close, c.price_time, None, None),
+                Err(e) => (None, None, None, None, Some(e.to_string())),
+            }
+        };
+        let change = price
+            .zip(previous_close)
+            .filter(|(_, p)| *p > 0.0)
+            .map(|(a, b)| a / b - 1.0);
+        let result = price.zip(previous_close).map(|(a, b)| (a - b) * qty);
+        DayMove {
+            asset: d.ticker.clone(),
+            name: d.name.clone(),
+            currency: d.currency.clone(),
+            venue: d.venue,
+            quantity: i.quantity,
+            price,
+            previous_close,
+            change,
+            result,
+            result_brl: result.zip(i.fx).map(|(r, f)| r * f),
+            value_brl: price.zip(i.fx).map(|(p, f)| p * qty * f),
+            price_time,
+            quote_date,
+            offline,
+        }
+    };
+    let items: Vec<DayMove> = std::thread::scope(|sc| {
+        let handles: Vec<_> = inputs.iter().map(|i| sc.spawn(move || fetch(i))).collect();
+        handles
+            .into_iter()
+            .zip(&inputs)
+            .map(|(h, i)| {
+                h.join().unwrap_or_else(|_| DayMove {
+                    asset: i.detail.ticker.clone(),
+                    name: i.detail.name.clone(),
+                    currency: i.detail.currency.clone(),
+                    venue: i.detail.venue,
+                    quantity: i.quantity,
+                    price: None,
+                    previous_close: None,
+                    change: None,
+                    result: None,
+                    result_brl: None,
+                    value_brl: None,
+                    price_time: None,
+                    quote_date: None,
+                    offline: Some("falha ao buscar".into()),
+                })
+            })
+            .collect()
+    });
+    let known: Vec<&DayMove> = items.iter().filter(|m| m.result_brl.is_some()).collect();
+    let total_brl = (!known.is_empty()).then(|| known.iter().filter_map(|m| m.result_brl).sum());
+    let before: f64 = known
+        .iter()
+        .filter_map(|m| m.value_brl.zip(m.result_brl).map(|(v, r)| v - r))
+        .sum();
+    let fx = inputs
+        .iter()
+        .find(|i| i.detail.currency == USD)
+        .and_then(|i| i.fx);
+    DayView {
+        total_change: total_brl.filter(|_| before > 0.0).map(|t: f64| t / before),
+        total_brl,
+        items,
+        fx,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
