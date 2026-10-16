@@ -6,6 +6,7 @@
 //! do banco. Sem a senha, o arquivo do banco é ilegível.
 
 mod backup;
+mod events;
 mod incomes;
 mod kdf;
 mod migrations;

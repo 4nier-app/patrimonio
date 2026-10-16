@@ -231,7 +231,7 @@ fn tickers_by_month(ops: &[Operation], today: NaiveDate) -> BTreeMap<(i32, u32),
 /// Efeito na quantidade total da carteira. A transferência só tira o resíduo.
 fn signed(o: &Operation) -> Decimal {
     match o.side {
-        Side::Compra => o.quantity,
+        Side::Compra | Side::Ajuste => o.quantity,
         Side::Venda => -o.quantity,
         Side::Transferencia => -o.residue.unwrap_or_default(),
     }

@@ -81,7 +81,8 @@ export function errorMessage(e: unknown): string {
 
 /** Decimais chegam e vão como texto exato ("1234.56"). */
 export type Dec = string;
-export type Side = "COMPRA" | "VENDA" | "TRANSFERENCIA";
+/** AJUSTE: efeito de um evento corporativo (bonificação, desdobramento, grupamento). */
+export type Side = "COMPRA" | "VENDA" | "TRANSFERENCIA" | "AJUSTE";
 export type Currency = "BRL" | "USD";
 export type Account = { name: string; currency: Currency };
 
@@ -439,6 +440,42 @@ export type IncomeRow = {
 };
 
 export type IncomesView = { items: IncomeRow[]; names: Record<string, string>; kinds: Record<string, string> };
+
+export type EventKind = "BONIFICACAO" | "DESDOBRAMENTO" | "GRUPAMENTO";
+
+export type CorporateEvent = {
+  id: string;
+  asset: string;
+  kind: EventKind;
+  data_com: string;
+  /** Bonificação: %; desdobramento: cada ação vira N; grupamento: cada N viram 1. */
+  proportion: Dec;
+  cost_per_share: Dec;
+  note: string | null;
+};
+
+export type EventRow = {
+  event: CorporateEvent;
+  label: string;
+  ex_date: string;
+  effects: { account: string; before: Dec; after: Dec; delta: Dec; cost_added: Dec }[];
+  before: Dec;
+  after: Dec;
+  exempt_brl: Dec | null;
+  average_before: Dec | null;
+  average_after: Dec | null;
+  currency: "BRL" | "USD";
+};
+
+export type EventsView = { items: EventRow[]; assets: string[]; names: Record<string, string> };
+
+export const eventsApi = {
+  load: () => invoke<EventsView>("corporate_events"),
+  preview: (event: CorporateEvent) => invoke<EventRow>("preview_event", { event }),
+  create: (event: CorporateEvent) => invoke<CorporateEvent>("create_event", { event }),
+  update: (event: CorporateEvent) => invoke<CorporateEvent>("update_event", { event, reason: null }),
+  remove: (id: string) => invoke<void>("remove_event", { id }),
+};
 
 export const incomesApi = {
   load: () => invoke<IncomesView>("incomes"),

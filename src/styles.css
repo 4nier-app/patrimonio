@@ -98,6 +98,13 @@ button.secondary { background: transparent; color: var(--text); border: 1px soli
 }
 .tab:hover { color: #fff; filter: none; }
 .tab.active { color: #fff; border-bottom-color: var(--brand-green); }
+.subtabs {
+  display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 16px; padding: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; width: fit-content;
+}
+.subtabs button { background: transparent; color: var(--muted); border-radius: 7px; padding: 6px 14px; }
+.subtabs button:hover { color: var(--text); filter: none; }
+.subtabs button.active { background: var(--brand-1); color: #fff; }
 .update-report {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
   background: var(--surface); border-bottom: 1px solid var(--border); padding: 8px 20px;
@@ -407,3 +414,20 @@ tr.ops-group td { background: var(--bg); }
 .incomes .section-head select { width: auto; }
 tr.group-row td { background: var(--bg); font-weight: 600; padding-top: 10px; }
 .tax-groups { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+
+/* Eventos corporativos */
+.event-kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.event-kind {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left;
+  background: var(--surface); color: var(--text); border: 2px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; font-weight: 400;
+}
+.event-kind:hover { border-color: var(--accent); filter: none; }
+.event-kind.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.event-kind strong { font-size: 1.02rem; }
+.sentence { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sentence input { width: 90px; }
+.event-preview { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; background: var(--bg); }
+.event-preview table { margin-bottom: 6px; }
+.event-facts { margin: 6px 0 0; padding-left: 18px; }
+.event-facts li { margin: 4px 0; }

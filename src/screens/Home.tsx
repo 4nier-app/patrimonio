@@ -8,6 +8,7 @@ import Audit from "./Audit";
 import Incomes from "./Incomes";
 import Broker, { rememberAsset } from "./Broker";
 import Dashboard from "./Dashboard";
+import Events from "./Events";
 import Operations from "./Operations";
 import Portfolio from "./Portfolio";
 import Returns from "./Returns";
@@ -23,14 +24,27 @@ const TABS = [
   { id: "homebroker", label: "Home broker" },
   { id: "lancamentos", label: "Lançamentos" },
   { id: "proventos", label: "Proventos" },
-  { id: "importar", label: "Importar notas" },
   { id: "rentabilidade", label: "Rentabilidade" },
   { id: "impostos", label: "Impostos" },
-  { id: "auditoria", label: "Auditoria" },
   { id: "seguranca", label: "Segurança" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["id"];
+
+// Abas com seções internas, para o menu principal ficar enxuto.
+const SECTIONS = {
+  lancamentos: [
+    { id: "manual", label: "Incluir e editar" },
+    { id: "importar", label: "Importar notas" },
+    { id: "eventos", label: "Eventos (bonificação, desdobramento)" },
+  ],
+  seguranca: [
+    { id: "seguranca", label: "Senha e backup" },
+    { id: "auditoria", label: "Auditoria" },
+  ],
+} as const;
+
+type Section = (typeof SECTIONS)[keyof typeof SECTIONS][number]["id"];
 
 type Props = { status: VaultStatus; onLocked: () => void; onChanged: () => void };
 
@@ -60,11 +74,15 @@ export default function Home({ status, onLocked, onChanged }: Props) {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  function setTab(t: Tab) {
+  const [section, setSection] = useState<Record<string, Section>>({ lancamentos: "manual", seguranca: "seguranca" });
+  function setTab(t: Tab, s?: Section) {
     if (assetRef.current && window.history.state?.asset) window.history.back();
     setAsset(null);
     setTabState(t);
+    if (s) setSection((m) => ({ ...m, [t]: s }));
   }
+  const sections = tab in SECTIONS ? SECTIONS[tab as keyof typeof SECTIONS] : null;
+  const current = section[tab];
   const [updating, setUpdating] = useState(false);
   const [report, setReport] = useState<UpdateLine[] | null>(null);
   // Muda a cada atualização de cotações para as telas recarregarem.
@@ -161,7 +179,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       {!status.has_recovery_key && tab !== "seguranca" && (
         <div className="banner warning" role="status">
           Sua carteira ainda não tem chave de recuperação. Sem ela, se você esquecer a senha, não há como abrir os dados.{" "}
-          <button className="link" onClick={() => setTab("seguranca")}>
+          <button className="link" onClick={() => setTab("seguranca", "seguranca")}>
             Criar agora
           </button>
         </div>
@@ -179,7 +197,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       )}
 
       <main className="content">
-        <ErrorBoundary resetKey={`${tab}|${asset ?? ""}`} onReset={() => (asset ? closeAsset() : setTab("painel"))}>
+        <ErrorBoundary resetKey={`${tab}|${current ?? ""}|${asset ?? ""}`} onReset={() => (asset ? closeAsset() : setTab("painel"))}>
           {asset && (
             <AssetPage
               key={asset}
@@ -193,17 +211,33 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           {!asset && tab === "painel" && <Dashboard refresh={refresh} />}
           {!asset && tab === "carteira" && <Portfolio refresh={refresh} onOpen={openAsset} />}
           {!asset && tab === "homebroker" && <Broker refresh={refresh} onOpen={openAsset} />}
-          {!asset && tab === "lancamentos" && <Operations onChanged={() => void updateQuotes()} />}
+          {!asset && sections && (
+            <div className="subtabs" role="tablist">
+              {sections.map((x) => (
+                <button
+                  key={x.id}
+                  role="tab"
+                  aria-selected={current === x.id}
+                  className={current === x.id ? "active" : ""}
+                  onClick={() => setSection((m) => ({ ...m, [tab]: x.id }))}
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {!asset && tab === "lancamentos" && current === "manual" && <Operations onChanged={() => void updateQuotes()} />}
           {!asset && tab === "proventos" && <Incomes refresh={refresh} onChanged={loadTaxes} />}
-          {!asset && tab === "importar" && (
+          {!asset && tab === "lancamentos" && current === "importar" && (
             <Suspense fallback={<p className="muted">Carregando…</p>}>
               <ImportNotes onImported={() => void updateQuotes()} />
             </Suspense>
           )}
+          {!asset && tab === "lancamentos" && current === "eventos" && <Events onChanged={() => void updateQuotes()} />}
           {!asset && tab === "rentabilidade" && <Returns key={refresh} />}
           {!asset && tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
-          {!asset && tab === "auditoria" && <Audit status={status} />}
-          {!asset && tab === "seguranca" && (
+          {!asset && tab === "seguranca" && current === "auditoria" && <Audit status={status} />}
+          {!asset && tab === "seguranca" && current === "seguranca" && (
             <Security
               status={status}
               onChanged={onChanged}

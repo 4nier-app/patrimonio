@@ -10,6 +10,7 @@ mod views;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use carteira_core::corporate::CorporateEvent;
 use carteira_core::income::Income;
 use carteira_core::operations::{Operation, PricedOperation};
 use carteira_ledger::Event;
@@ -412,6 +413,35 @@ fn remove_operations(ids: Vec<String>, state: State<AppState>) -> Result<usize, 
 }
 
 #[tauri::command]
+fn corporate_events(state: State<AppState>) -> Result<views::EventsView, String> {
+    with_vault_str(&state, |v| views::corporate_events(v))
+}
+
+#[tauri::command]
+fn preview_event(event: CorporateEvent, state: State<AppState>) -> Result<views::EventRow, String> {
+    with_vault_str(&state, |v| views::preview_event(v, event))
+}
+
+#[tauri::command]
+fn create_event(event: CorporateEvent, state: State<AppState>) -> Result<CorporateEvent, String> {
+    with_vault(&state, |v| v.create_event(event))
+}
+
+#[tauri::command]
+fn update_event(
+    event: CorporateEvent,
+    reason: Option<String>,
+    state: State<AppState>,
+) -> Result<CorporateEvent, String> {
+    with_vault(&state, |v| v.update_event(event, reason.as_deref()))
+}
+
+#[tauri::command]
+fn remove_event(id: String, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_event(&id))
+}
+
+#[tauri::command]
 fn incomes(state: State<AppState>) -> Result<views::IncomesView, String> {
     with_vault_str(&state, |v| views::incomes(v))
 }
@@ -581,6 +611,11 @@ pub fn run() {
             update_operation,
             remove_operation,
             remove_operations,
+            corporate_events,
+            preview_event,
+            create_event,
+            update_event,
+            remove_event,
             incomes,
             create_income,
             update_income,

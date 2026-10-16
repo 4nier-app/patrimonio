@@ -61,8 +61,8 @@ pub fn positions_with_fx(
     as_of: NaiveDate,
 ) -> Vec<Position> {
     let mut sorted: Vec<&Trade> = trades.iter().filter(|t| t.date <= as_of).collect();
-    // No mesmo dia, compras antes das vendas e baixas.
-    sorted.sort_by_key(|t| (t.date, !matches!(t.side, Side::Compra)));
+    // No mesmo dia: eventos, depois compras, depois vendas e baixas.
+    sorted.sort_by_key(|t| (t.date, t.side.day_order()));
 
     // Câmbio de uma data para a moeda do ativo (1 para reais).
     let rate = |currency: &str, date: NaiveDate| -> Option<Decimal> {
@@ -96,7 +96,9 @@ pub fn positions_with_fx(
         });
         let r = rate(&t.currency, t.date);
         match t.side {
-            Side::Compra => {
+            // No evento, a quantidade pode cair (grupamento); o custo total só
+            // cresce pelo custo atribuído às ações bonificadas.
+            Side::Compra | Side::Ajuste => {
                 p.quantity += t.quantity;
                 p.cost += t.gross + t.fees;
                 p.cost_brl = p.cost_brl.zip(r).map(|(c, r)| c + (t.gross + t.fees) * r);

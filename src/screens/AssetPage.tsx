@@ -563,8 +563,10 @@ export default function AssetPage({
               <tbody>
                 {detail.operations.map((x) => {
                   const o = x.operation;
-                  const label =
-                    o.side === "TRANSFERENCIA"
+                  const event = o.side === "AJUSTE";
+                  const label = event
+                    ? (o.note ?? "Evento")
+                    : o.side === "TRANSFERENCIA"
                       ? "Transferência"
                       : fund
                         ? o.note === "Come-cotas"
@@ -580,10 +582,13 @@ export default function AssetPage({
                       <td>{date(o.date)}</td>
                       <td>{o.account}</td>
                       <td>{label}</td>
-                      <td className="num">{quantity(o.quantity)}</td>
-                      <td className="num">{o.side === "TRANSFERENCIA" ? "—" : price(o.price, cur)}</td>
-                      <td className="num">{o.side === "TRANSFERENCIA" ? "—" : money(x.gross, cur)}</td>
-                      <td className="num">{money(x.fees, cur)}</td>
+                      <td className="num">
+                        {event && Number(o.quantity) > 0 ? "+" : ""}
+                        {quantity(o.quantity)}
+                      </td>
+                      <td className="num">{o.side === "TRANSFERENCIA" || event ? "—" : price(o.price, cur)}</td>
+                      <td className="num">{o.side === "TRANSFERENCIA" || (event && Number(x.gross) === 0) ? "—" : money(x.gross, cur)}</td>
+                      <td className="num">{event ? "—" : money(x.fees, cur)}</td>
                     </tr>
                   );
                 })}

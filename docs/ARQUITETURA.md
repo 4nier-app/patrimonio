@@ -82,6 +82,9 @@ Todos os valores monetários são `TEXT` decimal (ex.: `"3801.14"`) para não pe
 ### 4.3 Proventos (armazenados, fora da rentabilidade)
 - **incomes** (migração 0009): `id, account, ticker, kind (DIVIDENDO|JCP|RENDIMENTO|JUROS|OUTRO), pay_date, ex_date, gross, withheld, currency, note, removed_at`. O líquido é `gross − withheld`; no exterior, os valores em reais usam a PTAX venda do dia do pagamento (último boletim até a data), com o líquido em reais = bruto em reais − retido em reais. Cada mudança gera evento `PROVENTO` no log de auditoria. O valor por cota usa a quantidade somada em todas as contas no fim da data com (ou do pagamento).
 
+### 4.3a Eventos corporativos (bonificação, desdobramento, grupamento)
+Lançados uma vez por ativo, com a data com e a proporção do anúncio. Cada evento vira, em cada conta que tinha o ativo no fim da data com, um ajuste de quantidade na data ex (lado `AJUSTE`, sem dinheiro): na bonificação entram as ações novas com o custo por ação informado pela empresa (o valor é rendimento isento na declaração); no desdobramento e no grupamento muda só a quantidade, e o custo total fica igual. Na B3 a quantidade nova é arredondada para baixo (a fração é vendida em leilão e paga em dinheiro, lançada como provento); no exterior a fração fica. O ajuste vale desde a abertura do pregão: entra antes das compras e vendas do dia e nunca forma day trade. Os ajustes não são gravados como lançamentos; são recalculados dos eventos a cada consulta.
+
 ### 4.4 Cotações e câmbio (imutáveis)
 - **quote**: `id, asset_id, data, fechamento, moeda, fonte, oficial (bool), obtida_em, hash_payload`
 - **fx_rate**: `id, data, par (USD/BRL), compra, venda, tipo_boletim, fonte (PTAX-BCB), obtida_em, hash_payload`

@@ -22,7 +22,15 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Proventos não entram na rentabilidade, que mede só a variação de preço.
 - A página do ativo mostra os proventos recebidos dele.
 
+- Lançamentos → **Eventos**: bonificação, desdobramento e grupamento.
+  Escolha o que aconteceu, copie a data com e a proporção do anúncio, e
+  confira antes de salvar a quantidade de cada conta, o preço médio novo e,
+  na bonificação, o valor isento para a declaração. Carteira, preço médio,
+  rentabilidade e impostos passam a considerar o evento.
+
 ### Alterado
+- Menu principal mais enxuto: **Importar notas** e **Eventos** ficam dentro
+  de Lançamentos, e **Auditoria** dentro de Segurança.
 - Lançamentos e proventos: depois de incluir, o formulário mantém conta,
   data, operação e ativo (ou fundo, ou tipo de provento), para lançar a
   próxima linha da nota ou do extrato só com quantidade e valores.

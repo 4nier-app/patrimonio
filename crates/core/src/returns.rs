@@ -420,7 +420,7 @@ fn month_result(
                 // Compra e venda no mesmo dia em que a posição abriu e fechou.
                 Some(d) if t.date == d && d == period_start => match t.side {
                     Side::Compra => 1,
-                    Side::Venda | Side::Transferencia => 0,
+                    Side::Venda | Side::Transferencia | Side::Ajuste => 0,
                 },
                 Some(d) if t.date >= d => 0,
                 _ => ((period_end - t.date).num_days() + 1).clamp(0, days),
@@ -484,6 +484,7 @@ fn month_result(
             Side::Compra => "compra",
             Side::Venda => "venda",
             Side::Transferencia => "resíduo baixado na transferência de custódia",
+            Side::Ajuste => "evento corporativo (sem dinheiro)",
         };
         let fx = match &f.fx {
             Some(x) => format!(

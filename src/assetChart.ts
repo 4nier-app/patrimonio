@@ -42,7 +42,7 @@ export function operationMarkers(candles: Candle[], gmtoffset: number, ops: Pric
   const out: Marker[] = [];
   for (const p of ops) {
     const o = p.operation;
-    if (o.side === "TRANSFERENCIA") continue;
+    if (o.side === "TRANSFERENCIA" || o.side === "AJUSTE") continue;
     const index = intraday ? days.indexOf(o.date) : days.findIndex((d) => d >= o.date);
     if (index < 0 || (!intraday && o.date < days[0])) continue;
     out.push({ index, price: Number(o.price), side: o.side, label: `${o.side === "COMPRA" ? "Compra" : "Venda"} de ${o.quantity}` });

@@ -82,9 +82,9 @@ const COME_COTAS = "Come-cotas";
 
 const MONTH_NAMES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
-const SIDE_LABEL: Record<Side, string> = { COMPRA: "Compra", VENDA: "Venda", TRANSFERENCIA: "Transferência" };
-const FUND_SIDE_LABEL: Record<Side, string> = { COMPRA: "Aplicação", VENDA: "Resgate", TRANSFERENCIA: "Transferência" };
-const SIDE_BADGE: Record<Side, string> = { COMPRA: "criada", VENDA: "removida", TRANSFERENCIA: "alterada" };
+const SIDE_LABEL: Record<Side, string> = { COMPRA: "Compra", VENDA: "Venda", TRANSFERENCIA: "Transferência", AJUSTE: "Evento" };
+const FUND_SIDE_LABEL: Record<Side, string> = { COMPRA: "Aplicação", VENDA: "Resgate", TRANSFERENCIA: "Transferência", AJUSTE: "Evento" };
+const SIDE_BADGE: Record<Side, string> = { COMPRA: "criada", VENDA: "removida", TRANSFERENCIA: "alterada", AJUSTE: "alterada" };
 
 function NumberInput({
   value,

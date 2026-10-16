@@ -324,6 +324,14 @@ fn run_b3(priced: &[PricedOperation], kind_of: KindOf) -> B3Run {
             .copied()
             .filter(|p| p.operation.date == date)
             .collect();
+        // Eventos corporativos valem desde a abertura do pregão: entram antes
+        // do day trade e não contam como compra.
+        for p in today.iter().filter(|p| p.operation.side == Side::Ajuste) {
+            holdings
+                .entry(p.operation.asset.clone())
+                .or_default()
+                .buy(p.operation.quantity, p.gross);
+        }
         // Por (ativo, conta): soma de compras e de vendas do dia.
         let mut by_key: BTreeMap<(String, String), DaySides> = BTreeMap::new();
         for p in &today {
@@ -334,7 +342,7 @@ fn run_b3(priced: &[PricedOperation], kind_of: KindOf) -> B3Run {
             match o.side {
                 Side::Compra => e.0.push(p),
                 Side::Venda => e.1.push(p),
-                Side::Transferencia => {}
+                Side::Transferencia | Side::Ajuste => {}
             }
         }
         let mut leftover_buys: Vec<(String, Decimal, Decimal)> = Vec::new();
@@ -645,10 +653,7 @@ pub fn annual(
             !is_b3(p) && !crate::fund::is_fund(&p.operation.asset) && p.operation.date <= until
         })
         .collect();
-    ops.sort_by(|a, b| {
-        (a.operation.date, a.operation.side != Side::Compra)
-            .cmp(&(b.operation.date, b.operation.side != Side::Compra))
-    });
+    ops.sort_by_key(|p| (p.operation.date, p.operation.side.day_order()));
     let mut holdings: BTreeMap<String, ForeignHolding> = BTreeMap::new();
     let mut sales: Vec<ForeignSale> = Vec::new();
     let mut year_end: BTreeMap<i32, Vec<YearEndPosition>> = BTreeMap::new();
@@ -708,7 +713,7 @@ pub fn annual(
             (out, brl)
         };
         match o.side {
-            Side::Compra => {
+            Side::Compra | Side::Ajuste => {
                 let usd = p.gross + p.fees;
                 h.quantity += o.quantity;
                 h.cost_usd += usd;

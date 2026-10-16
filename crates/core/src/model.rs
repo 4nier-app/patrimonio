@@ -12,6 +12,10 @@ pub enum Side {
     /// Mudança de custodiante: a posição muda de conta sem compra nem venda.
     /// Como operação do núcleo, representa só o resíduo baixado na migração.
     Transferencia,
+    /// Evento corporativo (bonificação, desdobramento, grupamento): a
+    /// quantidade muda (para mais ou para menos) sem dinheiro entrar ou sair.
+    /// Gerado a partir dos eventos; nunca é digitado como lançamento.
+    Ajuste,
 }
 
 impl Side {
@@ -20,6 +24,7 @@ impl Side {
             Side::Compra => "COMPRA",
             Side::Venda => "VENDA",
             Side::Transferencia => "TRANSFERENCIA",
+            Side::Ajuste => "AJUSTE",
         }
     }
 
@@ -28,6 +33,7 @@ impl Side {
             "COMPRA" => Some(Side::Compra),
             "VENDA" => Some(Side::Venda),
             "TRANSFERENCIA" => Some(Side::Transferencia),
+            "AJUSTE" => Some(Side::Ajuste),
             _ => None,
         }
     }
@@ -42,6 +48,18 @@ pub const DUST: Decimal = Decimal::from_parts(1, 0, 0, false, 4);
 /// Quantidade que, para a carteira, é zero.
 pub fn is_dust(q: Decimal) -> bool {
     q.abs() < DUST
+}
+
+impl Side {
+    /// Ordem dentro do mesmo dia: o evento corporativo vale desde a abertura
+    /// do pregão, depois as compras, depois vendas e baixas.
+    pub fn day_order(&self) -> u8 {
+        match self {
+            Side::Ajuste => 0,
+            Side::Compra => 1,
+            Side::Venda | Side::Transferencia => 2,
+        }
+    }
 }
 pub const USD: &str = "USD";
 
@@ -74,13 +92,13 @@ impl Trade {
         match self.side {
             Side::Compra => self.gross + self.fees,
             Side::Venda => -(self.gross - self.fees),
-            Side::Transferencia => Decimal::ZERO,
+            Side::Transferencia | Side::Ajuste => Decimal::ZERO,
         }
     }
 
     pub fn signed_quantity(&self) -> Decimal {
         match self.side {
-            Side::Compra => self.quantity,
+            Side::Compra | Side::Ajuste => self.quantity,
             Side::Venda | Side::Transferencia => -self.quantity,
         }
     }
