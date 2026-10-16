@@ -6,6 +6,22 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.9.0] - Não lançada
+
+### Adicionado
+- Aba **Proventos**: dividendos, JCP, rendimentos de FIIs e juros, lançados
+  pelo valor recebido (bruto e imposto retido), com data com opcional.
+  - Resumo por ano: líquido, bruto, imposto retido, média por mês e últimos
+    12 meses; gráfico por mês (ou por ano) separado por tipo.
+  - Total por ativo e rendimento sobre o custo dos últimos 12 meses.
+  - Valor por cota, pela quantidade que havia na data com.
+  - Resumo para a declaração: isentos, tributação exclusiva e exterior
+    (Lei 14.754/2023, com estimativa do imposto no ajuste anual).
+  - Exterior convertido pela PTAX do dia do pagamento.
+  - Cada inclusão, alteração e remoção fica na Auditoria.
+  - Proventos não entram na rentabilidade, que mede só a variação de preço.
+- A página do ativo mostra os proventos recebidos dele.
+
 ## [0.8.0] - Não lançada
 
 ### Adicionado

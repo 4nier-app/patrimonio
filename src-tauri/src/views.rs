@@ -1044,3 +1044,69 @@ mod tests {
             .is_empty());
     }
 }
+
+// ---------- proventos ----------
+
+/// Provento com os valores em reais e a quantidade que havia na data com.
+#[derive(Debug, Serialize)]
+pub struct IncomeRow {
+    #[serde(flatten)]
+    pub priced: carteira_core::income::PricedIncome,
+    /// Quantidade do ativo na data com (ou no pagamento, sem data com).
+    pub quantity: Option<Decimal>,
+    /// Valor bruto por cota, quando há quantidade.
+    pub per_share: Option<Decimal>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct IncomesView {
+    /// Do pagamento mais recente para o mais antigo.
+    pub items: Vec<IncomeRow>,
+    pub names: ByAsset,
+    pub kinds: ByAsset,
+}
+
+/// Quantidade do ativo em todas as contas no fim do dia.
+fn held_on(ops: &[PricedOperation], asset: &str, day: NaiveDate) -> Decimal {
+    ops.iter()
+        .map(|p| &p.operation)
+        .filter(|o| o.asset == asset && o.date <= day)
+        .map(|o| match o.side {
+            carteira_core::model::Side::Compra => o.quantity,
+            carteira_core::model::Side::Venda => -o.quantity,
+            _ => -o.residue.unwrap_or_default(),
+        })
+        .sum()
+}
+
+pub fn incomes(v: &Vault) -> Result<IncomesView, String> {
+    let ops = priced(v)?;
+    let fx = v.fx_table().map_err(s)?;
+    let mut names = BTreeMap::new();
+    let mut kinds = BTreeMap::new();
+    let mut items = Vec::new();
+    for i in v.list_incomes().map_err(s)? {
+        if !names.contains_key(&i.asset) && !kinds.contains_key(&i.asset) {
+            if let Some(a) = v.get_asset(&i.asset).map_err(s)? {
+                kinds.insert(i.asset.clone(), a.kind);
+                if !a.name.is_empty() {
+                    names.insert(i.asset.clone(), a.name);
+                }
+            }
+        }
+        let held = held_on(&ops, &i.asset, i.ex_date.unwrap_or(i.pay_date));
+        let quantity = (held > Decimal::ZERO).then_some(held);
+        let per_share = quantity.map(|q| (i.gross / q).round_dp(8).normalize());
+        items.push(IncomeRow {
+            priced: carteira_core::income::price_income(i, &fx),
+            quantity,
+            per_share,
+        });
+    }
+    items.reverse();
+    Ok(IncomesView {
+        items,
+        names,
+        kinds,
+    })
+}

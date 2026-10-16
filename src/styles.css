@@ -400,3 +400,10 @@ tr.ops-group td { background: var(--bg); }
 .error-detail { white-space: pre-wrap; word-break: break-word; background: var(--border); padding: 8px 10px; border-radius: 6px; font-size: 0.85rem; }
 #crash-report { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 1000; background: var(--surface); color: var(--text); border: 2px solid #e34948; border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow); font-size: 0.9rem; }
 #crash-report pre { white-space: pre-wrap; word-break: break-word; max-height: 30vh; overflow: auto; margin: 8px 0; font-size: 0.8rem; }
+
+/* Proventos */
+.incomes { display: flex; flex-direction: column; gap: 14px; }
+.incomes .section-head.spaced { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.incomes .section-head select { width: auto; }
+tr.group-row td { background: var(--bg); font-weight: 600; padding-top: 10px; }
+.tax-groups { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }

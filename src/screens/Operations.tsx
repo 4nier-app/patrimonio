@@ -24,6 +24,7 @@ import {
   toCashMask,
 } from "../format";
 import { currencyOfNewAccount, fundTicker, isFund, normalizeTicker } from "../currency";
+import CashInput from "../components/CashInput";
 
 type Form = {
   id: string;
@@ -109,31 +110,6 @@ function NumberInput({
       required={required}
       onChange={(e) => onChange(keepNumberChars(e.target.value))}
       onBlur={() => onChange(maskDecimal(value, kind, usd ? "USD" : "BRL", usd))}
-    />
-  );
-}
-
-/** Campo de dinheiro com máscara de caixa: só números, da direita para a esquerda. */
-function CashInput({
-  value,
-  decimals,
-  currency,
-  onChange,
-  required,
-}: {
-  value: string;
-  decimals: number;
-  currency: Currency;
-  onChange: (v: string) => void;
-  required?: boolean;
-}) {
-  return (
-    <input
-      inputMode="numeric"
-      value={value}
-      placeholder={`${currency === "USD" ? "US$" : "R$"} 0,${"0".repeat(decimals)}`}
-      required={required}
-      onChange={(e) => onChange(cashMask(e.target.value, decimals, currency))}
     />
   );
 }

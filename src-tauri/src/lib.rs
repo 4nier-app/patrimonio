@@ -10,6 +10,7 @@ mod views;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use carteira_core::income::Income;
 use carteira_core::operations::{Operation, PricedOperation};
 use carteira_ledger::Event;
 use carteira_storage::{
@@ -411,6 +412,31 @@ fn remove_operations(ids: Vec<String>, state: State<AppState>) -> Result<usize, 
 }
 
 #[tauri::command]
+fn incomes(state: State<AppState>) -> Result<views::IncomesView, String> {
+    with_vault_str(&state, |v| views::incomes(v))
+}
+
+#[tauri::command]
+fn create_income(income: Income, state: State<AppState>) -> Result<Income, String> {
+    with_vault(&state, |v| v.create_income(income))
+}
+
+#[tauri::command]
+fn update_income(
+    income: Income,
+    reason: Option<String>,
+    state: State<AppState>,
+) -> Result<Income, String> {
+    let reason = reason.filter(|r| !r.trim().is_empty());
+    with_vault(&state, |v| v.update_income(income, reason.as_deref()))
+}
+
+#[tauri::command]
+fn remove_income(id: String, reason: Option<String>, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_income(&id, reason.as_deref()))
+}
+
+#[tauri::command]
 fn note_status(hashes: Vec<String>, state: State<AppState>) -> Result<Vec<NoteStatus>, String> {
     with_vault(&state, |v| {
         hashes.iter().map(|h| v.note_status(h)).collect()
@@ -555,6 +581,10 @@ pub fn run() {
             update_operation,
             remove_operation,
             remove_operations,
+            incomes,
+            create_income,
+            update_income,
+            remove_income,
             portfolio,
             returns_report,
             dashboard,

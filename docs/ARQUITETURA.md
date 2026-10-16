@@ -80,7 +80,7 @@ Todos os valores monetários são `TEXT` decimal (ex.: `"3801.14"`) para não pe
 - **fee_rule**: `id, mercado, tipo_taxa, modalidade (NORMAL|DAY_TRADE), aliquota, vigente_de, vigente_ate, url_fonte` (tabela versionada: quando a B3 mudar a taxa, entra uma nova linha, as operações antigas continuam usando a regra da sua data)
 
 ### 4.3 Proventos (armazenados, fora da rentabilidade)
-- **income**: `id, asset_id, account_id, tipo (DIVIDENDO|JCP|RENDIMENTO|JUROS), data_com, data_pagamento, valor_bruto, ir_retido, valor_liquido, moeda, ptax_id`
+- **incomes** (migração 0009): `id, account, ticker, kind (DIVIDENDO|JCP|RENDIMENTO|JUROS|OUTRO), pay_date, ex_date, gross, withheld, currency, note, removed_at`. O líquido é `gross − withheld`; no exterior, os valores em reais usam a PTAX venda do dia do pagamento (último boletim até a data), com o líquido em reais = bruto em reais − retido em reais. Cada mudança gera evento `PROVENTO` no log de auditoria. O valor por cota usa a quantidade somada em todas as contas no fim da data com (ou do pagamento).
 
 ### 4.4 Cotações e câmbio (imutáveis)
 - **quote**: `id, asset_id, data, fechamento, moeda, fonte, oficial (bool), obtida_em, hash_payload`

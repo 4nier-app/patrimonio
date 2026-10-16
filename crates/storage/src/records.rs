@@ -73,19 +73,19 @@ pub(crate) fn bad(msg: impl Into<String>) -> VaultError {
     VaultError::Invalid(msg.into())
 }
 
-fn dec(s: String, col: usize) -> rusqlite::Result<Decimal> {
+pub(crate) fn dec(s: String, col: usize) -> rusqlite::Result<Decimal> {
     Decimal::from_str(&s).map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(col, rusqlite::types::Type::Text, Box::new(e))
     })
 }
 
-fn date(s: String, col: usize) -> rusqlite::Result<NaiveDate> {
+pub(crate) fn date(s: String, col: usize) -> rusqlite::Result<NaiveDate> {
     NaiveDate::parse_from_str(&s, "%Y-%m-%d").map_err(|e| {
         rusqlite::Error::FromSqlConversionFailure(col, rusqlite::types::Type::Text, Box::new(e))
     })
 }
 
-fn new_id() -> Result<String> {
+pub(crate) fn new_id() -> Result<String> {
     let mut bytes = [0u8; 8];
     getrandom::getrandom(&mut bytes).map_err(|e| VaultError::Kdf(e.to_string()))?;
     Ok(format!("op-{}", hex::encode(bytes)))

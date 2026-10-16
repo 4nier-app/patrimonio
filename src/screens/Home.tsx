@@ -5,6 +5,7 @@ import Logo from "../components/Logo";
 import ErrorBoundary from "../components/ErrorBoundary";
 import AssetPage from "./AssetPage";
 import Audit from "./Audit";
+import Incomes from "./Incomes";
 import Broker, { rememberAsset } from "./Broker";
 import Dashboard from "./Dashboard";
 import Operations from "./Operations";
@@ -21,6 +22,7 @@ const TABS = [
   { id: "carteira", label: "Carteira" },
   { id: "homebroker", label: "Home broker" },
   { id: "lancamentos", label: "Lançamentos" },
+  { id: "proventos", label: "Proventos" },
   { id: "importar", label: "Importar notas" },
   { id: "rentabilidade", label: "Rentabilidade" },
   { id: "impostos", label: "Impostos" },
@@ -192,6 +194,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           {!asset && tab === "carteira" && <Portfolio refresh={refresh} onOpen={openAsset} />}
           {!asset && tab === "homebroker" && <Broker refresh={refresh} onOpen={openAsset} />}
           {!asset && tab === "lancamentos" && <Operations onChanged={() => void updateQuotes()} />}
+          {!asset && tab === "proventos" && <Incomes refresh={refresh} onChanged={loadTaxes} />}
           {!asset && tab === "importar" && (
             <Suspense fallback={<p className="muted">Carregando…</p>}>
               <ImportNotes onImported={() => void updateQuotes()} />

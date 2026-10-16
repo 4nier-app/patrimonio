@@ -409,3 +409,40 @@ export const assetApi = {
   detail: (ticker: string) => invoke<AssetDetail>("asset_detail", { ticker }),
   chart: (ticker: string, period: ChartPeriod, interval: string) => invoke<ChartData>("asset_chart", { ticker, period, interval }),
 };
+
+// ---------- proventos (etapa 9) ----------
+
+export type IncomeKind = "DIVIDENDO" | "JCP" | "RENDIMENTO" | "JUROS" | "OUTRO";
+
+export type Income = {
+  id: string;
+  account: string;
+  asset: string;
+  kind: IncomeKind;
+  pay_date: string;
+  ex_date: string | null;
+  gross: Dec;
+  withheld: Dec;
+  currency: "BRL" | "USD";
+  note: string | null;
+};
+
+export type IncomeRow = {
+  income: Income;
+  net: Dec;
+  gross_brl: Dec | null;
+  withheld_brl: Dec | null;
+  net_brl: Dec | null;
+  fx: FxRate | null;
+  quantity: Dec | null;
+  per_share: Dec | null;
+};
+
+export type IncomesView = { items: IncomeRow[]; names: Record<string, string>; kinds: Record<string, string> };
+
+export const incomesApi = {
+  load: () => invoke<IncomesView>("incomes"),
+  create: (income: Income) => invoke<Income>("create_income", { income }),
+  update: (income: Income, reason: string) => invoke<Income>("update_income", { income, reason }),
+  remove: (id: string) => invoke<void>("remove_income", { id, reason: null }),
+};
