@@ -22,6 +22,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Proventos não entram na rentabilidade, que mede só a variação de preço.
 - A página do ativo mostra os proventos recebidos dele.
 
+### Corrigido
+- IPCA: a atualização não mostra mais erro quando o Banco Central responde
+  vazio ou fica fora do ar; o app tenta de novo e, com o último mês já
+  gravado, informa "em dia" e busca na próxima atualização.
+
 ## [0.8.0] - Não lançada
 
 ### Adicionado
