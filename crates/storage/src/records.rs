@@ -152,8 +152,15 @@ impl Vault {
     // ---------- ativos ----------
 
     /// Coloca as criptomoedas conhecidas no catálogo (busca do lançamento).
+    /// Na primeira vez depois da mudança de reais para dólar, apaga as
+    /// cotações em reais que ficaram gravadas, para serem baixadas em dólar.
     pub fn seed_crypto(&mut self) -> Result<usize> {
         use carteira_core::crypto::{COINS, KIND};
+        self.conn.execute(
+            "DELETE FROM quotes WHERE ticker IN
+               (SELECT ticker FROM assets WHERE kind = ?1 AND currency = 'BRL')",
+            [KIND],
+        )?;
         let coins: Vec<Asset> = COINS
             .iter()
             .map(|c| Asset {
@@ -161,7 +168,7 @@ impl Vault {
                 name: c.name.into(),
                 kind: KIND.into(),
                 market: KIND.into(),
-                currency: BRL.into(),
+                currency: USD.into(),
                 isin: None,
                 source: KIND.into(),
             })
@@ -262,14 +269,14 @@ impl Vault {
     /// catálogo entra como "OUTRO" no mercado da conta (B3 ou exterior).
     fn ensure_asset(&self, ticker: &str, currency: &str) -> Result<()> {
         if let Some(name) = carteira_core::crypto::name_of(ticker) {
-            if currency != BRL {
+            if currency != USD {
                 return Err(bad(format!(
-                    "{ticker} é criptomoeda e entra numa conta em reais (por exemplo, \"Carteira cripto\")"
+                    "{ticker} é criptomoeda e entra numa conta em dólar (por exemplo, \"Carteira cripto\")"
                 )));
             }
             self.conn.execute(
                 "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at)
-                 VALUES (?1, ?2, ?3, ?3, 'BRL', ?3, ?4)
+                 VALUES (?1, ?2, ?3, ?3, 'USD', ?3, ?4)
                  ON CONFLICT (ticker) DO UPDATE SET name = excluded.name, kind = excluded.kind,
                    market = excluded.market, currency = excluded.currency, source = excluded.source",
                 params![ticker, name, carteira_core::crypto::KIND, now_iso()],
@@ -879,6 +886,35 @@ mod tests {
             KdfParams::fast_for_tests(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn cripto_em_reais_vira_dolar_e_perde_cotacoes_antigas() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = vault(tmp.path());
+        let d = NaiveDate::from_ymd_opt(2026, 2, 10).unwrap();
+        v.conn
+            .execute(
+                "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at)
+                 VALUES ('BTC', 'Bitcoin', 'CRIPTO', 'CRIPTO', 'BRL', 'CRIPTO', '')",
+                [],
+            )
+            .unwrap();
+        let q = |t: &str| NewQuote {
+            ticker: t.into(),
+            date: d,
+            close: dec!(500000),
+            source: "yahoo".into(),
+        };
+        v.save_quotes(&[q("BTC"), q("VOO")]).unwrap();
+        v.seed_crypto().unwrap();
+        assert_eq!(v.get_asset("BTC").unwrap().unwrap().currency, USD);
+        assert_eq!(v.last_quote_date("BTC", "yahoo").unwrap(), None);
+        assert_eq!(v.last_quote_date("VOO", "yahoo").unwrap(), Some(d));
+        // Já em dólar: as cotações ficam.
+        v.save_quotes(&[q("BTC")]).unwrap();
+        v.seed_crypto().unwrap();
+        assert_eq!(v.last_quote_date("BTC", "yahoo").unwrap(), Some(d));
     }
 
     fn sample() -> Operation {

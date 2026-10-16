@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 use carteira_core::crypto;
-use carteira_core::model::{FxSource, Side, BRL};
+use carteira_core::model::{Side, BRL};
 use carteira_core::operations::Operation;
 use carteira_providers::{cotahist, nasdaq, ptax, sgs, yahoo, ProviderError};
 use carteira_storage::{Asset, NewFxRate, NewQuote, Vault};
@@ -671,7 +671,7 @@ pub fn update_all(
     Ok(report)
 }
 
-/// Cotações das criptomoedas em reais, desde a primeira operação de cada uma.
+/// Cotações das criptomoedas em dólar, desde a primeira operação de cada uma.
 fn update_crypto(
     vault: Shared,
     fetcher: &dyn Fetcher,
@@ -698,26 +698,9 @@ fn update_crypto(
             (Some(o), Some(l)) if o <= *first + Duration::days(7) => l - Duration::days(5),
             _ => *first - Duration::days(10),
         };
-        let closes: Result<Vec<(NaiveDate, Decimal)>, String> =
-            match fetcher.yahoo(&crypto::yahoo_symbol(t), from, today) {
-                Ok(c) if !c.is_empty() => Ok(c),
-                // Sem par em reais: em dólar, convertido pela PTAX do dia.
-                brl => match fetcher.yahoo(&format!("{t}-USD"), from, today) {
-                    Ok(usd) => {
-                        let fx = with(vault, |v| v.fx_table().map_err(|e| e.to_string()))?;
-                        Ok(usd
-                            .into_iter()
-                            .filter_map(|(d, c)| {
-                                fx.usd_brl_on_or_before(d).map(|r| (d, c * r.rate))
-                            })
-                            .collect())
-                    }
-                    Err(e) => Err(match brl {
-                        Err(e1) => describe(&e1),
-                        Ok(_) => describe(&e),
-                    }),
-                },
-            };
+        let closes = fetcher
+            .yahoo(&crypto::yahoo_symbol(t), from, today)
+            .map_err(|e| describe(&e));
         match closes {
             Ok(closes) => {
                 let quotes: Vec<NewQuote> = closes
@@ -956,7 +939,7 @@ mod tests {
     }
 
     #[test]
-    fn cripto_busca_par_em_reais_e_entra_no_catalogo() {
+    fn cripto_busca_par_em_dolar_e_entra_no_catalogo() {
         let tmp = tempfile::tempdir().unwrap();
         let vault = setup(tmp.path());
         let first = NaiveDate::from_ymd_opt(2026, 2, 3).unwrap();
@@ -978,10 +961,10 @@ mod tests {
                 residue: None,
             };
             assert!(
-                v.create_operation(btc("Nomad", "USD")).is_err(),
-                "cripto só em reais"
+                v.create_operation(btc("Itaú", "BRL")).is_err(),
+                "cripto só em dólar"
             );
-            v.create_operation(btc("Carteira cripto", "BRL")).unwrap();
+            v.create_operation(btc("Carteira cripto", "USD")).unwrap();
         }
         let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
         let f = fake(true);
@@ -994,7 +977,7 @@ mod tests {
         );
         let calls = f.yahoo_calls.borrow().clone();
         assert!(
-            calls.contains(&("BTC-BRL".into(), first - Duration::days(10))),
+            calls.contains(&("BTC-USD".into(), first - Duration::days(10))),
             "{calls:?}"
         );
         assert!(
@@ -1006,7 +989,7 @@ mod tests {
         let hit = &v.search_assets("ETH", 5).unwrap()[0];
         assert_eq!(
             (hit.kind.as_str(), hit.currency.as_str()),
-            ("CRIPTO", "BRL")
+            ("CRIPTO", "USD")
         );
         assert!(v
             .price_table(&["BTC".into()])

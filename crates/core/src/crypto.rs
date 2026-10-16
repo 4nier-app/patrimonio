@@ -1,5 +1,6 @@
-//! Criptomoedas em carteira própria (autocustódia): lançadas à mão, em reais,
-//! sem as taxas da B3. A cotação vem do par em reais no Yahoo ("BTC-BRL").
+//! Criptomoedas em carteira própria (autocustódia): lançadas à mão, em dólar
+//! como no exterior, sem as taxas da B3. A cotação vem do par em dólar no
+//! Yahoo ("BTC-USD") e a conversão para reais usa a PTAX, como na Nomad.
 
 pub struct Coin {
     pub ticker: &'static str,
@@ -48,9 +49,9 @@ pub fn name_of(ticker: &str) -> Option<&'static str> {
     COINS.iter().find(|c| c.ticker == ticker).map(|c| c.name)
 }
 
-/// Símbolo do par em reais no Yahoo.
+/// Símbolo do par em dólar no Yahoo.
 pub fn yahoo_symbol(ticker: &str) -> String {
-    format!("{ticker}-BRL")
+    format!("{ticker}-USD")
 }
 
 #[cfg(test)]
@@ -62,7 +63,7 @@ mod tests {
         assert!(is_crypto("BTC"));
         assert!(!is_crypto("ABCD3"));
         assert_eq!(name_of("ETH"), Some("Ethereum"));
-        assert_eq!(yahoo_symbol("BTC"), "BTC-BRL");
+        assert_eq!(yahoo_symbol("BTC"), "BTC-USD");
         let mut codes: Vec<_> = COINS.iter().map(|c| c.ticker).collect();
         codes.sort_unstable();
         codes.dedup();

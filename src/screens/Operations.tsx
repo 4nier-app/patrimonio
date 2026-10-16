@@ -533,9 +533,9 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
 
         {coin && (
           <p className="muted small">
-            {coin.name} é criptomoeda: lance numa conta em reais (por exemplo, "Carteira cripto"), com a quantidade como está
-            na carteira (ex.: 0,00123456) e o preço de cada unidade em reais. Não há taxas da B3; se a corretora cobrou
-            taxa, informe abaixo. A cotação é atualizada sozinha.
+            {coin.name} é criptomoeda: lance numa conta em dólar (por exemplo, "Carteira cripto"), com a quantidade como está
+            na carteira (ex.: 0,00123456) e o preço de cada unidade em dólar. A conversão para reais usa a PTAX do dia, como
+            no exterior. Não há taxas da B3; se a corretora cobrou taxa, informe abaixo. A cotação é atualizada sozinha.
           </p>
         )}
 
