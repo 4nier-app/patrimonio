@@ -514,6 +514,15 @@ fn with_vault_str<T>(
 
 pub fn run() {
     tauri::Builder::default()
+        // Uma janela só: duas cópias abertas mexeriam no mesmo cofre ao mesmo
+        // tempo. Abrir de novo só traz a janela que já está aberta para a frente.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {

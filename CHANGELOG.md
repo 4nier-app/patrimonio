@@ -30,6 +30,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   recentemente.
 
 ### Corrigido
+- O aplicativo abre uma vez só: abrir de novo traz para a frente a janela que
+  já está aberta, em vez de duas cópias mexendo no mesmo cofre.
 - Tela branca ao sair da página do ativo no Windows (o WebView2 mais novo
   devolve uma Promise em `window.scrollTo`, e o React a tratava como função
   de limpeza).
