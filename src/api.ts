@@ -272,7 +272,11 @@ export type DashboardView = {
   timeline: Span[];
   /** Nome de cada ativo no catálogo (fundos aparecem pelo CNPJ). */
   names: Record<string, string>;
+  /** FGTS, conta corrente e cartões benefício: patrimônio fora da rentabilidade. */
+  other_balances: OtherBalance[];
 };
+
+export type OtherBalance = { id: string; name: string; account: string; kind: string; balance: Dec; last_informed: string | null };
 
 /** Dias úteis de um mês: resultado de cada dia, no mesmo formato dos meses. */
 export type DaysView = { days: DashMonth[]; benchmarks: Benchmark[]; contributions: AssetMonths[] };
@@ -370,6 +374,7 @@ export type TaxView = {
   names: Record<string, string>;
   warnings: string[];
   darf_code: string;
+  savings_year_end: { year: number; name: string; account: string; kind: string; value: Dec }[];
 };
 
 export const taxApi = {
@@ -407,7 +412,26 @@ export type ChartData = {
   offline: string | null;
 };
 
+export type DayMove = {
+  asset: string;
+  name: string;
+  currency: Currency;
+  venue: Venue;
+  quantity: Dec;
+  price: number | null;
+  previous_close: number | null;
+  change: number | null;
+  result: number | null;
+  result_brl: number | null;
+  value_brl: number | null;
+  price_time: number | null;
+  quote_date: string | null;
+  offline: string | null;
+};
+export type DayView = { items: DayMove[]; total_brl: number | null; total_change: number | null; fx: number | null };
+
 export const assetApi = {
+  dayMoves: () => invoke<DayView>("day_moves"),
   detail: (ticker: string) => invoke<AssetDetail>("asset_detail", { ticker }),
   chart: (ticker: string, period: ChartPeriod, interval: string) => invoke<ChartData>("asset_chart", { ticker, period, interval }),
 };
@@ -485,4 +509,61 @@ export const incomesApi = {
   update: (income: Income, reason: string) => invoke<Income>("update_income", { income, reason }),
   remove: (id: string) => invoke<void>("remove_income", { id, reason: null }),
   restore: (id: string) => invoke<Income>("restore_income", { id }),
+};
+
+// ---------- saldos e reservas (etapa 10) ----------
+
+export type SavingsKind = "COFRINHO" | "FGTS" | "CONTA" | "BENEFICIO";
+export type SavingsMoveKind = "DEPOSITO" | "RESGATE" | "SALDO";
+
+export type Savings = {
+  id: string;
+  kind: SavingsKind;
+  account: string;
+  name: string;
+  rate_pct: Dec;
+  tax_free: boolean;
+  note: string | null;
+};
+
+export type SavingsMove = {
+  id: string;
+  savings_id: string;
+  date: string;
+  kind: SavingsMoveKind;
+  amount: Dec;
+  ir: Dec | null;
+  iof: Dec | null;
+  note: string | null;
+};
+
+export type BalanceCheck = { move_id: string; date: string; informed: Dec; expected: Dec; difference: Dec; suspicious: boolean };
+export type Redemption = { move_id: string; date: string; net: Dec; gross: Dec; ir: Dec; iof: Dec; estimated: boolean; gain: Dec };
+
+export type SavingsItem = {
+  savings: Savings;
+  kind_label: string;
+  ticker: string;
+  balance: Dec;
+  balance_net: Dec;
+  invested: Dec;
+  earned: Dec;
+  last_informed: string | null;
+  checks: BalanceCheck[];
+  redemptions: Redemption[];
+  moves: SavingsMove[];
+};
+
+export type SavingsView = { items: SavingsItem[]; total_investments: Dec; total_others: Dec; cdi_until: string | null };
+
+export const savingsApi = {
+  load: () => invoke<SavingsView>("savings"),
+  create: (item: Savings) => invoke<Savings>("create_savings", { item }),
+  update: (item: Savings) => invoke<Savings>("update_savings", { item }),
+  remove: (id: string) => invoke<void>("remove_savings", { id }),
+  restore: (id: string) => invoke<Savings>("restore_savings", { id }),
+  createMove: (item: SavingsMove) => invoke<SavingsMove>("create_savings_move", { item }),
+  updateMove: (item: SavingsMove) => invoke<SavingsMove>("update_savings_move", { item }),
+  removeMove: (id: string) => invoke<void>("remove_savings_move", { id }),
+  restoreMove: (id: string) => invoke<SavingsMove>("restore_savings_move", { id }),
 };

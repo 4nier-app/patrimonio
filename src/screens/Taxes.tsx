@@ -363,6 +363,7 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
     view.months.forEach((m) => set.add(Number(m.month.slice(0, 4))));
     view.annual.foreign.forEach((y) => set.add(y.year));
     Object.keys(view.annual.positions).forEach((y) => set.add(Number(y)));
+    view.savings_year_end.forEach((x) => set.add(x.year));
     return [...set].sort((a, b) => b - a);
   }, [view]);
 
@@ -374,6 +375,8 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
   const months = view?.months.filter((m) => year != null && m.month.startsWith(String(year))) ?? [];
   const foreign = view?.annual.foreign.find((y) => y.year === year);
   const positions = (year != null && view?.annual.positions[String(year)]) || [];
+  // Cartão benefício não vai para a declaração.
+  const balances = view?.savings_year_end.filter((x) => x.year === year && x.kind !== "Cartão benefício") ?? [];
 
   function changed() {
     load();
@@ -451,6 +454,39 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
             <>
               <h3 className="spaced">Bens e Direitos em 31/12/{year}</h3>
               <Positions list={positions} names={view!.names} year={year} />
+            </>
+          )}
+          {balances.length > 0 && (
+            <>
+              <h3 className="spaced">Saldos em 31/12/{year} (Bens e Direitos)</h3>
+              <div className="card">
+                <p className="small muted">
+                  Cofrinhos e contas são declarados pelo saldo em 31/12 (cofrinho em "Aplicações de renda fixa", conta corrente em "Depósito em conta
+                  corrente", se acima de R$ 140). O saldo é o estimado pelo app a partir do último saldo informado; confira com o informe de rendimentos do
+                  banco.
+                </p>
+                <table className="tax-positions">
+                  <thead>
+                    <tr>
+                      <th>Saldo</th>
+                      <th>Tipo</th>
+                      <th className="num">Em 31/12/{year}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {balances.map((b) => (
+                      <tr key={`${b.name}|${b.account}`}>
+                        <td>
+                          <strong>{b.name}</strong>
+                          <div className="muted small">{b.account}</div>
+                        </td>
+                        <td>{b.kind}</td>
+                        <td className="num">{money(b.value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </>

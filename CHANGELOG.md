@@ -6,6 +6,32 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.10.0] - Não lançada
+
+### Adicionado
+- Lançamentos → **Saldos e cofrinhos**: acompanhe cofrinhos (caixinhas que
+  rendem % do CDI), FGTS, conta corrente e cartões benefício pelo saldo que
+  o app do banco mostra. Pode ter quantos quiser de cada tipo.
+  - Entre um saldo informado e outro, o app estima: cofrinho pelo CDI do
+    Banco Central, FGTS a 3% ao ano. Cada saldo novo corrige a estimativa,
+    então o rendimento não depende da taxa, que muda o tempo todo.
+  - Cofrinho aceita depósitos e resgates; no resgate, o IR (tabela
+    regressiva) e o IOF são estimados se o banco não mostrar.
+  - Aviso quando o saldo informado fica longe do esperado (provável
+    movimento esquecido).
+  - Cofrinhos entram na Carteira, no Painel e na rentabilidade como renda
+    fixa. FGTS, conta e benefícios aparecem só no patrimônio do Painel, em
+    "Outros saldos", fora da rentabilidade e dos impostos.
+  - Saldo em 31/12 de cada um em Impostos, para Bens e Direitos.
+- Home broker → **Sua carteira hoje**: cotação agora, variação do dia e
+  ganho ou perda no dia de cada ativo, mais o total da carteira, atualizados
+  a cada minuto. Atalho na Rentabilidade.
+- Ordenação por clique no título da coluna na Carteira, em Sua carteira hoje
+  e no total de proventos por ativo. A ordem escolhida fica guardada.
+- Segurança → Auditoria: opção **Mostrar memórias de cálculo** (desligada
+  por padrão). Ligada, o Painel e a Rentabilidade mostram a conta de cada
+  resultado ao clicar.
+
 ## [0.9.0] - Não lançada
 
 ### Adicionado

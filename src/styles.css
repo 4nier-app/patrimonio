@@ -472,3 +472,43 @@ tr.go td:first-child strong::after { content: " ›"; color: var(--muted); font-
   border-radius: 50%; background: var(--accent); color: var(--accent-text); font-size: 0.85rem;
 }
 .first-steps .actions { margin-top: auto; padding-top: 6px; }
+
+/* Saldos e reservas */
+.savings-totals { display: flex; flex-wrap: wrap; gap: 24px; margin: 8px 0 14px; }
+.savings-totals > div { display: flex; flex-direction: column; }
+.savings-totals strong { font-size: 1.25rem; }
+.savings-list { display: grid; gap: 12px; }
+.savings-list > * { min-width: 0; }
+.savings-card h3 { margin: 4px 0 2px; }
+.savings-card p { margin: 2px 0; }
+.savings-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.savings-balance { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.savings-balance strong { font-size: 1.35rem; }
+.savings-card .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.savings-card .spacer { flex: 1; }
+.savings-card .banner { margin: 8px 0 0; }
+.savings-move { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.tag {
+  display: inline-block; font-size: 0.75rem; padding: 1px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--accent);
+}
+label.check { flex-direction: row; align-items: center; gap: 8px; }
+label.check input { width: auto; }
+.wealth { margin: 12px 0; }
+.wealth-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.wealth-sum > div { display: flex; flex-direction: column; }
+.wealth-sum strong { font-size: 1.2rem; }
+.wealth-list { margin: 8px 0 4px; padding-left: 18px; }
+.card.stat.static { cursor: default; }
+th.sortable { padding: 0; }
+th.sortable .sort-btn {
+  all: unset; box-sizing: border-box; display: block; width: 100%; cursor: pointer;
+  padding: 8px 10px; font: inherit; font-weight: inherit; color: inherit; text-align: inherit;
+}
+th.num.sortable .sort-btn { text-align: right; }
+th.sortable .sort-arrow { opacity: 0; font-size: 0.8em; margin: 0 4px; transition: opacity 0.15s; }
+th.sortable:hover .sort-arrow, th.sortable .sort-btn:focus-visible .sort-arrow { opacity: 0.5; }
+th.sortable.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
+.today-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.today-total { font-size: 1.1rem; margin: 4px 0 8px; }

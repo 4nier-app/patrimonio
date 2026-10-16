@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import Intro from "../components/Intro";
+import { setShowMemos, useShowMemos } from "../memos";
 import { api, errorMessage, type IntegrityReport, type LedgerEvent, type VaultStatus } from "../api";
 import { formatDateTime, shortHash } from "../format";
 import SystemHistory from "./SystemHistory";
@@ -34,6 +35,8 @@ export default function Audit({ status }: { status: VaultStatus }) {
         </div>
         <button onClick={verify}>Verificar integridade</button>
       </div>
+
+      <MemoToggle />
 
       {report && (
         <p className={report.ok ? "ok" : "error"}>
@@ -84,5 +87,22 @@ export default function Audit({ status }: { status: VaultStatus }) {
       </table>
       <SystemHistory status={status} />
     </section>
+  );
+}
+
+/** Liga ou desliga as memórias de cálculo do Painel e da Rentabilidade. */
+function MemoToggle() {
+  const on = useShowMemos();
+  return (
+    <div className="card memo-toggle">
+      <label className="check">
+        <input type="checkbox" checked={on} onChange={(e) => setShowMemos(e.target.checked)} />
+        <strong>Mostrar memórias de cálculo</strong>
+      </label>
+      <p className="muted small">
+        Com a opção ligada, ao clicar num resultado do Painel ou da Rentabilidade aparece a conta completa de como ele foi calculado. Desligada, os números
+        são os mesmos, só sem os detalhes.
+      </p>
+    </div>
   );
 }

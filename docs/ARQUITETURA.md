@@ -85,6 +85,9 @@ Todos os valores monetários são `TEXT` decimal (ex.: `"3801.14"`) para não pe
 ### 4.3a Eventos corporativos (bonificação, desdobramento, grupamento)
 Lançados uma vez por ativo, com a data com e a proporção do anúncio. Cada evento vira, em cada conta que tinha o ativo no fim da data com, um ajuste de quantidade na data ex (lado `AJUSTE`, sem dinheiro): na bonificação entram as ações novas com o custo por ação informado pela empresa (o valor é rendimento isento na declaração); no desdobramento e no grupamento muda só a quantidade, e o custo total fica igual. Na B3 a quantidade nova é arredondada para baixo (a fração é vendida em leilão e paga em dinheiro, lançada como provento); no exterior a fração fica. O ajuste vale desde a abertura do pregão: entra antes das compras e vendas do dia e nunca forma day trade. Os ajustes não são gravados como lançamentos; são recalculados dos eventos a cada consulta.
 
+### 4.3b Saldos e reservas (cofrinhos, FGTS, conta corrente, cartão benefício)
+Guiados pelo saldo que o banco mostra, porque a taxa dos cofrinhos muda sem aviso. Cada saldo tem movimentos: depósito, resgate (valor líquido que caiu na conta, com IR e IOF opcionais) e saldo informado. O cofrinho vira uma cota sintética (`RF:<id>`) que vale R$ 1 no primeiro movimento e cresce pelo CDI diário (série 12 do SGS) vezes o % do CDI cadastrado; um dia rende o CDI do dia útil anterior. Depósito é compra de cotas, resgate é venda (IR regressivo e IOF estimados por lote, do mais antigo, quando não informados) e o saldo informado ajusta a quantidade de cotas sem dinheiro (`AJUSTE`), corrigindo a estimativa; diferença acima de 2% (e de R$ 5) gera aviso de movimento esquecido. O primeiro saldo informado sem depósitos é o saldo inicial. FGTS estima 3% ao ano; conta e benefício não rendem. Só cofrinhos entram nas operações do motor (carteira, rentabilidade); os demais aparecem apenas no patrimônio ("Outros saldos") e no saldo de 31/12 para Bens e Direitos. Como os fundos, cofrinhos não têm taxas da B3 nem DARF (o banco retém). As operações e cotas são recalculadas a cada consulta, não gravadas.
+
 ### 4.4 Cotações e câmbio (imutáveis)
 - **quote**: `id, asset_id, data, fechamento, moeda, fonte, oficial (bool), obtida_em, hash_payload`
 - **fx_rate**: `id, data, par (USD/BRL), compra, venda, tipo_boletim, fonte (PTAX-BCB), obtida_em, hash_payload`
@@ -169,6 +172,8 @@ Cada número exibido tem um botão "Ver cálculo" que mostra:
 - PTAX usada (compra/venda, data, boletim);
 - taxas consideradas (regra, alíquota, vigência, fonte);
 - fórmula (id e versão) **com os números substituídos**, como na seção 5.3.
+
+As memórias aparecem no Painel e na Rentabilidade quando o usuário liga "Mostrar memórias de cálculo" em Segurança › Auditoria (desligada por padrão, escolha do dono do projeto em 16/10/2026); os números são os mesmos com ou sem a opção.
 
 Fórmulas ficam num catálogo versionado (`docs/formulas.md` + código). Se uma fórmula mudar, a versão sobe e resultados antigos continuam reproduzíveis.
 
