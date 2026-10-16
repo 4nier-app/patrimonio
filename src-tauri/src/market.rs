@@ -15,9 +15,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 use carteira_core::crypto;
+use carteira_core::fund;
 use carteira_core::model::{Side, BRL};
 use carteira_core::operations::Operation;
-use carteira_providers::{cotahist, nasdaq, ptax, sgs, yahoo, ProviderError};
+use carteira_providers::{cotahist, cvm, nasdaq, ptax, sgs, yahoo, ProviderError};
 use carteira_storage::{Asset, NewFxRate, NewQuote, Vault};
 use chrono::{Datelike, Duration, NaiveDate};
 use rust_decimal::Decimal;
@@ -48,6 +49,13 @@ pub trait Fetcher {
         from: NaiveDate,
         to: NaiveDate,
     ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError>;
+    /// Informe diário da CVM (mensal ou anual), só com os fundos pedidos.
+    fn cvm_daily(
+        &self,
+        url: &str,
+        wanted: &BTreeSet<String>,
+    ) -> Result<Vec<cvm::DailyQuota>, ProviderError>;
+    fn fund_catalog(&self) -> Result<Vec<cvm::FundEntry>, ProviderError>;
 }
 
 /// De onde vem cada índice de comparação.
@@ -134,6 +142,16 @@ impl Fetcher for Internet {
         to: NaiveDate,
     ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError> {
         sgs::fetch(code, from, to)
+    }
+    fn cvm_daily(
+        &self,
+        url: &str,
+        wanted: &BTreeSet<String>,
+    ) -> Result<Vec<cvm::DailyQuota>, ProviderError> {
+        cvm::fetch_daily(url, wanted)
+    }
+    fn fund_catalog(&self) -> Result<Vec<cvm::FundEntry>, ProviderError> {
+        cvm::fetch_catalog()
     }
 }
 
@@ -258,7 +276,7 @@ pub fn update_all(
             let count = v.asset_count_in(market).map_err(|e| e.to_string())?;
             let last_date = last
                 .as_deref()
-                .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                 .map(|d| d.date_naive());
             let stale = count < 100
                 || last_date
@@ -285,6 +303,8 @@ pub fn update_all(
     let ops_dates: Vec<NaiveDate> = ops.iter().map(|o| o.date).collect();
     let (crypto_ops, ops): (Vec<Operation>, Vec<Operation>) =
         ops.into_iter().partition(|o| crypto::is_crypto(&o.asset));
+    let (fund_ops, ops): (Vec<Operation>, Vec<Operation>) =
+        ops.into_iter().partition(|o| fund::is_fund(&o.asset));
     let (b3_ops, us_ops): (Vec<Operation>, Vec<Operation>) =
         ops.into_iter().partition(|o| o.currency == BRL);
     let held = tickers_by_month(&b3_ops, today);
@@ -654,6 +674,11 @@ pub fn update_all(
         report.push(update_crypto(vault, fetcher, &crypto_ops, today)?);
     }
 
+    // 5b. Fundos: cota diária pelo informe da CVM.
+    if !fund_ops.is_empty() {
+        report.push(update_funds(vault, fetcher, &fund_ops, today)?);
+    }
+
     // 6. Índices de comparação (CDI, IPCA, Ibovespa, IVVB11) desde a primeira operação.
     if let Some(first) = ops_dates.iter().min().copied() {
         report.push(update_indexes(vault, fetcher, first, today)?);
@@ -661,7 +686,7 @@ pub fn update_all(
 
     // Sem ativos na carteira não há cotação a buscar; diz isso em vez de
     // simplesmente omitir as linhas.
-    if plan.is_empty() && us_ops.is_empty() && crypto_ops.is_empty() {
+    if plan.is_empty() && us_ops.is_empty() && crypto_ops.is_empty() && fund_ops.is_empty() {
         report.push(UpdateLine {
             source: "Cotações".into(),
             ok: true,
@@ -734,6 +759,222 @@ fn update_crypto(
         ok: failures.is_empty(),
         message,
     })
+}
+
+/// Arquivo do informe diário da CVM: um por ano até 2020, um por mês depois.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum CvmFile {
+    Year(i32),
+    Month(i32, u32),
+}
+
+impl CvmFile {
+    fn of(year: i32, month: u32) -> Self {
+        if year < cvm::FIRST_MONTHLY_YEAR {
+            CvmFile::Year(year)
+        } else {
+            CvmFile::Month(year, month)
+        }
+    }
+    fn url(&self) -> String {
+        match *self {
+            CvmFile::Year(y) => cvm::yearly_url(y),
+            CvmFile::Month(y, m) => cvm::monthly_url(y, m),
+        }
+    }
+    fn key(&self) -> String {
+        match *self {
+            CvmFile::Year(y) => y.to_string(),
+            CvmFile::Month(y, m) => month_key(y, m),
+        }
+    }
+    fn label(&self) -> String {
+        match *self {
+            CvmFile::Year(y) => y.to_string(),
+            CvmFile::Month(y, m) => format!("{m:02}/{y}"),
+        }
+    }
+}
+
+/// Cotas dos fundos desde a primeira aplicação. Cada arquivo é baixado uma
+/// vez para os fundos que a carteira tinha; o mês corrente e o anterior, que
+/// a CVM ainda corrige, uma vez por dia.
+fn update_funds(
+    vault: Shared,
+    fetcher: &dyn Fetcher,
+    ops: &[Operation],
+    today: NaiveDate,
+) -> Result<UpdateLine, String> {
+    let held = tickers_by_month(ops, today);
+    let mut files: BTreeMap<CvmFile, BTreeSet<String>> = BTreeMap::new();
+    for (&(y, m), tickers) in &held {
+        files
+            .entry(CvmFile::of(y, m))
+            .or_default()
+            .extend(tickers.iter().cloned());
+    }
+    let previous = today.with_day(1).expect("dia 1") - Duration::days(1);
+    let recent = [
+        CvmFile::of(today.year(), today.month()),
+        CvmFile::of(previous.year(), previous.month()),
+    ];
+    let mut downloaded = 0;
+    let mut saved = 0;
+    let mut failures = Vec::new();
+    for (file, tickers) in &files {
+        let mut key = format!(
+            "{}|{}",
+            file.key(),
+            tickers.iter().cloned().collect::<Vec<_>>().join(",")
+        );
+        if recent.contains(file) {
+            key.push_str(&format!("|{today}"));
+        }
+        let done = with(vault, |v| {
+            v.last_successful_update(cvm::SOURCE, Some(&key))
+                .map(|d| d.is_some())
+                .map_err(|e| e.to_string())
+        })?;
+        if done {
+            continue;
+        }
+        let wanted: BTreeSet<String> = tickers
+            .iter()
+            .filter_map(|t| fund::cnpj_digits(t))
+            .collect();
+        match fetcher.cvm_daily(&file.url(), &wanted) {
+            Ok(rows) => {
+                let quotes: Vec<NewQuote> = rows
+                    .iter()
+                    .map(|r| NewQuote {
+                        ticker: fund::format_cnpj(&r.cnpj),
+                        date: r.date,
+                        close: r.quota,
+                        source: cvm::SOURCE.into(),
+                    })
+                    .collect();
+                let msg = format!("{} cotas de {}", quotes.len(), file.label());
+                with(vault, |v| {
+                    v.save_quotes(&quotes).map_err(|e| e.to_string())?;
+                    v.record_quote_update(cvm::SOURCE, Some(&key), true, quotes.len() as i64, &msg)
+                        .map_err(|e| e.to_string())
+                })?;
+                downloaded += 1;
+                saved += quotes.len();
+            }
+            Err(e) => {
+                let msg = format!("{}: {}", file.label(), describe(&e));
+                with(vault, |v| {
+                    v.record_quote_update(cvm::SOURCE, Some(&key), false, 0, &msg)
+                        .map_err(|e| e.to_string())
+                })?;
+                failures.push(msg);
+                // Sem acesso à CVM não adianta tentar os outros arquivos agora.
+                if matches!(e, ProviderError::Network(_)) {
+                    break;
+                }
+            }
+        }
+    }
+    let funds = held.values().flatten().collect::<BTreeSet<_>>().len();
+    let mut message = if downloaded == 0 && failures.is_empty() {
+        format!("em dia: {funds} fundo(s)")
+    } else {
+        format!("{saved} cotas de {funds} fundo(s) em {downloaded} arquivo(s)")
+    };
+    if !failures.is_empty() {
+        message.push_str(&format!("; falhas: {}", failures.join("; ")));
+    }
+    Ok(UpdateLine {
+        source: "Fundos (cota diária da CVM)".into(),
+        ok: failures.is_empty(),
+        message,
+    })
+}
+
+/// Catálogo de fundos da CVM (nome e CNPJ), para achar o fundo pelo nome
+/// do extrato. Baixado na primeira busca e renovado a cada 30 dias.
+pub fn update_fund_catalog(
+    vault: Shared,
+    fetcher: &dyn Fetcher,
+    today: NaiveDate,
+) -> Result<UpdateLine, String> {
+    let (fresh, count) = with(vault, |v| {
+        let last = v
+            .last_successful_update(cvm::CATALOG_SOURCE, None)
+            .map_err(|e| e.to_string())?;
+        let count = v.asset_count_in(fund::KIND).map_err(|e| e.to_string())?;
+        let recent = last
+            .as_deref()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .is_some_and(|d| (today - d.date_naive()).num_days() < 30);
+        Ok((recent && count >= 100, count))
+    })?;
+    let source = "Catálogo de fundos (CVM)".to_string();
+    if fresh {
+        return Ok(UpdateLine {
+            source,
+            ok: true,
+            message: format!("em dia: {count} fundos"),
+        });
+    }
+    match fetcher.fund_catalog() {
+        Ok(entries) => {
+            let assets: Vec<Asset> = entries
+                .iter()
+                .map(|e| Asset {
+                    ticker: fund::format_cnpj(&e.cnpj),
+                    name: if e.cancelled {
+                        format!("{} (CANCELADO)", e.name)
+                    } else {
+                        e.name.clone()
+                    },
+                    kind: fund::KIND.into(),
+                    market: fund::KIND.into(),
+                    currency: BRL.into(),
+                    isin: None,
+                    source: cvm::CATALOG_SOURCE.into(),
+                })
+                .collect();
+            let msg = format!(
+                "{} fundos, atualizado em {}",
+                assets.len(),
+                chrono::Local::now().format("%d/%m/%Y às %H:%M")
+            );
+            with(vault, |v| {
+                v.upsert_assets(&assets).map_err(|e| e.to_string())?;
+                v.record_quote_update(
+                    cvm::CATALOG_SOURCE,
+                    Some(&today.to_string()),
+                    true,
+                    assets.len() as i64,
+                    &msg,
+                )
+                .map_err(|e| e.to_string())
+            })?;
+            Ok(UpdateLine {
+                source,
+                ok: true,
+                message: msg,
+            })
+        }
+        Err(e) => {
+            let msg = describe(&e);
+            with(vault, |v| {
+                v.record_quote_update(cvm::CATALOG_SOURCE, None, false, 0, &msg)
+                    .map_err(|e| e.to_string())
+            })?;
+            Ok(UpdateLine {
+                source,
+                ok: count >= 100,
+                message: if count >= 100 {
+                    format!("{msg}; usando a lista já baixada ({count} fundos)")
+                } else {
+                    msg
+                },
+            })
+        }
+    }
 }
 
 /// Baixa o que falta de cada índice. Um índice que falha não impede os outros.
@@ -813,6 +1054,7 @@ mod tests {
         monthly_calls: RefCell<Vec<(i32, u32)>>,
         yahoo_calls: RefCell<Vec<(String, NaiveDate)>>,
         ptax_calls: RefCell<Vec<(NaiveDate, NaiveDate)>>,
+        cvm_calls: RefCell<Vec<String>>,
     }
 
     fn fake(b3_up: bool) -> Fake {
@@ -821,6 +1063,7 @@ mod tests {
             monthly_calls: RefCell::default(),
             yahoo_calls: RefCell::default(),
             ptax_calls: RefCell::default(),
+            cvm_calls: RefCell::default(),
         }
     }
 
@@ -910,6 +1153,46 @@ mod tests {
                 })
                 .collect())
         }
+        fn cvm_daily(
+            &self,
+            url: &str,
+            wanted: &BTreeSet<String>,
+        ) -> Result<Vec<cvm::DailyQuota>, ProviderError> {
+            self.cvm_calls.borrow_mut().push(url.to_string());
+            // Uma cota no dia 15 de cada mês do arquivo, igual ao número do mês.
+            let months: Vec<(i32, u32)> = if url.contains("/HIST/") {
+                let y: i32 = url[url.len() - 8..url.len() - 4].parse().unwrap();
+                (1..=12).map(|m| (y, m)).collect()
+            } else {
+                let ym = &url[url.len() - 10..url.len() - 4];
+                vec![(ym[..4].parse().unwrap(), ym[4..].parse().unwrap())]
+            };
+            Ok(wanted
+                .iter()
+                .chain(std::iter::once(&"99888777000100".to_string()))
+                .flat_map(|c| {
+                    months.iter().map(move |&(y, m)| cvm::DailyQuota {
+                        cnpj: c.clone(),
+                        date: NaiveDate::from_ymd_opt(y, m, 15).unwrap(),
+                        quota: Decimal::from(m),
+                    })
+                })
+                .filter(|q| wanted.contains(&q.cnpj))
+                .collect())
+        }
+        fn fund_catalog(&self) -> Result<Vec<cvm::FundEntry>, ProviderError> {
+            Ok((0..150)
+                .map(|i| cvm::FundEntry {
+                    cnpj: if i == 0 {
+                        "11222333000181".into()
+                    } else {
+                        format!("{:014}", 50_000_000_000_000u64 + i)
+                    },
+                    name: format!("FUNDO TESTE {i}"),
+                    cancelled: i == 1,
+                })
+                .collect())
+        }
     }
 
     fn setup(dir: &std::path::Path) -> Mutex<Option<Vault>> {
@@ -933,6 +1216,8 @@ mod tests {
             currency: "BRL".into(),
             from_account: None,
             residue: None,
+            ir: None,
+            iof: None,
         })
         .unwrap();
         Mutex::new(Some(v))
@@ -959,6 +1244,8 @@ mod tests {
                 currency: currency.into(),
                 from_account: None,
                 residue: None,
+                ir: None,
+                iof: None,
             };
             assert!(
                 v.create_operation(btc("Itaú", "BRL")).is_err(),
@@ -996,6 +1283,94 @@ mod tests {
             .unwrap()
             .latest("BTC")
             .is_some());
+    }
+
+    #[test]
+    fn fundo_busca_cota_na_cvm_por_ano_e_por_mes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = setup(tmp.path());
+        let cnpj = "11.222.333/0001-81";
+        {
+            let mut g = vault.lock().unwrap();
+            let v = g.as_mut().unwrap();
+            v.create_operation(Operation {
+                id: String::new(),
+                account: "Banco".into(),
+                asset: "11222333000181".into(),
+                date: NaiveDate::from_ymd_opt(2020, 11, 10).unwrap(),
+                side: Side::Compra,
+                quantity: Decimal::from(100),
+                price: Decimal::from(10),
+                manual_fees: None,
+                note: None,
+                currency: "BRL".into(),
+                from_account: None,
+                residue: None,
+                ir: None,
+                iof: None,
+            })
+            .unwrap();
+        }
+        let today = NaiveDate::from_ymd_opt(2021, 3, 20).unwrap();
+        let f = fake(true);
+        let report = update_all(&vault, &f, today).unwrap();
+        assert!(
+            report
+                .iter()
+                .any(|l| l.source.starts_with("Fundos") && l.ok),
+            "{report:?}"
+        );
+        let calls = f.cvm_calls.borrow().clone();
+        assert_eq!(calls.len(), 4, "{calls:?}");
+        assert!(calls[0].ends_with("/HIST/inf_diario_fi_2020.zip"));
+        assert!(calls[3].ends_with("/inf_diario_fi_202103.zip"));
+        // No mesmo dia: nada de novo. No dia seguinte: só o mês corrente e o anterior.
+        update_all(&vault, &f, today).unwrap();
+        assert_eq!(f.cvm_calls.borrow().len(), 4);
+        update_all(&vault, &f, today + Duration::days(1)).unwrap();
+        let calls = f.cvm_calls.borrow().clone();
+        assert_eq!(calls.len(), 6, "{calls:?}");
+        assert!(calls[4..]
+            .iter()
+            .all(|c| c.ends_with("202102.zip") || c.ends_with("202103.zip")));
+        let g = vault.lock().unwrap();
+        let v = g.as_ref().unwrap();
+        let table = v.price_table(&[cnpj.into()]).unwrap();
+        let q = table
+            .close_on_or_before(cnpj, NaiveDate::from_ymd_opt(2020, 12, 31).unwrap())
+            .unwrap();
+        assert_eq!((q.close, q.source.as_str()), (Decimal::from(12), "CVM"));
+        assert!(table.latest("99.888.777/0001-00").is_none());
+        // Fundo não passa pela B3 nem pelo Yahoo.
+        assert!(!f
+            .yahoo_calls
+            .borrow()
+            .iter()
+            .any(|c| c.0.contains("11.222") || c.0.contains("11222")));
+    }
+
+    #[test]
+    fn catalogo_de_fundos_da_cvm() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = setup(tmp.path());
+        let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
+        let f = fake(true);
+        let line = update_fund_catalog(&vault, &f, today).unwrap();
+        assert!(
+            line.ok && line.message.starts_with("150 fundos"),
+            "{line:?}"
+        );
+        let again = update_fund_catalog(&vault, &f, today).unwrap();
+        assert!(again.message.starts_with("em dia"), "{again:?}");
+        let g = vault.lock().unwrap();
+        let v = g.as_ref().unwrap();
+        let hit = v.search_funds("teste 0", 5).unwrap();
+        assert_eq!(hit[0].ticker, "11.222.333/0001-81");
+        assert!(v
+            .search_funds("teste 1", 100)
+            .unwrap()
+            .iter()
+            .any(|a| a.name == "FUNDO TESTE 1 (CANCELADO)"));
     }
 
     #[test]
@@ -1102,6 +1477,8 @@ mod tests {
                 currency: "USD".into(),
                 from_account: None,
                 residue: None,
+                ir: None,
+                iof: None,
             })
             .unwrap();
         let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
@@ -1174,6 +1551,8 @@ mod tests {
                     currency: currency.into(),
                     from_account: None,
                     residue: None,
+                    ir: None,
+                    iof: None,
                 })
                 .unwrap();
             }

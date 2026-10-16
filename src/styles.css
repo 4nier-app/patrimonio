@@ -162,6 +162,9 @@ dd { margin: 0; }
 
 .op-form { display: flex; flex-direction: column; gap: 12px; }
 .op-form .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.op-form .grid .wide { grid-column: 1 / -1; }
+.op-kind { display: flex; gap: 8px; flex-wrap: wrap; }
+.op-kind button { flex: 1 1 220px; }
 label.inline { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; }
 label.short { max-width: 220px; }
 .preview { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
@@ -366,3 +369,17 @@ tr.ops-group td { background: var(--bg); }
 .tax-sale-calc .pos { color: var(--ok); }
 .tax-sale-calc .neg { color: var(--error); }
 .tax-positions { width: 100%; }
+
+/* Página do ativo */
+.asset-page { display: flex; flex-direction: column; gap: 14px; }
+.asset-page > .link { align-self: flex-start; }
+.asset-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.asset-head h2 { margin: 0; }
+.asset-head p { margin: 2px 0 0; }
+.asset-price { display: flex; flex-direction: column; align-items: flex-end; }
+.asset-price strong { font-size: 1.6rem; }
+.asset-controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.asset-controls .segmented { flex-wrap: wrap; }
+.chart-empty { min-height: 200px; display: flex; align-items: center; justify-content: center; }
+.asset-link { cursor: pointer; }
+.asset-link:hover strong { text-decoration: underline; }

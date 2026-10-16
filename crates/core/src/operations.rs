@@ -37,6 +37,13 @@ pub struct Operation {
     /// origem (resíduo da migração) e sai da carteira sem venda.
     #[serde(default)]
     pub residue: Option<Decimal>,
+    /// Fundo de investimento: imposto de renda retido no resgate (ou no
+    /// come-cotas), como no extrato do banco.
+    #[serde(default)]
+    pub ir: Option<Decimal>,
+    /// Fundo de investimento: IOF retido no resgate.
+    #[serde(default)]
+    pub iof: Option<Decimal>,
 }
 
 fn default_currency() -> String {
@@ -44,10 +51,35 @@ fn default_currency() -> String {
 }
 
 impl Operation {
-    /// Valor da operação: quantidade × preço, arredondado ao centavo.
+    /// IR + IOF retidos (fundos).
+    pub fn withheld(&self) -> Decimal {
+        self.ir.unwrap_or_default() + self.iof.unwrap_or_default()
+    }
+
+    /// Valor da operação: quantidade × preço, arredondado ao centavo. Nos
+    /// fundos o administrador trunca no centavo, como nos extratos.
     pub fn gross(&self) -> Decimal {
-        (self.quantity * self.price)
-            .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
+        let strategy = if crate::fund::is_fund(&self.asset) {
+            RoundingStrategy::ToZero
+        } else {
+            RoundingStrategy::MidpointAwayFromZero
+        };
+        (self.quantity * self.price).round_dp_with_strategy(2, strategy)
+    }
+}
+
+/// Observação que marca o come-cotas de um fundo.
+pub const COME_COTAS: &str = "Come-cotas";
+
+/// Come-cotas: o banco resgata cotas só para pagar o IR semestral, então
+/// todo o valor delas é IR e nada chega ao investidor.
+pub fn fill_come_cotas(op: &mut Operation) {
+    if crate::fund::is_fund(&op.asset)
+        && op.side == Side::Venda
+        && op.note.as_deref() == Some(COME_COTAS)
+    {
+        op.ir = Some(op.gross());
+        op.iof = None;
     }
 }
 
@@ -83,6 +115,17 @@ pub fn validate(op: &Operation) -> Result<(), String> {
             return Err("a taxa não pode ser negativa".into());
         }
     }
+    if op.ir.is_some_and(|v| v < Decimal::ZERO) || op.iof.is_some_and(|v| v < Decimal::ZERO) {
+        return Err("IR e IOF não podem ser negativos".into());
+    }
+    if op.withheld() > Decimal::ZERO {
+        if op.side != Side::Venda {
+            return Err("IR e IOF só são descontados no resgate".into());
+        }
+        if op.withheld() > op.gross() {
+            return Err("IR + IOF não podem passar do valor do resgate".into());
+        }
+    }
     Ok(())
 }
 
@@ -102,7 +145,7 @@ pub struct PricedOperation {
     pub operation: Operation,
     pub gross: Decimal,
     pub fees: Decimal,
-    /// "automática" ou "informada".
+    /// "automática", "informada" ou, nos fundos, "IR/IOF".
     pub fee_origin: &'static str,
 }
 
@@ -151,6 +194,7 @@ pub fn price_operations(
             && o.currency == BRL
             && o.side != Side::Transferencia
             && !crate::crypto::is_crypto(&o.asset)
+            && !crate::fund::is_fund(&o.asset)
     }) {
         groups
             .entry((op.account.clone(), op.date))
@@ -175,7 +219,12 @@ pub fn price_operations(
     let priced = ops
         .iter()
         .map(|op| {
+            // Fundo: o que o banco reteve no resgate entra como desconto do
+            // valor recebido, somado a alguma taxa informada.
             let (fees, fee_origin) = match op.manual_fees {
+                _ if crate::fund::is_fund(&op.asset) => {
+                    (op.manual_fees.unwrap_or_default() + op.withheld(), "IR/IOF")
+                }
                 Some(f) => (f, "informada"),
                 None => (auto.get(&op.id).copied().unwrap_or_default(), "automática"),
             };
@@ -222,6 +271,8 @@ mod tests {
             currency: "BRL".into(),
             from_account: None,
             residue: None,
+            ir: None,
+            iof: None,
         }
     }
 
@@ -253,6 +304,37 @@ mod tests {
         assert!(notes.is_empty());
         assert_eq!(priced[0].fees, dec!(0));
         assert_eq!(priced[0].gross, dec!(4305.00));
+    }
+
+    #[test]
+    fn fundo_sem_taxa_da_b3_e_resgate_desconta_ir_e_iof() {
+        let cnpj = "11.222.333/0001-81";
+        let mut aplic = op("a", "Banco", 2, dec!(812.40517), dec!(12.3098765), None);
+        aplic.asset = cnpj.into();
+        let mut resg = op("r", "Banco", 9, dec!(812.40517), dec!(12.9876543), None);
+        resg.asset = cnpj.into();
+        resg.side = Side::Venda;
+        resg.ir = Some(dec!(41.23));
+        resg.iof = Some(dec!(0.10));
+        let (priced, notes) = price_operations(&default_rules(), &[aplic, resg.clone()]).unwrap();
+        assert!(notes.is_empty());
+        // O banco trunca o valor no centavo: 10.000,6073 → 10.000,60.
+        assert_eq!(priced[0].gross, dec!(10000.60));
+        assert_eq!(priced[0].fees, dec!(0));
+        assert_eq!(priced[1].gross, dec!(10551.23));
+        assert_eq!(priced[1].fees, dec!(41.33));
+        assert_eq!(priced[1].fee_origin, "IR/IOF");
+        assert!(validate(&resg).is_ok());
+        resg.side = Side::Compra;
+        assert!(validate(&resg).is_err(), "IR na aplicação");
+        resg.side = Side::Venda;
+        resg.ir = Some(dec!(20000));
+        assert!(validate(&resg).is_err(), "IR maior que o resgate");
+        resg.note = Some(COME_COTAS.into());
+        resg.iof = Some(dec!(1));
+        fill_come_cotas(&mut resg);
+        assert_eq!((resg.ir, resg.iof), (Some(dec!(10551.23)), None));
+        assert!(validate(&resg).is_ok());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Asset } from "./api";
-import { currencyOfAsset, currencyOfNewAccount, normalizeTicker } from "./currency";
+import { currencyOfAsset, currencyOfNewAccount, fundTicker, isFund, normalizeTicker } from "./currency";
 
 const asset = (ticker: string, currency: string): Asset => ({
   ticker,
@@ -43,5 +43,17 @@ describe("código do fracionário", () => {
     expect(normalizeTicker("ABCD11F")).toBe("ABCD11");
     expect(normalizeTicker("SCHF")).toBe("SCHF");
     expect(currencyOfAsset("ABCD4F", [])).toBe("BRL");
+  });
+});
+
+describe("fundTicker", () => {
+  it("formata o CNPJ e confere os dígitos", () => {
+    expect(fundTicker("11222333000181")).toBe("11.222.333/0001-81");
+    expect(fundTicker(" 11.222.333/0001-81 ")).toBe("11.222.333/0001-81");
+    expect(fundTicker("11222333000182")).toBeNull();
+    expect(fundTicker("11111111111111")).toBeNull();
+    expect(fundTicker("RENDA FIXA")).toBeNull();
+    expect(isFund("11.222.333/0001-81")).toBe(true);
+    expect(isFund("ABCD3")).toBe(false);
   });
 });

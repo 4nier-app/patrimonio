@@ -6,7 +6,24 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.7.0] - Não lançada
+## [0.8.0] - Não lançada
+
+### Adicionado
+- **Fundos de investimento**: lançamento pelo extrato do banco, em cotas.
+  - O fundo é achado pelo nome (como aparece no extrato) ou pelo CNPJ, na
+    lista de fundos da CVM, baixada na primeira vez.
+  - Aplicação, resgate (com o IR e o IOF descontados) e come-cotas.
+  - Cota diária automática pelo informe que os fundos entregam à CVM.
+  - Fundos aparecem na Carteira, no Painel e na Rentabilidade pelo nome;
+    não pagam taxa da B3 e não entram no DARF (o banco já retém o imposto).
+- **Página do ativo**: clique num ativo da Carteira para ver o gráfico.
+  - Velas do dia de 1, 5 ou 15 minutos, atualizando sozinhas a cada minuto
+    (B3 com cerca de 15 minutos de atraso; cripto em tempo real), e
+    períodos de 5 dias, 1 mês, 6 meses, 1 ano, 5 anos e tudo.
+  - Compras e vendas marcadas no gráfico e a linha do seu preço médio.
+  - Resumo da posição e os lançamentos do ativo.
+
+## [0.7.0] - 2026-10-16
 
 ### Adicionado
 - Aba **Impostos**, com o imposto de renda calculado a partir dos lançamentos:

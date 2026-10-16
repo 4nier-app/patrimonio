@@ -103,6 +103,10 @@ export type Operation = {
   from_account: string | null;
   /** Transferência de custódia: quantidade que ficou na origem e sai da carteira. */
   residue: Dec | null;
+  /** Fundo de investimento: IR retido no resgate ou no come-cotas. */
+  ir?: Dec | null;
+  /** Fundo de investimento: IOF retido no resgate. */
+  iof?: Dec | null;
 };
 
 export type PricedOperation = { operation: Operation; gross: Dec; fees: Dec; fee_origin: string };
@@ -144,6 +148,10 @@ export type PortfolioView = {
   realized: Dec | null;
   fx: FxRate | null;
   last_update: string | null;
+  /** Nome de cada ativo no catálogo (fundos aparecem pelo CNPJ). */
+  names: Record<string, string>;
+  /** Tipo de cada ativo: ACAO, FII, ETF, BDR, FUNDO, CRIPTO, OUTRO. */
+  kinds: Record<string, string>;
 };
 
 export type MonthResult = {
@@ -179,13 +187,16 @@ export type ScopeReturns = {
   years: YearResult[];
   native: NativeReturns | null;
 };
-export type ReturnsView = { as_of: string; portfolio: ScopeReturns; assets: ScopeReturns[] };
+export type ReturnsView = { as_of: string; portfolio: ScopeReturns; assets: ScopeReturns[]; names: Record<string, string> };
 
 export type UpdateLine = { source: string; ok: boolean; message: string };
 export type QuoteUpdate = { started_at: string; source: string; ok: boolean; items: number; message: string };
 
 export const market = {
   searchAssets: (query: string) => invoke<Asset[]>("search_assets", { query }),
+  searchFunds: (query: string) => invoke<Asset[]>("search_funds", { query }),
+  nameFund: (ticker: string, name: string) => invoke<void>("name_fund", { ticker, name }),
+  updateFundCatalog: () => invoke<UpdateLine>("update_fund_catalog"),
   listAccounts: () => invoke<Account[]>("list_accounts"),
   listOperations: () => invoke<PricedOperation[]>("list_operations"),
   preview: (operation: Operation) => invoke<Preview>("preview_operation", { operation }),
@@ -257,6 +268,8 @@ export type DashboardView = {
   contributions: AssetMonths[];
   positions: Position[];
   timeline: Span[];
+  /** Nome de cada ativo no catálogo (fundos aparecem pelo CNPJ). */
+  names: Record<string, string>;
 };
 
 /** Dias úteis de um mês: resultado de cada dia, no mesmo formato dos meses. */
@@ -361,4 +374,38 @@ export const taxApi = {
   load: () => invoke<TaxView>("taxes"),
   markPaid: (payment: DarfPayment) => invoke<void>("mark_darf_paid", { payment }),
   unmarkPaid: (month: string) => invoke<void>("unmark_darf_paid", { month }),
+};
+
+// ---------- página do ativo ----------
+
+export type Venue = "B3" | "US" | "CRIPTO" | "FUNDO";
+export type AverageStep = { date: string; quantity: Dec; average_price: Dec };
+export type DailyClose = { date: string; close: Dec; source: string };
+export type AssetDetail = {
+  ticker: string;
+  name: string;
+  kind: string;
+  currency: Currency;
+  venue: Venue;
+  position: Position | null;
+  operations: PricedOperation[];
+  average_steps: AverageStep[];
+  history: DailyClose[];
+};
+export type Candle = { time: number; open: number; high: number; low: number; close: number; volume: number };
+export type ChartPeriod = "1d" | "5d" | "1mo" | "6mo" | "1y" | "5y" | "max";
+export type ChartData = {
+  candles: Candle[];
+  daily: boolean;
+  price: number | null;
+  price_time: number | null;
+  previous_close: number | null;
+  gmtoffset: number;
+  source: string;
+  offline: string | null;
+};
+
+export const assetApi = {
+  detail: (ticker: string) => invoke<AssetDetail>("asset_detail", { ticker }),
+  chart: (ticker: string, period: ChartPeriod, interval: string) => invoke<ChartData>("asset_chart", { ticker, period, interval }),
 };

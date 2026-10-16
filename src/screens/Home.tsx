@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api, errorMessage, market, taxApi, type TaxView, type UpdateLine, type VaultStatus } from "../api";
 import { date, money } from "../format";
 import Logo from "../components/Logo";
+import AssetPage from "./AssetPage";
 import Audit from "./Audit";
 import Dashboard from "./Dashboard";
 import Operations from "./Operations";
@@ -29,7 +30,13 @@ type Tab = (typeof TABS)[number]["id"];
 type Props = { status: VaultStatus; onLocked: () => void; onChanged: () => void };
 
 export default function Home({ status, onLocked, onChanged }: Props) {
-  const [tab, setTab] = useState<Tab>("painel");
+  const [tab, setTabState] = useState<Tab>("painel");
+  // Página de um ativo aberta a partir da Carteira.
+  const [asset, setAsset] = useState<string | null>(null);
+  function setTab(t: Tab) {
+    setAsset(null);
+    setTabState(t);
+  }
   const [updating, setUpdating] = useState(false);
   const [report, setReport] = useState<UpdateLine[] | null>(null);
   // Muda a cada atualização de cotações para as telas recarregarem.
@@ -144,18 +151,19 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       )}
 
       <main className="content">
-        {tab === "painel" && <Dashboard refresh={refresh} />}
-        {tab === "carteira" && <Portfolio refresh={refresh} />}
-        {tab === "lancamentos" && <Operations onChanged={() => void updateQuotes()} />}
-        {tab === "importar" && (
+        {asset && <AssetPage key={asset} ticker={asset} refresh={refresh} onBack={() => setAsset(null)} />}
+        {!asset && tab === "painel" && <Dashboard refresh={refresh} />}
+        {!asset && tab === "carteira" && <Portfolio refresh={refresh} onOpen={setAsset} />}
+        {!asset && tab === "lancamentos" && <Operations onChanged={() => void updateQuotes()} />}
+        {!asset && tab === "importar" && (
           <Suspense fallback={<p className="muted">Carregando…</p>}>
             <ImportNotes onImported={() => void updateQuotes()} />
           </Suspense>
         )}
-        {tab === "rentabilidade" && <Returns key={refresh} />}
-        {tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
-        {tab === "auditoria" && <Audit status={status} />}
-        {tab === "seguranca" && (
+        {!asset && tab === "rentabilidade" && <Returns key={refresh} />}
+        {!asset && tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
+        {!asset && tab === "auditoria" && <Audit status={status} />}
+        {!asset && tab === "seguranca" && (
           <Security
             status={status}
             onChanged={onChanged}

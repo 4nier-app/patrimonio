@@ -54,3 +54,30 @@ export function currencyOfNewAccount(account: string, ticker: string, catalog: A
   if (name && FOREIGN_BROKERS.some((b) => name.includes(b))) return "USD";
   return currencyOfAsset(ticker, catalog) ?? "BRL";
 }
+
+/** CNPJ com os dígitos verificadores certos, formatado como o aplicativo grava. */
+export function fundTicker(text: string): string | null {
+  const t = text.trim();
+  if (!/^[\d./\s-]+$/.test(t)) return null;
+  const d = t.replace(/\D/g, "");
+  if (d.length !== 14 || /^(\d)\1+$/.test(d)) return null;
+  const digit = (n: number) => {
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += Number(d[n - 1 - i]) * ((i % 8) + 2);
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  if (digit(12) !== Number(d[12]) || digit(13) !== Number(d[13])) return null;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
+
+export function isFund(ticker: string): boolean {
+  return /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(ticker);
+}
+
+/** Nome curto para listas e gráficos: fundo pelo nome, o resto pelo código. */
+export function assetLabel(asset: string, names?: Record<string, string>): string {
+  const name = names?.[asset];
+  if (!isFund(asset) || !name) return asset;
+  return name.length > 32 ? `${name.slice(0, 31)}…` : name;
+}

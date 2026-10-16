@@ -64,6 +64,7 @@ pub fn preview(v: &Vault, mut draft: Operation) -> Result<Preview, String> {
     if draft.id.is_empty() {
         draft.id = "rascunho".into();
     }
+    carteira_core::operations::fill_come_cotas(&mut draft);
     if let Err(msg) = validate(&draft) {
         return Ok(Preview {
             valid: Some(msg),
@@ -113,6 +114,32 @@ pub struct PortfolioView {
     /// PTAX usada para o valor de hoje, quando há ativos em dólar.
     pub fx: Option<FxRate>,
     pub last_update: Option<String>,
+    /// Nome de cada ativo no catálogo (fundos são listados pelo CNPJ).
+    pub names: BTreeMap<String, String>,
+    /// Tipo de cada ativo no catálogo (ACAO, FII, FUNDO, CRIPTO...).
+    pub kinds: BTreeMap<String, String>,
+}
+
+/// Código do ativo → nome ou tipo no catálogo.
+type ByAsset = BTreeMap<String, String>;
+
+/// Nome e tipo dos ativos lançados, pelo catálogo.
+fn catalog_info(v: &Vault, ops: &[PricedOperation]) -> Result<(ByAsset, ByAsset), String> {
+    let mut names = BTreeMap::new();
+    let mut kinds = BTreeMap::new();
+    for t in ops
+        .iter()
+        .map(|p| &p.operation.asset)
+        .collect::<BTreeSet<_>>()
+    {
+        if let Some(a) = v.get_asset(t).map_err(s)? {
+            kinds.insert(t.clone(), a.kind);
+            if !a.name.is_empty() {
+                names.insert(t.clone(), a.name);
+            }
+        }
+    }
+    Ok((names, kinds))
 }
 
 pub fn portfolio(v: &Vault, as_of: NaiveDate) -> Result<PortfolioView, String> {
@@ -138,9 +165,11 @@ pub fn portfolio(v: &Vault, as_of: NaiveDate) -> Result<PortfolioView, String> {
     let unrealized = market_value.zip(cost).map(|(m, c)| m - c);
     let realized = list.iter().map(|p| p.realized_brl).sum::<Option<Decimal>>();
     let has_usd = list.iter().any(|p| p.currency != BRL);
+    let (names, kinds) = catalog_info(v, &ops)?;
     let last_update = [
         carteira_providers::yahoo::SOURCE,
         carteira_providers::cotahist::SOURCE,
+        carteira_providers::cvm::SOURCE,
     ]
     .iter()
     .filter_map(|src| v.last_successful_update(src, None).ok().flatten())
@@ -158,6 +187,8 @@ pub fn portfolio(v: &Vault, as_of: NaiveDate) -> Result<PortfolioView, String> {
             None
         },
         last_update,
+        names,
+        kinds,
     })
 }
 
@@ -197,6 +228,7 @@ pub struct ReturnsView {
     pub as_of: NaiveDate,
     pub portfolio: ScopeReturns,
     pub assets: Vec<ScopeReturns>,
+    pub names: BTreeMap<String, String>,
 }
 
 pub fn returns(v: &Vault, as_of: NaiveDate) -> Result<ReturnsView, String> {
@@ -251,8 +283,10 @@ pub fn returns(v: &Vault, as_of: NaiveDate) -> Result<ReturnsView, String> {
         .iter()
         .map(|t| (t.asset.clone(), t.currency.clone()))
         .collect();
+    let (names, _) = catalog_info(v, &ops)?;
     Ok(ReturnsView {
         as_of,
+        names,
         portfolio: scope(Scope::Carteira, None, BRL),
         assets: tickers
             .into_iter()
@@ -333,11 +367,13 @@ pub struct DashboardView {
     pub contributions: Vec<AssetMonths>,
     pub positions: Vec<Position>,
     pub timeline: Vec<Span>,
+    pub names: BTreeMap<String, String>,
 }
 
 fn kind_label(kind: Option<&str>, currency: &str) -> &'static str {
     match (currency == BRL, kind) {
         (_, Some("CRIPTO")) => "Criptomoedas",
+        (_, Some("FUNDO")) => "Fundos de investimento",
         (true, Some("ACAO")) => "Ações",
         (true, Some("FII")) => "FIIs",
         (true, Some("ETF")) => "ETFs",
@@ -509,8 +545,10 @@ pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
         })
         .collect();
 
+    let (names, _) = catalog_info(v, &ops)?;
     Ok(DashboardView {
         as_of,
+        names,
         months: dash_months,
         cards,
         benchmarks,
@@ -731,20 +769,7 @@ pub struct TaxView {
 pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
     use carteira_core::tax;
     let ops = priced(v)?;
-    let mut kinds: BTreeMap<String, String> = BTreeMap::new();
-    let mut names: BTreeMap<String, String> = BTreeMap::new();
-    for t in ops
-        .iter()
-        .map(|p| &p.operation.asset)
-        .collect::<BTreeSet<_>>()
-    {
-        if let Some(a) = v.get_asset(t).map_err(s)? {
-            kinds.insert(t.clone(), a.kind);
-            if !a.name.is_empty() {
-                names.insert(t.clone(), a.name);
-            }
-        }
-    }
+    let (names, kinds) = catalog_info(v, &ops)?;
     let kind_of = |t: &str| kinds.get(t).cloned();
     let b3 = tax::b3_months(&ops, &kind_of, as_of);
     let fx = v.fx_table().map_err(s)?;
@@ -785,7 +810,9 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
     let unknown: Vec<&String> = ops
         .iter()
         .filter(|p| {
-            p.operation.currency == BRL && !carteira_core::crypto::is_crypto(&p.operation.asset)
+            p.operation.currency == BRL
+                && !carteira_core::crypto::is_crypto(&p.operation.asset)
+                && !carteira_core::fund::is_fund(&p.operation.asset)
         })
         .map(|p| &p.operation.asset)
         .filter(|t| kinds.get(*t).map_or(true, |k| k == "OUTRO"))
@@ -880,6 +907,8 @@ mod tests {
             currency: BRL.into(),
             from_account: None,
             residue: None,
+            ir: None,
+            iof: None,
         }
     }
 
@@ -900,7 +929,11 @@ mod tests {
         sale.price = dec!(20);
         v.create_operation(sale).unwrap();
         let view = taxes(&v, d(3, 10)).unwrap();
-        let feb = view.months.iter().find(|m| m.tax.month == "2026-02").unwrap();
+        let feb = view
+            .months
+            .iter()
+            .find(|m| m.tax.month == "2026-02")
+            .unwrap();
         // Lucro 1.000 × 15% = 150; dedo-duro de R$ 0,10 fica dispensado.
         assert_eq!((feb.tax.darf, feb.status), (dec!(150), "PENDENTE"));
         assert!(view.warnings.iter().any(|w| w.contains("TEST3")));

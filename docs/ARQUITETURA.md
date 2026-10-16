@@ -178,7 +178,9 @@ Fórmulas ficam num catálogo versionado (`docs/formulas.md` + código). Se uma 
 | Cotações B3 (fechamento oficial) | **COTAHIST** diário/anual | Yahoo Finance (`.SA`) | Fechamento oficial para fim de mês; Yahoo para o preço "de hoje". |
 | Catálogo EUA (NYSE, Nasdaq, ARCA) | Arquivos públicos **Nasdaq Trader** (`nasdaqlisted.txt`, `otherlisted.txt`) | — | Gratuito. |
 | Cotações EUA | Yahoo Finance (endpoint público) | Stooq (CSV) | Endpoints não oficiais podem mudar; por isso há fallback e lançamento manual. |
-| Cripto | Binance (API pública, sem chave) | CoinGecko | Cotação em USD convertida por PTAX. |
+| Cripto | Yahoo Finance (`BTC-USD`), fechamento diário | Coinbase (API pública) para o gráfico do dia | Cotação em USD convertida por PTAX. |
+| Fundos de investimento | **Informe diário da CVM** (dados abertos: mensal desde 2021, anual até 2020) | — | Cota diária por CNPJ; cadastro da CVM (`cad_fi.csv` e registro de classes) para achar o fundo pelo nome. |
+| Gráfico do ativo (intradiário) | Yahoo Finance (velas de 1, 5 ou 15 min) | Fechamentos guardados no cofre | Só para ver; não é gravado. B3 com cerca de 15 min de atraso (cotação ao vivo é paga); cripto em tempo real pela Coinbase. |
 | Tesouro Direto | Tesouro Transparente (CSV público) | — | Preço unitário diário. |
 | CDI, SELIC, IPCA | **SGS do Banco Central** | — | Para CDB/LCI/LCA indexados. |
 
@@ -264,6 +266,12 @@ interface BrokerModule {
 - Ativos no exterior seguem a Lei 14.754/2023 (apuração anual na declaração, câmbio PTAX de venda), então geram relatório anual, não DARF mensal.
 - Regras ficam em tabela versionada por vigência. O app é ferramenta de apoio; o documento recomendará conferência com contador.
 - Implementado na 0.7.0 (`crates/core/src/tax.rs`): três grupos na B3 (comum 15% com isenção de ações até R$ 20 mil/mês; day trade 20%, casado por ativo, corretora e dia; FII 20%), prejuízo por grupo sem prazo, IRRF estimado (0,005% e 1%) abatido e levado adiante, DARF mínimo de R$ 10,00 acumulado, vencimento no último dia útil do mês seguinte (feriados bancários nacionais), exterior e cripto anuais pela PTAX de cada data e posição de Bens e Direitos em 31/12. DARFs pagos ficam em `darf_payments`, com evento no log.
+
+## 10a. Fundos de investimento e página do ativo
+- Implementado na 0.8.0. O fundo é identificado pelo **CNPJ**, que vira o código do ativo (`12.345.678/0001-95`, `crates/core/src/fund.rs`). Lançamentos pelo extrato do banco: aplicação (compra de cotas), resgate (venda de cotas, com **IR** e **IOF** informados) e come-cotas (venda de cotas em que todo o valor é IR). Valor bruto truncado no centavo, como fazem os administradores.
+- IR e IOF ficam nas colunas `ir` e `iof` de `operations` (migração 0008) e entram como desconto do valor recebido: a rentabilidade do fundo é líquida do imposto retido. Fundos não têm taxa da B3 e ficam fora do DARF e do relatório do exterior.
+- Cota diária: `crates/providers/src/cvm.rs` lê o informe diário da CVM linha a linha, só para os CNPJs da carteira, colunas achadas pelo cabeçalho (antes e depois da Resolução CVM 175). Cada arquivo é baixado uma vez; o mês corrente e o anterior, uma vez por dia.
+- Página do ativo (`src-tauri/src/asset.rs`, `src/screens/AssetPage.tsx`): clique na Carteira. Gráfico de velas do dia (1, 5 ou 15 min, atualiza a cada minuto) a "Tudo", com as compras e vendas marcadas, a linha do preço médio e o resumo da posição.
 
 ## 11. Segurança
 - Primeiro uso: usuário cria a senha. O banco é criptografado com uma chave aleatória de 32 bytes, guardada em `cofre.json` duas vezes, cada uma cifrada (ChaCha20-Poly1305) com uma chave derivada por Argon2id: uma da senha e outra da **chave de recuperação**. Nem a senha, nem a chave de recuperação, nem a chave do banco em aberto ficam gravadas. (Até a 0.3.0 a chave do banco era o próprio Argon2id da senha; esses cofres são convertidos na primeira abertura, sem recriptografar.)

@@ -1,3 +1,4 @@
+import { assetLabel } from "../currency";
 import { useEffect, useMemo, useState } from "react";
 import type { EChartsCoreOption } from "echarts/core";
 import { dashboardApi, errorMessage, type DashboardView, type DaysView } from "../api";
@@ -196,7 +197,7 @@ export default function Dashboard({ refresh }: { refresh: number }) {
             <Profit frame={frame} byYear={byYear && !frame.days} p={p} />
           </Block>
           <Block title="O que puxou o resultado">
-            <Contributions frame={frame} p={p} />
+            <Contributions frame={frame} p={p} names={view.names} />
           </Block>
           <Block title="Ativos na carteira hoje">
             <Allocation view={view} p={p} open={open} setOpen={setOpen} />
@@ -426,12 +427,12 @@ function SameFlows({ frame, p }: { frame: Frame; p: Palette }) {
   );
 }
 
-function Contributions({ frame, p }: { frame: Frame; p: Palette }) {
+function Contributions({ frame, p, names }: { frame: Frame; p: Palette; names: Record<string, string> }) {
   const rows = frame.contributions
     .map((c) => {
       const any = c.profits.some((v) => v != null);
       // Período sem posição não tem resultado (null); com posição e sem cotação também é null.
-      return { asset: c.asset, value: any ? c.profits.reduce((s, v) => s + (v == null ? 0 : Number(v)), 0) : null };
+      return { asset: assetLabel(c.asset, names), value: any ? c.profits.reduce((s, v) => s + (v == null ? 0 : Number(v)), 0) : null };
     })
     .filter((r): r is { asset: string; value: number } => r.value != null && r.value !== 0)
     .sort((x, y) => y.value - x.value);
@@ -519,7 +520,7 @@ function Allocation({ view, p, open, setOpen }: { view: DashboardView; p: Palett
               {open === s.label &&
                 s.assets.map((x) => (
                   <tr key={x.asset} className="sub">
-                    <td>{x.asset}</td>
+                    <td>{assetLabel(x.asset, view.names)}</td>
                     <td className="num">{money(x.value)}</td>
                     <td className="num">{total ? ((Number(x.value ?? 0) / total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "—"}%</td>
                   </tr>
@@ -586,7 +587,7 @@ function Drawdown({ frame, p }: { frame: Frame; p: Palette }) {
 
 function Realized({ view, p }: { view: DashboardView; p: Palette }) {
   const rows = view.positions
-    .map((x) => ({ asset: x.asset, realized: Number(x.realized_brl ?? 0), unrealized: Number(x.unrealized_brl ?? 0) }))
+    .map((x) => ({ asset: assetLabel(x.asset, view.names), realized: Number(x.realized_brl ?? 0), unrealized: Number(x.unrealized_brl ?? 0) }))
     .filter((r) => r.realized !== 0 || r.unrealized !== 0);
   const tot = rows.reduce((s, r) => ({ realized: s.realized + r.realized, unrealized: s.unrealized + r.unrealized }), { realized: 0, unrealized: 0 });
   const option = useMemo<EChartsCoreOption>(
@@ -629,12 +630,12 @@ function Timeline({ view }: { view: DashboardView }) {
         const d = days(s.start, s.end ?? view.as_of);
         return (
           <div className="tl-row" key={`${s.asset}-${i}`}>
-            <span className="tl-label">{s.asset}</span>
+            <span className="tl-label">{assetLabel(s.asset, view.names)}</span>
             <div className="tl-track">
               <div
                 className={s.end ? "tl-bar closed" : "tl-bar"}
                 style={{ left: `${left}%`, width: `${Math.max(0.8, right - left)}%` }}
-                title={`${s.asset}: ${date(s.start)} a ${s.end ? date(s.end) : "hoje"} (${d} dias) · ${s.accounts.join(", ")}`}
+                title={`${assetLabel(s.asset, view.names)}: ${date(s.start)} a ${s.end ? date(s.end) : "hoje"} (${d} dias) · ${s.accounts.join(", ")}`}
               />
             </div>
             <span className="tl-days muted">{d} dias</span>

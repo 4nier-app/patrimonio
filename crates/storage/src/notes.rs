@@ -172,6 +172,8 @@ mod tests {
             currency: "BRL".into(),
             from_account: None,
             residue: None,
+            ir: None,
+            iof: None,
         }
     }
 

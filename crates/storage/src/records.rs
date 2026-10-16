@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::{now_iso, Result, Vault, VaultError};
 
 /// Origem preferida quando há mais de uma cotação para o mesmo dia.
-pub const SOURCE_PRIORITY: &[&str] = &["B3-COTAHIST", "MANUAL", "YAHOO"];
+pub const SOURCE_PRIORITY: &[&str] = &["B3-COTAHIST", "CVM", "MANUAL", "YAHOO"];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Asset {
@@ -95,6 +95,9 @@ fn new_id() -> Result<String> {
 /// fracionário da B3 ("ABCD3F") vira o do lote padrão ("ABCD3"): é o mesmo
 /// ativo, com a mesma cotação e o mesmo preço médio.
 pub fn normalize_ticker(t: &str) -> String {
+    if let Some(fund) = carteira_core::fund::ticker_of(t) {
+        return fund;
+    }
     let t = t.trim().to_uppercase();
     match t.strip_suffix('F') {
         Some(base) if is_b3_code(base) => base.to_string(),
@@ -111,7 +114,7 @@ fn is_b3_code(t: &str) -> bool {
 }
 
 const SELECT_OP: &str = "SELECT o.id, o.account, o.ticker, o.trade_date, o.side, o.quantity, o.price, o.manual_fees, o.note,
-       COALESCE(a.currency, 'BRL'), o.from_account, o.residue
+       COALESCE(a.currency, 'BRL'), o.from_account, o.residue, o.ir, o.iof
      FROM operations o LEFT JOIN accounts a ON a.name = o.account";
 
 fn row_to_op(r: &rusqlite::Row<'_>) -> rusqlite::Result<Operation> {
@@ -140,6 +143,14 @@ fn row_to_op(r: &rusqlite::Row<'_>) -> rusqlite::Result<Operation> {
         residue: r
             .get::<_, Option<String>>(11)?
             .map(|s| dec(s, 11))
+            .transpose()?,
+        ir: r
+            .get::<_, Option<String>>(12)?
+            .map(|s| dec(s, 12))
+            .transpose()?,
+        iof: r
+            .get::<_, Option<String>>(13)?
+            .map(|s| dec(s, 13))
             .transpose()?,
     })
 }
@@ -206,6 +217,82 @@ impl Vault {
         Ok(assets.len())
     }
 
+    /// Dá nome a um fundo lançado pelo CNPJ que não está no catálogo da CVM.
+    /// O nome do catálogo, quando existe, prevalece.
+    pub fn name_fund(&mut self, ticker: &str, name: &str) -> Result<()> {
+        let ticker = normalize_ticker(ticker);
+        if !carteira_core::fund::is_fund(&ticker) {
+            return Err(bad("CNPJ do fundo inválido"));
+        }
+        let name = name.trim();
+        if name.is_empty() {
+            return Ok(());
+        }
+        self.conn.execute(
+            "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at)
+             VALUES (?1, ?2, ?3, ?3, 'BRL', 'MANUAL', ?4)
+             ON CONFLICT (ticker) DO UPDATE SET name = excluded.name
+               WHERE assets.source = 'MANUAL' OR assets.name = ''",
+            params![ticker, name, carteira_core::fund::KIND, now_iso()],
+        )?;
+        Ok(())
+    }
+
+    /// Fundos do catálogo da CVM: busca por nome (todas as palavras) ou CNPJ.
+    pub fn search_funds(&self, query: &str, limit: i64) -> Result<Vec<Asset>> {
+        let q = query.trim().to_uppercase();
+        if let Some(t) = carteira_core::fund::ticker_of(&q) {
+            return Ok(self.get_asset(&t)?.into_iter().collect());
+        }
+        let digits: String = q.chars().filter(char::is_ascii_digit).collect();
+        let words: Vec<String> = q
+            .split_whitespace()
+            .map(|w| w.replace(['%', '_'], ""))
+            .filter(|w| !w.is_empty())
+            .collect();
+        if words.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut sql = String::from(
+            "SELECT ticker, name, kind, market, currency, isin, source FROM assets WHERE kind = 'FUNDO'",
+        );
+        let mut args: Vec<String> = Vec::new();
+        if digits.len() >= 4
+            && digits.len() == q.chars().filter(|c| !matches!(c, '.' | '/' | '-')).count()
+        {
+            sql.push_str(
+                " AND replace(replace(replace(ticker, '.', ''), '/', ''), '-', '') LIKE ?1 || '%'",
+            );
+            args.push(digits);
+        } else {
+            for w in &words {
+                args.push(w.clone());
+                sql.push_str(&format!(
+                    " AND upper(name) LIKE '%' || ?{} || '%'",
+                    args.len()
+                ));
+            }
+        }
+        // Fundos em funcionamento primeiro; o catálogo marca no nome os cancelados.
+        sql.push_str(&format!(
+            " ORDER BY (name LIKE '%(CANCELADO)'), length(name), name LIMIT {}",
+            limit.max(1)
+        ));
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(args.iter()), |r| {
+            Ok(Asset {
+                ticker: r.get(0)?,
+                name: r.get(1)?,
+                kind: r.get(2)?,
+                market: r.get(3)?,
+                currency: r.get(4)?,
+                isin: r.get(5)?,
+                source: r.get(6)?,
+            })
+        })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
     /// Busca por código ou nome; códigos que começam com o texto vêm primeiro.
     pub fn search_assets(&self, query: &str, limit: i64) -> Result<Vec<Asset>> {
         let q = query.trim().to_uppercase();
@@ -268,6 +355,21 @@ impl Vault {
     /// Garante que o ativo existe e é da moeda da conta. Um código fora do
     /// catálogo entra como "OUTRO" no mercado da conta (B3 ou exterior).
     fn ensure_asset(&self, ticker: &str, currency: &str) -> Result<()> {
+        if carteira_core::fund::is_fund(ticker) {
+            if currency != BRL {
+                return Err(bad(
+                    "fundo de investimento entra numa conta em reais (o banco ou a corretora onde ele está)",
+                ));
+            }
+            self.conn.execute(
+                "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at)
+                 VALUES (?1, '', ?2, ?2, 'BRL', 'MANUAL', ?3)
+                 ON CONFLICT (ticker) DO UPDATE SET kind = excluded.kind, market = excluded.market,
+                   currency = excluded.currency",
+                params![ticker, carteira_core::fund::KIND, now_iso()],
+            )?;
+            return Ok(());
+        }
         if let Some(name) = carteira_core::crypto::name_of(ticker) {
             if currency != USD {
                 return Err(bad(format!(
@@ -354,6 +456,20 @@ impl Vault {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(String::from);
+        let fund = carteira_core::fund::is_fund(&op.asset);
+        if !fund && carteira_core::fund::cnpj_digits(&op.asset).is_some() {
+            return Err(bad(format!(
+                "o CNPJ {} não confere (dígitos verificadores); confira no extrato ou no site da CVM",
+                op.asset
+            )));
+        }
+        if !fund {
+            op.ir = None;
+            op.iof = None;
+        }
+        carteira_core::operations::fill_come_cotas(op);
+        op.ir = op.ir.filter(|v| !v.is_zero());
+        op.iof = op.iof.filter(|v| !v.is_zero());
         if op.side != Side::Transferencia {
             op.from_account = None;
             op.residue = None;
@@ -398,8 +514,8 @@ impl Vault {
         let now = now_iso();
         self.conn.execute(
             "INSERT INTO operations (id, account, ticker, trade_date, side, quantity, price, manual_fees, note,
-               from_account, residue, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?11, ?12, ?10, ?10)",
+               from_account, residue, ir, iof, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?11, ?12, ?13, ?14, ?10, ?10)",
             params![
                 op.id,
                 op.account,
@@ -412,7 +528,9 @@ impl Vault {
                 op.note,
                 now,
                 op.from_account,
-                op.residue.map(|r| r.to_string())
+                op.residue.map(|r| r.to_string()),
+                op.ir.map(|v| v.to_string()),
+                op.iof.map(|v| v.to_string())
             ],
         )?;
         self.append_event(
@@ -451,7 +569,8 @@ impl Vault {
         }
         self.conn.execute(
             "UPDATE operations SET account = ?2, ticker = ?3, trade_date = ?4, side = ?5, quantity = ?6, price = ?7,
-               manual_fees = ?8, note = ?9, updated_at = ?10, from_account = ?11, residue = ?12 WHERE id = ?1",
+               manual_fees = ?8, note = ?9, updated_at = ?10, from_account = ?11, residue = ?12,
+               ir = ?13, iof = ?14 WHERE id = ?1",
             params![
                 op.id,
                 op.account,
@@ -464,7 +583,9 @@ impl Vault {
                 op.note,
                 now_iso(),
                 op.from_account,
-                op.residue.map(|r| r.to_string())
+                op.residue.map(|r| r.to_string()),
+                op.ir.map(|v| v.to_string()),
+                op.iof.map(|v| v.to_string())
             ],
         )?;
         self.append_event(
@@ -844,6 +965,14 @@ impl PriceTable {
         }
     }
 
+    /// Todas as cotações do ativo, da mais antiga para a mais recente.
+    pub fn series(&self, asset: &str) -> Vec<&Quote> {
+        self.by_asset
+            .get(asset)
+            .map(|d| d.values().collect())
+            .unwrap_or_default()
+    }
+
     pub fn latest(&self, asset: &str) -> Option<&Quote> {
         self.by_asset
             .get(asset)
@@ -1044,7 +1173,89 @@ mod tests {
             currency: "BRL".into(),
             from_account: None,
             residue: None,
+            ir: None,
+            iof: None,
         }
+    }
+
+    #[test]
+    fn fundo_pelo_cnpj_com_ir_e_iof() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = vault(tmp.path());
+        // Catálogo fictício da CVM.
+        let fund = |cnpj: &str, name: &str| Asset {
+            ticker: cnpj.into(),
+            name: name.into(),
+            kind: "FUNDO".into(),
+            market: "FUNDO".into(),
+            currency: BRL.into(),
+            isin: None,
+            source: "CVM".into(),
+        };
+        v.upsert_assets(&[
+            fund("11.222.333/0001-81", "FUNDO TESTE ACOES DIVIDENDOS FIC FIA"),
+            fund("11.444.777/0001-61", "FUNDO TESTE DI (CANCELADO)"),
+        ])
+        .unwrap();
+        let found = v.search_funds("teste dividendos", 10).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].ticker, "11.222.333/0001-81");
+        assert_eq!(v.search_funds("11444", 10).unwrap().len(), 1);
+        assert_eq!(v.search_funds("11.444.777/0001-61", 10).unwrap().len(), 1);
+        assert_eq!(
+            v.search_funds("teste", 10).unwrap()[0].ticker,
+            "11.222.333/0001-81"
+        );
+
+        let mut aplic = sample();
+        aplic.account = "Banco".into();
+        aplic.asset = "11222333000181".into();
+        aplic.quantity = dec!(812.40517);
+        aplic.price = dec!(12.3098765);
+        let a = v.create_operation(aplic.clone()).unwrap();
+        assert_eq!(a.asset, "11.222.333/0001-81");
+        assert_eq!(a.ir, None);
+        let mut resg = aplic.clone();
+        resg.side = Side::Venda;
+        resg.ir = Some(dec!(41.23));
+        resg.iof = Some(dec!(0));
+        let r = v.create_operation(resg).unwrap();
+        assert_eq!(r.ir, Some(dec!(41.23)));
+        assert_eq!(r.iof, None, "IOF zero fica vazio");
+        let stored = v.get_operation(&r.id).unwrap().unwrap();
+        assert_eq!(stored, r);
+        // Ação não guarda IR.
+        let mut acao = sample();
+        acao.ir = Some(dec!(1));
+        assert_eq!(v.create_operation(acao).unwrap().ir, None);
+        // CNPJ com dígito errado e fundo em conta em dólar são recusados.
+        let mut errado = aplic.clone();
+        errado.asset = "11222333000182".into();
+        assert!(v.create_operation(errado).is_err());
+        let mut usd = aplic.clone();
+        usd.account = "Nomad".into();
+        usd.currency = USD.into();
+        assert!(v.create_operation(usd).is_err());
+        // Fundo fora do catálogo ganha o nome digitado.
+        let mut novo = aplic;
+        novo.asset = "11.444.777/0001-61".into();
+        v.create_operation(novo).unwrap();
+        assert_eq!(
+            v.get_asset("11.444.777/0001-61").unwrap().unwrap().name,
+            "FUNDO TESTE DI (CANCELADO)"
+        );
+        v.name_fund("11.444.777/0001-61", "OUTRO NOME").unwrap();
+        assert_eq!(
+            v.get_asset("11.444.777/0001-61").unwrap().unwrap().name,
+            "FUNDO TESTE DI (CANCELADO)",
+            "o nome da CVM prevalece"
+        );
+        v.name_fund("11555666000122", "MEU FUNDO").unwrap();
+        assert_eq!(
+            v.get_asset("11.555.666/0001-22").unwrap().unwrap().name,
+            "MEU FUNDO"
+        );
+        assert!(v.name_fund("11555666000100", "X").is_err());
     }
 
     #[test]
