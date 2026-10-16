@@ -324,4 +324,5 @@ button.danger:not(.link) { background: var(--error); color: #fff; }
 .ops-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
 .ops-filters input { width: 140px; }
 .ops-filters .muted { margin-left: auto; }
+.ret-pick { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; min-width: 160px; }
 tr.ops-group td { background: var(--bg); }

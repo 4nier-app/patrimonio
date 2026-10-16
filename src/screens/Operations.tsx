@@ -619,16 +619,17 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
       </form>
 
       <div className="ops-filters spaced">
-        <div className="segmented" role="group" aria-label="Ano">
-          {years.map((y) => (
-            <button key={y} className={fYear === y ? "seg active" : "seg"} onClick={() => setFYear(y)}>
-              {y}
-            </button>
-          ))}
-          <button className={fYear === "todos" ? "seg active" : "seg"} onClick={() => setFYear("todos")}>
-            Todos
-          </button>
-        </div>
+        <label>
+          Ano
+          <select value={String(fYear ?? "")} onChange={(e) => setFYear(e.target.value === "todos" ? "todos" : Number(e.target.value))}>
+            {[...years].reverse().map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+            <option value="todos">Todos</option>
+          </select>
+        </label>
         <label>
           Mês
           <select value={fMonth} onChange={(e) => setFMonth(Number(e.target.value))}>

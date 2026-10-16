@@ -171,16 +171,17 @@ export default function Returns() {
             câmbio. Clique num mês ou ano para ver a conta.
           </p>
         </div>
-        <div className="segmented" role="group" aria-label="Ano">
-          {years.map((y) => (
-            <button key={y} className={y === year ? "seg active" : "seg"} onClick={() => setYear(y)}>
-              {y}
-            </button>
-          ))}
-          <button className={year === "inicio" ? "seg active" : "seg"} onClick={() => setYear("inicio")}>
-            Desde o início
-          </button>
-        </div>
+        <label className="ret-pick">
+          Período
+          <select value={String(year ?? "")} onChange={(e) => setYear(e.target.value === "inicio" ? "inicio" : Number(e.target.value))}>
+            {[...years].reverse().map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+            <option value="inicio">Desde o início</option>
+          </select>
+        </label>
       </div>
 
       <div className="card ret-portfolio">
