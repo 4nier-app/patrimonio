@@ -23,9 +23,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - A página do ativo mostra os proventos recebidos dele.
 
 ### Alterado
-- Fundos: depois de incluir um lançamento, o formulário mantém banco, data,
-  operação e fundo, para lançar a próxima linha do extrato só com cotas e
-  valores.
+- Lançamentos e proventos: depois de incluir, o formulário mantém conta,
+  data, operação e ativo (ou fundo, ou tipo de provento), para lançar a
+  próxima linha da nota ou do extrato só com quantidade e valores.
 
 ### Corrigido
 - IPCA: a atualização não mostra mais erro quando o Banco Central responde

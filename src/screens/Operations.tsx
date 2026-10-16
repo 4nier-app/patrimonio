@@ -322,9 +322,9 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
         setMessage("Lançamento incluído.");
       }
       const next: Form = { ...EMPTY, account: form.account, date: form.date, fund: form.fund, priceDecimals: priceDecimals(currency) };
-      // Fundo: o extrato costuma ter várias linhas do mesmo fundo e operação,
-      // então a próxima inclusão já vem com fundo e operação preenchidos.
-      if (form.fund && !form.id) Object.assign(next, { asset: form.asset, side: form.side });
+      // Na inclusão, a próxima já vem com o mesmo ativo e operação (notas e
+      // extratos costumam ter várias linhas iguais); só os valores são limpos.
+      if (!form.id) Object.assign(next, { asset: form.asset, side: form.side, manual: form.manual, fromAccount: form.fromAccount });
       setForm(next);
       setReason("");
       load();

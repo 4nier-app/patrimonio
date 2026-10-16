@@ -177,7 +177,12 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       if (form.id) await incomesApi.update(income, form.reason);
       else await incomesApi.create(income);
       setSaved(form.id ? "Provento alterado." : "Provento salvo.");
-      setForm((f) => ({ ...EMPTY, account: f.account, payDate: f.payDate }));
+      // Na inclusão, o próximo provento já vem com conta, ativo, tipo e datas.
+      setForm((f) =>
+        f.id
+          ? { ...EMPTY, account: f.account, payDate: f.payDate }
+          : { ...EMPTY, account: f.account, asset: f.asset, kind: f.kind, kindTouched: f.kindTouched, payDate: f.payDate, exDate: f.exDate },
+      );
       setYear(Number(income.pay_date.slice(0, 4)));
       load();
       onChanged();
