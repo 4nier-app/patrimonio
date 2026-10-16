@@ -324,7 +324,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
       const next: Form = { ...EMPTY, account: form.account, date: form.date, fund: form.fund, priceDecimals: priceDecimals(currency) };
       // Na inclusão, a próxima já vem com o mesmo ativo e operação (notas e
       // extratos costumam ter várias linhas iguais); só os valores são limpos.
-      if (!form.id) Object.assign(next, { asset: form.asset, side: form.side, manual: form.manual, fromAccount: form.fromAccount });
+      if (!form.id) Object.assign(next, { asset: form.asset, side: form.side, comeCotas: form.comeCotas, manual: form.manual, fromAccount: form.fromAccount });
       setForm(next);
       setReason("");
       load();
