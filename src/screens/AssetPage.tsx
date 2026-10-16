@@ -91,7 +91,11 @@ export default function AssetPage({
       .catch((e) => setError(errorMessage(e)));
   }, [ticker, refresh]);
 
-  useEffect(() => window.scrollTo({ top: 0 }), [ticker]);
+  // Entre chaves: no Windows, window.scrollTo devolve uma Promise, e o React
+  // tentaria usá-la como função de limpeza ao fechar a página (tela branca).
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [ticker]);
 
   useEffect(() => {
     if (!detail) return;
@@ -272,7 +276,9 @@ export default function AssetPage({
   const dragging = useRef<number | null>(null);
   const candlesRef = useRef(candles);
   candlesRef.current = candles;
-  useEffect(() => setRange(null), [option]);
+  useEffect(() => {
+    setRange(null);
+  }, [option]);
 
   function paintRange(r: Range | null) {
     const c = echart.current;

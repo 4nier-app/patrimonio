@@ -30,6 +30,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   recentemente.
 
 ### Corrigido
+- Tela branca ao sair da página do ativo no Windows (o WebView2 mais novo
+  devolve uma Promise em `window.scrollTo`, e o React a tratava como função
+  de limpeza).
 - Se uma tela falhar ao desenhar, o app mostra o erro e um botão para voltar,
   em vez de deixar a janela em branco. O botão "voltar" do mouse fecha a
   página do ativo.
