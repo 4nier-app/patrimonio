@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ECharts } from "echarts/core";
 import type { EChartsCoreOption } from "echarts/core";
 import { assetApi, errorMessage, type AssetDetail, type ChartData, type ChartPeriod } from "../api";
 import Chart, { axisStyle, base, usePalette } from "../charts/Chart";
@@ -51,7 +52,24 @@ function clock(time: number | null): string {
   return new Date(time * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function AssetPage({ ticker, refresh, onBack }: { ticker: string; refresh: number; onBack: () => void }) {
+type Range = { a: number; b: number };
+
+export default function AssetPage({
+  ticker,
+  refresh,
+  onBack,
+  backLabel = "Voltar",
+  onLoaded,
+}: {
+  ticker: string;
+  refresh: number;
+  onBack: () => void;
+  backLabel?: string;
+  /** Chamado quando os dados do ativo chegam (ex.: lista de vistos recentemente). */
+  onLoaded?: (d: AssetDetail) => void;
+}) {
+  const loaded = useRef(onLoaded);
+  loaded.current = onLoaded;
   const p = usePalette();
   const [detail, setDetail] = useState<AssetDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +84,7 @@ export default function AssetPage({ ticker, refresh, onBack }: { ticker: string;
       .detail(ticker)
       .then((d) => {
         setDetail(d);
+        loaded.current?.(d);
         // Fundo não tem gráfico do dia: começa em 1 ano.
         if (d.venue === "FUNDO") setPeriod((x) => (x === "1d" || x === "5d" ? "1y" : x));
       })
@@ -118,9 +137,16 @@ export default function AssetPage({ ticker, refresh, onBack }: { ticker: string;
     const up = p.series[2];
     const down = p.neg;
     const decimals = cur === "USD" || detail.venue === "FUNDO" ? 4 : 2;
+    const fund = detail.venue === "FUNDO";
+    const fullLabel = (t: number) => {
+      const iso = new Date((t + off) * 1000).toISOString();
+      const d = `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+      return intraday ? `${d} às ${iso.slice(11, 16)}` : d;
+    };
     const fmt = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: decimals });
     const priceSeries = lineOnly
       ? {
+          id: "price",
           name: "Preço",
           type: "line",
           data: candles.map((c) => c.close),
@@ -130,6 +156,7 @@ export default function AssetPage({ ticker, refresh, onBack }: { ticker: string;
           areaStyle: { color: p.series[0], opacity: 0.08 },
         }
       : {
+          id: "price",
           name: "Preço",
           type: "candlestick",
           data: candles.map((c) => [c.open, c.close, c.low, c.high]),
@@ -162,11 +189,37 @@ export default function AssetPage({ ticker, refresh, onBack }: { ticker: string;
         ...(base(p).tooltip as object),
         trigger: "axis",
         axisPointer: { type: "cross" },
-        valueFormatter: (v: unknown) => (Array.isArray(v) ? v.map((x) => fmt(Number(x))).join(" / ") : v == null ? "—" : fmt(Number(v))),
+        formatter: (params: unknown) => {
+          const list = params as { dataIndex: number }[];
+          const i = list[0]?.dataIndex;
+          if (i == null || !candles[i]) return "";
+          const c = candles[i];
+          const prev = i > 0 ? candles[i - 1].close : null;
+          const var_ = prev ? c.close / prev - 1 : null;
+          const avgHere = intraday ? avgNow : avg[i];
+          const rows: [string, string][] = lineOnly
+            ? [[fund ? "Cota" : "Fechamento", fmt(c.close)]]
+            : [
+                ["Abertura", fmt(c.open)],
+                ["Máxima", fmt(c.high)],
+                ["Mínima", fmt(c.low)],
+                ["Fechamento", fmt(c.close)],
+              ];
+          if (var_ != null) rows.push(["Variação", `${var_ >= 0 ? "+" : ""}${(var_ * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`]);
+          if (!lineOnly && c.volume > 0) rows.push(["Volume", c.volume.toLocaleString("pt-BR", { maximumFractionDigits: 0 })]);
+          if (avgHere != null) rows.push(["Seu preço médio", fmt(avgHere)]);
+          for (const m of markers.filter((m) => m.index === i)) rows.push([m.side === "COMPRA" ? "Sua compra" : "Sua venda", fmt(m.price)]);
+          return `<div style="font-weight:600;margin-bottom:4px">${fullLabel(c.time)}</div>` +
+            rows.map(([k, v]) => `<div style="display:flex;justify-content:space-between;gap:16px"><span>${k}</span><strong>${v}</strong></div>`).join("");
+        },
       },
       xAxis: { type: "category", data: labels, boundaryGap: !lineOnly, ...axisStyle(p), splitLine: { show: false } },
       yAxis: { type: "value", scale: true, position: "right", ...axisStyle(p), axisLabel: { color: p.muted, formatter: fmt } },
-      dataZoom: candles.length > 80 ? [{ type: "inside" }, { type: "slider", height: 18, bottom: 8 }] : [{ type: "inside" }],
+      // Arrastar o mouse mede um trecho; a roda e a barra de baixo dão zoom.
+      dataZoom:
+        candles.length > 80
+          ? [{ type: "inside", moveOnMouseMove: false }, { type: "slider", height: 18, bottom: 8 }]
+          : [{ type: "inside", moveOnMouseMove: false }],
       series: [
         priceSeries,
         {
@@ -213,6 +266,87 @@ export default function AssetPage({ ticker, refresh, onBack }: { ticker: string;
         : avgValue > Math.max(...highs)
           ? "acima"
           : null;
+  // Medir um trecho: clicar e arrastar no gráfico mostra a variação entre os dois pontos.
+  const echart = useRef<ECharts | null>(null);
+  const [range, setRange] = useState<Range | null>(null);
+  const dragging = useRef<number | null>(null);
+  const candlesRef = useRef(candles);
+  candlesRef.current = candles;
+  useEffect(() => setRange(null), [option]);
+
+  function paintRange(r: Range | null) {
+    const c = echart.current;
+    if (!c || c.isDisposed()) return;
+    const cs = candlesRef.current;
+    const [a, b] = r ? [Math.min(r.a, r.b), Math.max(r.a, r.b)] : [0, 0];
+    const gain = r ? cs[b].close >= cs[a].close : true;
+    c.setOption({
+      series: [
+        {
+          id: "price",
+          markArea: r
+            ? {
+                silent: true,
+                itemStyle: { color: gain ? p.series[2] : p.neg, opacity: 0.12 },
+                data: [[{ xAxis: a }, { xAxis: b }]],
+              }
+            : { data: [] },
+        },
+      ],
+    });
+  }
+
+  function onReady(c: ECharts | null) {
+    echart.current = c;
+    if (!c) return;
+    const zr = c.getZr();
+    const indexAt = (x: number, y: number): number | null => {
+      if (!c.containPixel("grid", [x, y])) return null;
+      const v = c.convertFromPixel({ xAxisIndex: 0 }, x) as unknown as number;
+      const n = candlesRef.current.length;
+      if (!n || v == null || Number.isNaN(Number(v))) return null;
+      return Math.max(0, Math.min(n - 1, Math.round(Number(v))));
+    };
+    zr.on("mousedown", (e) => {
+      const i = indexAt(e.offsetX, e.offsetY);
+      if (i == null) return;
+      dragging.current = i;
+      const r = { a: i, b: i };
+      setRange(r);
+      paintRange(r);
+    });
+    zr.on("mousemove", (e) => {
+      if (dragging.current == null) return;
+      const i = indexAt(e.offsetX, e.offsetY);
+      if (i == null) return;
+      const r = { a: dragging.current, b: i };
+      setRange(r);
+      paintRange(r);
+    });
+    zr.on("mouseup", () => {
+      dragging.current = null;
+    });
+    zr.on("globalout", () => {
+      dragging.current = null;
+    });
+  }
+
+  const measured = (() => {
+    if (!range || range.a === range.b || !candles[range.a] || !candles[range.b]) return null;
+    const [a, b] = [Math.min(range.a, range.b), Math.max(range.a, range.b)];
+    const from = candles[a];
+    const to = candles[b];
+    const pct = to.close / from.close - 1;
+    return {
+      from: candleLabel(from.time, off, period === "1d" ? "1d" : period === "5d" ? "5d" : "1y"),
+      to: candleLabel(to.time, off, period === "1d" ? "1d" : period === "5d" ? "5d" : "1y"),
+      pct,
+      diff: to.close - from.close,
+      start: from.close,
+      end: to.close,
+    };
+  })();
+
   const fund = detail?.venue === "FUNDO";
   const title = detail ? (fund ? detail.name || detail.ticker : detail.ticker) : ticker;
   const subtitle = detail ? (fund ? `CNPJ ${detail.ticker}` : detail.name) : "";
@@ -220,7 +354,7 @@ export default function AssetPage({ ticker, refresh, onBack }: { ticker: string;
   return (
     <section className="asset-page">
       <button className="link" onClick={onBack}>
-        ← Voltar para a Carteira
+        ← {backLabel}
       </button>
       {error && <p className="error">{error}</p>}
       <div className="asset-head">
@@ -263,9 +397,38 @@ export default function AssetPage({ ticker, refresh, onBack }: { ticker: string;
           )}
         </div>
         {option ? (
-          <Chart option={option} height={380} ariaLabel={`Gráfico de preços de ${title}`} />
+          <Chart option={option} height={380} ariaLabel={`Gráfico de preços de ${title}`} onReady={onReady}>
+            {measured && (
+              <div className="range-badge" role="status">
+                <span className="muted">
+                  {measured.from} → {measured.to}
+                </span>
+                <strong className={tone(String(measured.pct))}>
+                  {measured.pct >= 0 ? "+" : ""}
+                  {percent(String(measured.pct))}
+                </strong>
+                <span className={tone(String(measured.diff))}>{money(measured.diff.toFixed(2), cur)}</span>
+                <button
+                  className="link"
+                  aria-label="Limpar a medição"
+                  onClick={() => {
+                    setRange(null);
+                    paintRange(null);
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </Chart>
         ) : (
-          <p className="muted chart-empty">{loading || !chart ? "Carregando o gráfico…" : "Sem preços para este período."}</p>
+          <p className="muted chart-empty">
+            {loading || !chart
+              ? "Carregando o gráfico…"
+              : fund && !detail?.history.length
+                ? "As cotas de um fundo são baixadas da CVM só para os fundos que você lança em Lançamentos. Lance uma aplicação neste fundo para ver o gráfico."
+                : "Sem preços para este período."}
+          </p>
         )}
         {intraday && avgOutside && pos && (
           <p className="muted small">
@@ -275,6 +438,7 @@ export default function AssetPage({ ticker, refresh, onBack }: { ticker: string;
         )}
         {detail && (
           <p className="muted small">
+            Clique e arraste no gráfico para ver a variação entre dois pontos; use a roda do mouse para aproximar.{" "}
             {delayNote(detail)}
             {chart?.source && chart.source !== "cofre" && (
               <>

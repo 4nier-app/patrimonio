@@ -2,8 +2,10 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api, errorMessage, market, taxApi, type TaxView, type UpdateLine, type VaultStatus } from "../api";
 import { date, money } from "../format";
 import Logo from "../components/Logo";
+import ErrorBoundary from "../components/ErrorBoundary";
 import AssetPage from "./AssetPage";
 import Audit from "./Audit";
+import Broker, { rememberAsset } from "./Broker";
 import Dashboard from "./Dashboard";
 import Operations from "./Operations";
 import Portfolio from "./Portfolio";
@@ -17,6 +19,7 @@ const ImportNotes = lazy(() => import("./ImportNotes"));
 const TABS = [
   { id: "painel", label: "Painel" },
   { id: "carteira", label: "Carteira" },
+  { id: "homebroker", label: "Home broker" },
   { id: "lancamentos", label: "Lançamentos" },
   { id: "importar", label: "Importar notas" },
   { id: "rentabilidade", label: "Rentabilidade" },
@@ -31,9 +34,32 @@ type Props = { status: VaultStatus; onLocked: () => void; onChanged: () => void 
 
 export default function Home({ status, onLocked, onChanged }: Props) {
   const [tab, setTabState] = useState<Tab>("painel");
-  // Página de um ativo aberta a partir da Carteira.
-  const [asset, setAsset] = useState<string | null>(null);
+  // Página de um ativo aberta a partir da Carteira ou do Home broker.
+  const [asset, setAssetState] = useState<string | null>(null);
+  const assetRef = useRef<string | null>(null);
+  function setAsset(a: string | null) {
+    assetRef.current = a;
+    setAssetState(a);
+  }
+  // Abrir um ativo entra no histórico da janela: o botão "voltar" do mouse ou
+  // do teclado fecha a página do ativo em vez de sair do aplicativo.
+  function openAsset(a: string) {
+    if (!assetRef.current) window.history.pushState({ asset: a }, "");
+    else window.history.replaceState({ asset: a }, "");
+    setAsset(a);
+  }
+  function closeAsset() {
+    if (!assetRef.current) return;
+    if (window.history.state?.asset) window.history.back();
+    else setAsset(null);
+  }
+  useEffect(() => {
+    const onPop = () => setAsset(window.history.state?.asset ?? null);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   function setTab(t: Tab) {
+    if (assetRef.current && window.history.state?.asset) window.history.back();
     setAsset(null);
     setTabState(t);
   }
@@ -151,30 +177,42 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       )}
 
       <main className="content">
-        {asset && <AssetPage key={asset} ticker={asset} refresh={refresh} onBack={() => setAsset(null)} />}
-        {!asset && tab === "painel" && <Dashboard refresh={refresh} />}
-        {!asset && tab === "carteira" && <Portfolio refresh={refresh} onOpen={setAsset} />}
-        {!asset && tab === "lancamentos" && <Operations onChanged={() => void updateQuotes()} />}
-        {!asset && tab === "importar" && (
-          <Suspense fallback={<p className="muted">Carregando…</p>}>
-            <ImportNotes onImported={() => void updateQuotes()} />
-          </Suspense>
-        )}
-        {!asset && tab === "rentabilidade" && <Returns key={refresh} />}
-        {!asset && tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
-        {!asset && tab === "auditoria" && <Audit status={status} />}
-        {!asset && tab === "seguranca" && (
-          <Security
-            status={status}
-            onChanged={onChanged}
-            onRestored={() => {
-              setTab("carteira");
-              setReport([{ source: "Backup", ok: true, message: "restaurado e conferido; os dados do backup já estão em uso" }]);
-              setRefresh((n) => n + 1);
-              onChanged();
-            }}
-          />
-        )}
+        <ErrorBoundary key={`${tab}|${asset ?? ""}`} onReset={() => (asset ? closeAsset() : setTab("painel"))}>
+          {asset && (
+            <AssetPage
+              key={asset}
+              ticker={asset}
+              refresh={refresh}
+              backLabel={tab === "homebroker" ? "Voltar ao Home broker" : tab === "carteira" ? "Voltar para a Carteira" : "Voltar"}
+              onBack={closeAsset}
+              onLoaded={(d) => rememberAsset(d.ticker, d.name)}
+            />
+          )}
+          {!asset && tab === "painel" && <Dashboard refresh={refresh} />}
+          {!asset && tab === "carteira" && <Portfolio refresh={refresh} onOpen={openAsset} />}
+          {!asset && tab === "homebroker" && <Broker refresh={refresh} onOpen={openAsset} />}
+          {!asset && tab === "lancamentos" && <Operations onChanged={() => void updateQuotes()} />}
+          {!asset && tab === "importar" && (
+            <Suspense fallback={<p className="muted">Carregando…</p>}>
+              <ImportNotes onImported={() => void updateQuotes()} />
+            </Suspense>
+          )}
+          {!asset && tab === "rentabilidade" && <Returns key={refresh} />}
+          {!asset && tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
+          {!asset && tab === "auditoria" && <Audit status={status} />}
+          {!asset && tab === "seguranca" && (
+            <Security
+              status={status}
+              onChanged={onChanged}
+              onRestored={() => {
+                setTab("carteira");
+                setReport([{ source: "Backup", ok: true, message: "restaurado e conferido; os dados do backup já estão em uso" }]);
+                setRefresh((n) => n + 1);
+                onChanged();
+              }}
+            />
+          )}
+        </ErrorBoundary>
       </main>
     </div>
   );

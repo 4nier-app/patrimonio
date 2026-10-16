@@ -22,6 +22,17 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
     períodos de 5 dias, 1 mês, 6 meses, 1 ano, 5 anos e tudo.
   - Compras e vendas marcadas no gráfico e a linha do seu preço médio.
   - Resumo da posição e os lançamentos do ativo.
+  - Clique e arraste no gráfico para ver a variação entre dois pontos.
+  - Ao passar o mouse numa vela: abertura, máxima, mínima, fechamento,
+    variação, volume e o seu preço médio, em português.
+- Aba **Home broker**: busca qualquer ativo do catálogo (B3, EUA, cripto),
+  mesmo sem ter na carteira, com atalhos para os seus ativos e os vistos
+  recentemente.
+
+### Corrigido
+- Se uma tela falhar ao desenhar, o app mostra o erro e um botão para voltar,
+  em vez de deixar a janela em branco. O botão "voltar" do mouse fecha a
+  página do ativo.
 
 ## [0.7.0] - 2026-10-16
 

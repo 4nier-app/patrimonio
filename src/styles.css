@@ -383,3 +383,18 @@ tr.ops-group td { background: var(--bg); }
 .chart-empty { min-height: 200px; display: flex; align-items: center; justify-content: center; }
 .asset-link { cursor: pointer; }
 .asset-link:hover strong { text-decoration: underline; }
+.chart-wrap { position: relative; }
+.range-badge { position: absolute; top: 4px; right: 70px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 0.85rem; box-shadow: 0 2px 8px rgba(0,0,0,0.12); pointer-events: auto; display: flex; gap: 10px; align-items: center; }
+.range-badge strong { font-size: 1rem; }
+
+/* Home broker */
+.broker { display: flex; flex-direction: column; gap: 14px; }
+.broker-search { display: flex; flex-direction: column; gap: 6px; }
+.broker-search input { font-size: 1.05rem; padding: 10px 12px; }
+.broker-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; }
+.broker-item { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left; background: transparent; color: var(--text); border-radius: 6px; padding: 8px 10px; font-weight: 400; }
+.broker-item:hover, .broker-item:focus-visible { background: var(--border); }
+.broker-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-weight: 500; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip:hover { border-color: var(--accent); }
+.error-detail { white-space: pre-wrap; word-break: break-word; background: var(--border); padding: 8px 10px; border-radius: 6px; font-size: 0.85rem; }
