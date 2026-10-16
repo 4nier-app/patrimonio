@@ -321,7 +321,11 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
         await market.create(draft);
         setMessage("Lançamento incluído.");
       }
-      setForm({ ...EMPTY, account: form.account, date: form.date, fund: form.fund, priceDecimals: priceDecimals(currency) });
+      const next: Form = { ...EMPTY, account: form.account, date: form.date, fund: form.fund, priceDecimals: priceDecimals(currency) };
+      // Fundo: o extrato costuma ter várias linhas do mesmo fundo e operação,
+      // então a próxima inclusão já vem com fundo e operação preenchidos.
+      if (form.fund && !form.id) Object.assign(next, { asset: form.asset, side: form.side });
+      setForm(next);
       setReason("");
       load();
       onChanged();

@@ -22,6 +22,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Proventos não entram na rentabilidade, que mede só a variação de preço.
 - A página do ativo mostra os proventos recebidos dele.
 
+### Alterado
+- Fundos: depois de incluir um lançamento, o formulário mantém banco, data,
+  operação e fundo, para lançar a próxima linha do extrato só com cotas e
+  valores.
+
 ### Corrigido
 - IPCA: a atualização não mostra mais erro quando o Banco Central responde
   vazio ou fica fora do ar; o app tenta de novo e, com o último mês já
