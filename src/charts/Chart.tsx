@@ -126,15 +126,21 @@ export default function Chart({ option, height = 300, onSelect, ariaLabel, onRea
     ro.observe(ref.current);
     ready.current?.(c);
     return () => {
-      ready.current?.(null);
-      ro.disconnect();
-      c.dispose();
+      // Um erro ao desmontar derrubaria a janela inteira; o gráfico só some.
       chart.current = null;
+      try {
+        ready.current?.(null);
+        ro.disconnect();
+        if (!c.isDisposed()) c.dispose();
+      } catch (e) {
+        console.error("Falha ao fechar o gráfico:", e);
+      }
     };
   }, []);
 
   useEffect(() => {
-    chart.current?.setOption(option, true);
+    const c = chart.current;
+    if (c && !c.isDisposed()) c.setOption(option, true);
   }, [option]);
 
   return (

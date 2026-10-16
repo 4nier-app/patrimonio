@@ -177,7 +177,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       )}
 
       <main className="content">
-        <ErrorBoundary key={`${tab}|${asset ?? ""}`} onReset={() => (asset ? closeAsset() : setTab("painel"))}>
+        <ErrorBoundary resetKey={`${tab}|${asset ?? ""}`} onReset={() => (asset ? closeAsset() : setTab("painel"))}>
           {asset && (
             <AssetPage
               key={asset}

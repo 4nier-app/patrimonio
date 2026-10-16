@@ -33,6 +33,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Se uma tela falhar ao desenhar, o app mostra o erro e um botão para voltar,
   em vez de deixar a janela em branco. O botão "voltar" do mouse fecha a
   página do ativo.
+- Qualquer falha que escape das telas aparece numa faixa no rodapé com a
+  mensagem e um botão para recarregar; fechar o gráfico não derruba mais a
+  janela.
 
 ## [0.7.0] - 2026-10-16
 
