@@ -263,6 +263,7 @@ interface BrokerModule {
 - Alerta na abertura do app e na tela DARF quando houver imposto devido, com vencimento (último dia útil do mês seguinte) e memória de cálculo.
 - Ativos no exterior seguem a Lei 14.754/2023 (apuração anual na declaração, câmbio PTAX de venda), então geram relatório anual, não DARF mensal.
 - Regras ficam em tabela versionada por vigência. O app é ferramenta de apoio; o documento recomendará conferência com contador.
+- Implementado na 0.7.0 (`crates/core/src/tax.rs`): três grupos na B3 (comum 15% com isenção de ações até R$ 20 mil/mês; day trade 20%, casado por ativo, corretora e dia; FII 20%), prejuízo por grupo sem prazo, IRRF estimado (0,005% e 1%) abatido e levado adiante, DARF mínimo de R$ 10,00 acumulado, vencimento no último dia útil do mês seguinte (feriados bancários nacionais), exterior e cripto anuais pela PTAX de cada data e posição de Bens e Direitos em 31/12. DARFs pagos ficam em `darf_payments`, com evento no log.
 
 ## 11. Segurança
 - Primeiro uso: usuário cria a senha. O banco é criptografado com uma chave aleatória de 32 bytes, guardada em `cofre.json` duas vezes, cada uma cifrada (ChaCha20-Poly1305) com uma chave derivada por Argon2id: uma da senha e outra da **chave de recuperação**. Nem a senha, nem a chave de recuperação, nem a chave do banco em aberto ficam gravadas. (Até a 0.3.0 a chave do banco era o próprio Argon2id da senha; esses cofres são convertidos na primeira abertura, sem recriptografar.)

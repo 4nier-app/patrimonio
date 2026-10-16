@@ -266,3 +266,99 @@ export const dashboardApi = {
   load: () => invoke<DashboardView>("dashboard"),
   days: (year: number, month: number) => invoke<DaysView>("dashboard_days", { year, month }),
 };
+
+// ---------- impostos ----------
+
+export type TaxGroup = "COMUM" | "DAY_TRADE" | "FII";
+
+export type SaleLine = {
+  date: string;
+  account: string;
+  asset: string;
+  group: TaxGroup;
+  stock: boolean;
+  day_trade: boolean;
+  quantity: Dec;
+  gross: Dec;
+  net: Dec;
+  cost: Dec;
+  average_price: Dec;
+  result: Dec;
+};
+
+export type GroupMonth = {
+  group: TaxGroup;
+  result: Dec;
+  loss_before: Dec;
+  loss_used: Dec;
+  loss_after: Dec;
+  base: Dec;
+  rate: Dec;
+  tax: Dec;
+};
+
+export type DarfPayment = { month: string; paid_on: string; amount: Dec };
+
+export type DarfStatus = "PAGO" | "PENDENTE" | "ATRASADO" | "EM_ANDAMENTO" | "SEM_DARF";
+
+export type TaxMonth = {
+  month: string;
+  stock_sales: Dec;
+  exempt: boolean;
+  exempt_profit: Dec;
+  groups: GroupMonth[];
+  gross_tax: Dec;
+  irrf_month: Dec;
+  irrf_before: Dec;
+  irrf_used: Dec;
+  irrf_after: Dec;
+  small_before: Dec;
+  due: Dec;
+  darf: Dec;
+  small_after: Dec;
+  due_date: string;
+  sales: SaleLine[];
+  status: DarfStatus;
+  paid: DarfPayment | null;
+};
+
+export type ForeignSale = {
+  date: string;
+  account: string;
+  asset: string;
+  crypto: boolean;
+  quantity: Dec;
+  net_usd: Dec;
+  ptax: Dec;
+  net_brl: Dec;
+  cost_brl: Dec;
+  result_brl: Dec;
+};
+
+export type ForeignYear = {
+  year: number;
+  result: Dec;
+  loss_before: Dec;
+  loss_used: Dec;
+  loss_after: Dec;
+  base: Dec;
+  rate: Dec;
+  tax: Dec;
+  sales: ForeignSale[];
+};
+
+export type YearEndPosition = { asset: string; quantity: Dec; cost_brl: Dec; cost_usd: Dec | null };
+
+export type TaxView = {
+  months: TaxMonth[];
+  annual: { foreign: ForeignYear[]; positions: Record<string, YearEndPosition[]>; warnings: string[] };
+  names: Record<string, string>;
+  warnings: string[];
+  darf_code: string;
+};
+
+export const taxApi = {
+  load: () => invoke<TaxView>("taxes"),
+  markPaid: (payment: DarfPayment) => invoke<void>("mark_darf_paid", { payment }),
+  unmarkPaid: (month: string) => invoke<void>("unmark_darf_paid", { month }),
+};

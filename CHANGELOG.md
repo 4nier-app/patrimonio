@@ -6,7 +6,32 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.6.0] - Não lançada
+## [0.7.0] - Não lançada
+
+### Adicionado
+- Aba **Impostos**, com o imposto de renda calculado a partir dos lançamentos:
+  - **B3, apuração mensal**: operações comuns (15%, com a isenção de vendas
+    de ações até R$ 20 mil no mês), **day trade** (20%, compra e venda do
+    mesmo ativo na mesma corretora e no mesmo dia, na quantidade casada) e
+    FIIs (20%). Custo pelo preço médio de todas as compras, com as taxas.
+  - Prejuízo compensado nos meses seguintes, dentro do mesmo grupo.
+  - IRRF estimado (0,005% das vendas comuns e 1% do lucro de day trade)
+    abatido do imposto; o que sobra passa para os meses seguintes.
+  - **DARF** (código 6015) com valor e vencimento no último dia útil do mês
+    seguinte; abaixo de R$ 10,00 o valor soma ao mês seguinte. Botão para
+    marcar como pago, registrado na Auditoria.
+  - Memória de cálculo de cada mês, com cada venda.
+  - **Exterior e criptomoedas, apuração anual** (Lei 14.754/2023): 15% sobre
+    o ganho do ano em reais, cada operação pela PTAX da sua data.
+  - **Bens e Direitos em 31/12** de cada ano: quantidade e custo de
+    aquisição (em reais e, no exterior, também em dólar).
+- Aviso no topo do aplicativo quando há DARF a pagar ou atrasado.
+
+### Corrigido
+- Criptomoedas voltaram a aparecer como "Criptomoedas" no Painel depois da
+  mudança para dólar.
+
+## [0.6.0] - 2026-10-16
 
 ### Adicionado
 - Aba **Importar notas**: escolha um ou mais PDFs e o aplicativo lê as notas,
