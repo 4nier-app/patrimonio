@@ -413,6 +413,21 @@ fn remove_operations(ids: Vec<String>, state: State<AppState>) -> Result<usize, 
 }
 
 #[tauri::command]
+fn restore_operations(ids: Vec<String>, state: State<AppState>) -> Result<usize, String> {
+    with_vault(&state, |v| v.restore_operations(&ids))
+}
+
+#[tauri::command]
+fn restore_income(id: String, state: State<AppState>) -> Result<Income, String> {
+    with_vault(&state, |v| v.restore_income(&id))
+}
+
+#[tauri::command]
+fn restore_event(id: String, state: State<AppState>) -> Result<CorporateEvent, String> {
+    with_vault(&state, |v| v.restore_event(&id))
+}
+
+#[tauri::command]
 fn corporate_events(state: State<AppState>) -> Result<views::EventsView, String> {
     with_vault_str(&state, |v| views::corporate_events(v))
 }
@@ -581,7 +596,21 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        // A janela abre do jeito que foi fechada (tamanho, posição, maximizada).
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
+            // Na primeira vez, sem tamanho guardado, abre maximizada: o app tem
+            // muitas tabelas e gráficos.
+            let saved = app
+                .path()
+                .app_config_dir()
+                .map(|d| d.join(tauri_plugin_window_state::DEFAULT_FILENAME).exists())
+                .unwrap_or(false);
+            if !saved {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.maximize();
+                }
+            }
             let data_dir = app.path().app_data_dir()?;
             app.manage(AppState {
                 data_dir,
@@ -611,6 +640,9 @@ pub fn run() {
             update_operation,
             remove_operation,
             remove_operations,
+            restore_operations,
+            restore_income,
+            restore_event,
             corporate_events,
             preview_event,
             create_event,

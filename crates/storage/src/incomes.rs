@@ -151,6 +151,31 @@ impl Vault {
         Ok(())
     }
 
+    /// Desfaz a remoção (o botão "Desfazer" logo depois de remover). Na
+    /// Auditoria, entra como criação com o motivo "remoção desfeita".
+    pub fn restore_income(&mut self, id: &str) -> Result<Income> {
+        let item = self
+            .conn
+            .query_row(
+                &format!("{SELECT} WHERE id = ?1 AND removed_at IS NOT NULL"),
+                [id],
+                row_to_income,
+            )
+            .optional()?
+            .ok_or_else(|| bad("registro removido não encontrado"))?;
+        self.conn
+            .execute("UPDATE incomes SET removed_at = NULL WHERE id = ?1", [id])?;
+        self.append_event(
+            "PROVENTO",
+            id,
+            Action::Criada,
+            None,
+            Some(&income_json(&item)),
+            Some("remoção desfeita"),
+        )?;
+        Ok(item)
+    }
+
     /// Proventos ativos, do pagamento mais antigo para o mais recente.
     pub fn list_incomes(&self) -> Result<Vec<Income>> {
         let mut stmt = self.conn.prepare(&format!(
@@ -223,6 +248,11 @@ mod tests {
 
         v.remove_income(&saved.id, None).unwrap();
         assert!(v.list_incomes().unwrap().is_empty());
+        // Desfazer devolve o provento; um segundo desfazer não acha nada.
+        v.restore_income(&saved.id).unwrap();
+        assert_eq!(v.list_incomes().unwrap().len(), 1);
+        assert!(v.restore_income(&saved.id).is_err());
+        v.remove_income(&saved.id, None).unwrap();
         let events = v.list_events(50, 0).unwrap();
         let mut kinds: Vec<_> = events
             .iter()
@@ -232,7 +262,13 @@ mod tests {
         kinds.reverse();
         assert_eq!(
             kinds,
-            vec![Action::Criada, Action::Alterada, Action::Removida]
+            vec![
+                Action::Criada,
+                Action::Alterada,
+                Action::Removida,
+                Action::Criada,
+                Action::Removida
+            ]
         );
         assert!(v.verify_integrity().unwrap().ok);
     }

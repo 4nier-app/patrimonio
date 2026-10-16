@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Intro from "../components/Intro";
+import { offerUndo } from "../undo";
 import { errorMessage, eventsApi, type CorporateEvent, type EventKind, type EventRow, type EventsView } from "../api";
 import CashInput from "../components/CashInput";
 import { date, money, parseDecimalInput, quantity, toCashMask } from "../format";
@@ -67,7 +68,6 @@ export default function Events({ onChanged }: { onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState<string | null>(null);
 
   function load() {
     eventsApi
@@ -149,12 +149,16 @@ export default function Events({ onChanged }: { onChanged: () => void }) {
   }
 
   async function remove(id: string) {
-    setConfirm(null);
     try {
       await eventsApi.remove(id);
       if (form.id === id) setForm(EMPTY);
       load();
       onChanged();
+      offerUndo("Evento removido.", async () => {
+        await eventsApi.restore(id);
+        load();
+        onChanged();
+      });
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -400,20 +404,9 @@ export default function Events({ onChanged }: { onChanged: () => void }) {
                     <button type="button" className="link" onClick={() => edit(r)}>
                       Alterar
                     </button>
-                    {confirm === r.event.id ? (
-                      <>
-                        <button type="button" className="link danger" onClick={() => remove(r.event.id)}>
-                          Confirmar remoção
-                        </button>
-                        <button type="button" className="link" onClick={() => setConfirm(null)}>
-                          Cancelar
-                        </button>
-                      </>
-                    ) : (
-                      <button type="button" className="link subtle" onClick={() => setConfirm(r.event.id)}>
-                        Remover
-                      </button>
-                    )}
+                    <button type="button" className="link subtle" onClick={() => remove(r.event.id)}>
+                      Remover
+                    </button>
                   </td>
                 </tr>
               ))}

@@ -3,6 +3,7 @@ import { api, errorMessage, market, taxApi, type TaxView, type UpdateLine, type 
 import { date, money } from "../format";
 import Logo from "../components/Logo";
 import ErrorBoundary from "../components/ErrorBoundary";
+import UndoToast from "../components/UndoToast";
 import AssetPage from "./AssetPage";
 import Audit from "./Audit";
 import Incomes from "./Incomes";
@@ -14,6 +15,7 @@ import Portfolio from "./Portfolio";
 import Returns from "./Returns";
 import Security from "./Security";
 import Taxes, { pendingDarfs } from "./Taxes";
+import { setThemePref, themePref, type ThemePref } from "../theme";
 
 // A leitura de PDF (pdf.js) só carrega quando a aba é aberta.
 const ImportNotes = lazy(() => import("./ImportNotes"));
@@ -83,6 +85,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
   }
   const sections = tab in SECTIONS ? SECTIONS[tab as keyof typeof SECTIONS] : null;
   const current = section[tab];
+  const [theme, setTheme] = useState<ThemePref>(themePref);
   const [updating, setUpdating] = useState(false);
   const [report, setReport] = useState<UpdateLine[] | null>(null);
   // Muda a cada atualização de cotações para as telas recarregarem.
@@ -144,6 +147,21 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         <div className="topbar-row">
           <Logo />
           <div className="topbar-actions">
+            <select
+              className="theme-pick"
+              aria-label="Tema"
+              title="Tema do aplicativo"
+              value={theme}
+              onChange={(e) => {
+                const t = e.target.value as ThemePref;
+                setTheme(t);
+                setThemePref(t);
+              }}
+            >
+              <option value="auto">◐ Tema automático</option>
+              <option value="light">☀ Tema claro</option>
+              <option value="dark">☾ Tema escuro</option>
+            </select>
             <button className="secondary" onClick={updateQuotes} disabled={updating} title="As cotações já são atualizadas ao abrir e depois de cada lançamento; use para buscar de novo agora">
               {updating ? "Atualizando…" : "↻ Atualizar cotações"}
             </button>
@@ -208,7 +226,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               onLoaded={(d) => rememberAsset(d.ticker, d.name)}
             />
           )}
-          {!asset && tab === "painel" && <Dashboard refresh={refresh} />}
+          {!asset && tab === "painel" && <Dashboard refresh={refresh} go={setTab} hasRecovery={status.has_recovery_key} />}
           {!asset && tab === "carteira" && <Portfolio refresh={refresh} onOpen={openAsset} />}
           {!asset && tab === "homebroker" && <Broker refresh={refresh} onOpen={openAsset} />}
           {!asset && sections && (
@@ -251,6 +269,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           )}
         </ErrorBoundary>
       </main>
+      <UndoToast />
     </div>
   );
 }

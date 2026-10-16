@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Intro from "../components/Intro";
+import { offerUndo } from "../undo";
 import {
   errorMessage,
   market,
@@ -376,7 +377,12 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
     try {
       await market.remove(id);
       setRemoving(null);
-      setMessage("Lançamento removido. Ele continua visível na Auditoria.");
+      setMessage(null);
+      offerUndo("Lançamento removido.", async () => {
+        await market.restore([id]);
+        load();
+        onChanged();
+      });
       if (form.id === id) setForm(EMPTY);
       load();
       onChanged();
@@ -394,7 +400,12 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
     try {
       const n = await market.removeMany(ids);
       setRemoving(null);
-      setMessage(`${n} lançamentos removidos. Eles continuam visíveis na Auditoria.`);
+      setMessage(null);
+      offerUndo(`${n} lançamentos removidos.`, async () => {
+        await market.restore(ids);
+        load();
+        onChanged();
+      });
       if (ids.includes(form.id)) setForm(EMPTY);
       load();
       onChanged();
@@ -476,7 +487,10 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             <button className="link" onClick={() => edit(p)}>
               Alterar
             </button>
-            <button className="link subtle" onClick={() => setRemoving(p.operation.id)}>
+            <button
+              className="link subtle"
+              onClick={() => (noteOf(p.operation).length > 1 ? setRemoving(p.operation.id) : void confirmRemove(p.operation.id))}
+            >
               Remover
             </button>
           </td>
@@ -485,9 +499,9 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
           <tr className="detail">
             <td colSpan={9}>
               <div className="remove-box">
-                <span>Remover este lançamento?</span>
+                <span>Este dia tem {noteOf(p.operation).length} lançamentos nesta conta.</span>
                 <button autoFocus onClick={() => confirmRemove(p.operation.id)}>
-                  {noteOf(p.operation).length > 1 ? "Remover só este" : "Confirmar remoção"}
+                  Remover só este
                 </button>
                 {noteOf(p.operation).length > 1 && (
                   <button className="danger" onClick={() => confirmRemoveNote(p.operation)}>

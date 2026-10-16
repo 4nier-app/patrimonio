@@ -138,6 +138,33 @@ impl Vault {
         Ok(())
     }
 
+    /// Desfaz a remoção (o botão "Desfazer" logo depois de remover). Na
+    /// Auditoria, entra como criação com o motivo "remoção desfeita".
+    pub fn restore_event(&mut self, id: &str) -> Result<CorporateEvent> {
+        let item = self
+            .conn
+            .query_row(
+                &format!("{SELECT} WHERE id = ?1 AND removed_at IS NOT NULL"),
+                [id],
+                row_to_event,
+            )
+            .optional()?
+            .ok_or_else(|| bad("registro removido não encontrado"))?;
+        self.conn.execute(
+            "UPDATE corporate_events SET removed_at = NULL WHERE id = ?1",
+            [id],
+        )?;
+        self.append_event(
+            "EVENTO",
+            id,
+            Action::Criada,
+            None,
+            Some(&event_json(&item)),
+            Some("remoção desfeita"),
+        )?;
+        Ok(item)
+    }
+
     /// Eventos ativos, do mais antigo para o mais recente.
     pub fn list_corporate_events(&self) -> Result<Vec<CorporateEvent>> {
         let mut stmt = self.conn.prepare(&format!(

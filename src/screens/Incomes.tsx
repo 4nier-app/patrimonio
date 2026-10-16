@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Intro from "../components/Intro";
+import { offerUndo } from "../undo";
 import type { EChartsCoreOption } from "echarts/core";
 import {
   errorMessage,
@@ -91,7 +92,6 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [year, setYear] = useState<number | null>(null);
-  const [confirm, setConfirm] = useState<string | null>(null);
 
   function load() {
     incomesApi
@@ -195,12 +195,16 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
   }
 
   async function remove(id: string) {
-    setConfirm(null);
     try {
       await incomesApi.remove(id);
       if (form.id === id) setForm(EMPTY);
       load();
       onChanged();
+      offerUndo("Provento removido.", async () => {
+        await incomesApi.restore(id);
+        load();
+        onChanged();
+      });
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -539,20 +543,9 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
                             <button type="button" className="link" onClick={() => edit(i)}>
                               Alterar
                             </button>
-                            {confirm === i.id ? (
-                              <>
-                                <button type="button" className="link danger" onClick={() => remove(i.id)}>
-                                  Confirmar remoção
-                                </button>
-                                <button type="button" className="link" onClick={() => setConfirm(null)}>
-                                  Cancelar
-                                </button>
-                              </>
-                            ) : (
-                              <button type="button" className="link subtle" onClick={() => setConfirm(i.id)}>
-                                Remover
-                              </button>
-                            )}
+                            <button type="button" className="link subtle" onClick={() => remove(i.id)}>
+                              Remover
+                            </button>
                           </td>
                         </tr>
                       );

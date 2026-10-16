@@ -205,6 +205,7 @@ export const market = {
   update: (operation: Operation, reason: string) => invoke<Operation>("update_operation", { operation, reason }),
   remove: (id: string) => invoke<void>("remove_operation", { id, reason: null }),
   removeMany: (ids: string[]) => invoke<number>("remove_operations", { ids }),
+  restore: (ids: string[]) => invoke<number>("restore_operations", { ids }),
   portfolio: () => invoke<PortfolioView>("portfolio"),
   returns: () => invoke<ReturnsView>("returns_report"),
   updateQuotes: () => invoke<UpdateLine[]>("update_quotes"),
@@ -475,6 +476,7 @@ export const eventsApi = {
   create: (event: CorporateEvent) => invoke<CorporateEvent>("create_event", { event }),
   update: (event: CorporateEvent) => invoke<CorporateEvent>("update_event", { event, reason: null }),
   remove: (id: string) => invoke<void>("remove_event", { id }),
+  restore: (id: string) => invoke<CorporateEvent>("restore_event", { id }),
 };
 
 export const incomesApi = {
@@ -482,4 +484,5 @@ export const incomesApi = {
   create: (income: Income) => invoke<Income>("create_income", { income }),
   update: (income: Income, reason: string) => invoke<Income>("update_income", { income, reason }),
   remove: (id: string) => invoke<void>("remove_income", { id, reason: null }),
+  restore: (id: string) => invoke<Income>("restore_income", { id }),
 };

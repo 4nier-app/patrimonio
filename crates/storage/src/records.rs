@@ -633,6 +633,39 @@ impl Vault {
         Ok(ids.len())
     }
 
+    /// Desfaz a remoção de lançamentos (o botão "Desfazer" logo depois de
+    /// remover). Cada um ganha seu registro na Auditoria.
+    pub fn restore_operations(&mut self, ids: &[String]) -> Result<usize> {
+        let mut restored = Vec::new();
+        for id in ids {
+            let op = self
+                .conn
+                .query_row(
+                    &format!("{SELECT_OP} WHERE o.id = ?1 AND o.removed_at IS NOT NULL"),
+                    [id],
+                    row_to_op,
+                )
+                .optional()?
+                .ok_or_else(|| bad("lançamento removido não encontrado"))?;
+            restored.push(op);
+        }
+        for op in &restored {
+            self.conn.execute(
+                "UPDATE operations SET removed_at = NULL WHERE id = ?1",
+                [&op.id],
+            )?;
+            self.append_event(
+                "OPERACAO",
+                &op.id,
+                Action::Criada,
+                None,
+                Some(&op_json(op)),
+                Some("remoção desfeita"),
+            )?;
+        }
+        Ok(restored.len())
+    }
+
     /// Lançamentos ativos, do mais antigo para o mais recente.
     pub fn list_operations(&self) -> Result<Vec<Operation>> {
         let mut stmt = self.conn.prepare(&format!(

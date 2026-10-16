@@ -29,6 +29,16 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   rentabilidade e impostos passam a considerar o evento.
 
 ### Alterado
+- Seletor de tema no topo: automático (segue o Windows), claro ou escuro.
+- A janela abre maximizada na primeira vez e, depois, do jeito que foi
+  fechada (tamanho, posição e maximizada).
+- Remover lançamento, provento ou evento não pede mais confirmação: aparece
+  por alguns segundos o aviso "Removido · Desfazer". Desfazer devolve o
+  registro como estava e fica na Auditoria como criação com o motivo
+  "remoção desfeita". Remover todos os lançamentos de um dia continua
+  pedindo confirmação.
+- Cofre vazio: o Painel mostra os primeiros passos (importar notas ou lançar
+  à mão, conferir a Carteira, acompanhar o Painel).
 - Revisão de usabilidade: cada tela abre com uma frase curta e os detalhes
   ficam em "Saiba mais"; "Remover" fica discreto em todas as listas (o
   vermelho só aparece ao passar o mouse e na confirmação); "Atualizar
