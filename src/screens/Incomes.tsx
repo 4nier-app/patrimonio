@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import Intro from "../components/Intro";
 import type { EChartsCoreOption } from "echarts/core";
 import {
   errorMessage,
@@ -272,10 +273,16 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       <div className="section-head">
         <div>
           <h2>Proventos</h2>
-          <p className="muted">
-            Dividendos, JCP, rendimentos de FIIs e juros que caíram na conta. Eles ficam somados aqui e não entram na rentabilidade, que mede só a variação de preço.
-            No exterior, os valores em dólar são convertidos pela PTAX do dia do pagamento.
-          </p>
+          <Intro
+            more={
+              <>
+                Os proventos ficam somados aqui e não entram na rentabilidade, que mede só a variação de preço. No exterior, os valores em dólar são
+                convertidos pela PTAX do dia do pagamento.
+              </>
+            }
+          >
+            Dividendos, JCP, rendimentos de FIIs e juros que caíram na conta.
+          </Intro>
         </div>
       </div>
 
@@ -542,7 +549,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
                                 </button>
                               </>
                             ) : (
-                              <button type="button" className="link" onClick={() => setConfirm(i.id)}>
+                              <button type="button" className="link subtle" onClick={() => setConfirm(i.id)}>
                                 Remover
                               </button>
                             )}

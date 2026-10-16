@@ -72,6 +72,8 @@ export function usePalette(): Palette {
 export function base(p: Palette): EChartsCoreOption {
   return {
     textStyle: { fontFamily: "inherit", color: p.muted },
+    // Quem pediu ao sistema menos movimento não vê os gráficos animando.
+    animation: !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
     grid: { left: 8, right: 16, top: 40, bottom: 8, containLabel: true },
     tooltip: {
       backgroundColor: p.surface,

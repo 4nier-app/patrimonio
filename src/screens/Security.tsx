@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import Intro from "../components/Intro";
 import { api, errorMessage, type BackupInfo, type BackupStatus, type RecoveryStatus, type VaultStatus } from "../api";
 import { date, formatDateTime } from "../format";
 import PasswordInput from "../components/PasswordInput";
@@ -13,10 +14,9 @@ export default function Security({ status, onRestored, onChanged }: Props) {
   return (
     <section>
       <h2>Segurança</h2>
-      <p className="muted">
-        Seus dados ficam criptografados (SQLCipher, AES-256) na pasta abaixo. A chave do banco é protegida pela sua senha
-        (Argon2id) e, se você quiser, também por uma chave de recuperação. Nenhuma das duas é gravada.
-      </p>
+      <Intro more="Criptografia SQLCipher (AES-256). A chave do banco é protegida pela sua senha (Argon2id) e, se você quiser, também por uma chave de recuperação. Nenhuma das duas é gravada.">
+        Seus dados ficam criptografados nesta pasta do computador.
+      </Intro>
       <p className="mono path">{status.data_dir}</p>
 
       <div className="security-grid">

@@ -29,6 +29,13 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   rentabilidade e impostos passam a considerar o evento.
 
 ### Alterado
+- Revisão de usabilidade: cada tela abre com uma frase curta e os detalhes
+  ficam em "Saiba mais"; "Remover" fica discreto em todas as listas (o
+  vermelho só aparece ao passar o mouse e na confirmação); "Atualizar
+  cotações" deixou de ser o botão mais chamativo, já que a atualização é
+  automática; os ativos da Carteira mostram "›" e abrem também pelo teclado
+  (Tab e Enter); foco visível ao navegar pelo teclado; gráficos sem animação
+  para quem pediu ao Windows menos movimento.
 - Menu principal mais enxuto: **Importar notas** e **Eventos** ficam dentro
   de Lançamentos, e **Auditoria** dentro de Segurança.
 - Lançamentos e proventos: depois de incluir, o formulário mantém conta,

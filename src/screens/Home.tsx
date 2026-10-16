@@ -144,7 +144,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         <div className="topbar-row">
           <Logo />
           <div className="topbar-actions">
-            <button onClick={updateQuotes} disabled={updating} title="Busca os preços mais recentes na B3 e no Yahoo">
+            <button className="secondary" onClick={updateQuotes} disabled={updating} title="As cotações já são atualizadas ao abrir e depois de cada lançamento; use para buscar de novo agora">
               {updating ? "Atualizando…" : "↻ Atualizar cotações"}
             </button>
             <button className="secondary" onClick={lock}>

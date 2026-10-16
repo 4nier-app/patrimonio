@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Intro from "../components/Intro";
 import { errorMessage, eventsApi, type CorporateEvent, type EventKind, type EventRow, type EventsView } from "../api";
 import CashInput from "../components/CashInput";
 import { date, money, parseDecimalInput, quantity, toCashMask } from "../format";
@@ -176,10 +177,9 @@ export default function Events({ onChanged }: { onChanged: () => void }) {
       <div className="section-head">
         <div>
           <h2>Eventos</h2>
-          <p className="muted">
-            Quando a empresa muda a quantidade de ações de todo mundo (bonificação, desdobramento ou grupamento), lance aqui uma vez. O aplicativo ajusta a
-            quantidade e o preço médio em todas as contas que tinham o ativo na data com.
-          </p>
+          <Intro more="O aplicativo ajusta a quantidade e o preço médio em todas as contas que tinham o ativo no fim da data com. Remover o evento desfaz o ajuste.">
+            Bonificação, desdobramento ou grupamento: lance uma vez por anúncio da empresa.
+          </Intro>
         </div>
       </div>
 
@@ -410,7 +410,7 @@ export default function Events({ onChanged }: { onChanged: () => void }) {
                         </button>
                       </>
                     ) : (
-                      <button type="button" className="link" onClick={() => setConfirm(r.event.id)}>
+                      <button type="button" className="link subtle" onClick={() => setConfirm(r.event.id)}>
                         Remover
                       </button>
                     )}

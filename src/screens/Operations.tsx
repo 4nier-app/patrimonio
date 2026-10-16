@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import Intro from "../components/Intro";
 import {
   errorMessage,
   market,
@@ -475,7 +476,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             <button className="link" onClick={() => edit(p)}>
               Alterar
             </button>
-            <button className="link danger" onClick={() => setRemoving(p.operation.id)}>
+            <button className="link subtle" onClick={() => setRemoving(p.operation.id)}>
               Remover
             </button>
           </td>
@@ -516,12 +517,17 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
       <div className="section-head">
         <div>
           <h2>Lançamentos</h2>
-          <p className="muted">
-            Compras e vendas na B3 e no exterior. Na B3, as taxas (liquidação, emolumentos e transferência) são
-            calculadas sobre o total da nota, ou seja, de todos os lançamentos da mesma corretora no mesmo dia, e
-            divididas entre eles. Se a nota trouxer outro valor, informe a taxa à mão. No exterior os valores são em
-            dólar e a conversão para reais usa a PTAX do Banco Central. Fundos de investimento são lançados pelo extrato do banco, em cotas.
-          </p>
+          <Intro
+            more={
+              <>
+                Na B3, as taxas (liquidação, emolumentos e transferência) são calculadas sobre o total da nota, ou seja, de todos os lançamentos da
+                mesma corretora no mesmo dia, e divididas entre eles. Se a nota trouxer outro valor, informe a taxa à mão. No exterior os valores são em
+                dólar e a conversão para reais usa a PTAX do Banco Central. Fundos de investimento são lançados pelo extrato do banco, em cotas.
+              </>
+            }
+          >
+            Compras e vendas na B3, no exterior, em cripto e em fundos. As taxas da B3 são calculadas sozinhas.
+          </Intro>
         </div>
       </div>
 
