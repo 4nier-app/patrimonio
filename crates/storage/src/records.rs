@@ -491,6 +491,20 @@ impl Vault {
         Ok(())
     }
 
+    /// Remove vários lançamentos de uma vez (uma nota inteira), cada um com
+    /// seu registro na Auditoria. Confere todos antes de remover qualquer um.
+    pub fn remove_operations(&mut self, ids: &[String]) -> Result<usize> {
+        for id in ids {
+            if self.get_operation(id)?.is_none() {
+                return Err(bad("lançamento não encontrado"));
+            }
+        }
+        for id in ids {
+            self.remove_operation(id, Some("nota removida inteira"))?;
+        }
+        Ok(ids.len())
+    }
+
     /// Lançamentos ativos, do mais antigo para o mais recente.
     pub fn list_operations(&self) -> Result<Vec<Operation>> {
         let mut stmt = self.conn.prepare(&format!(
@@ -900,6 +914,7 @@ mod tests {
 
         v.remove_operation(&op.id, Some("lançamento duplicado"))
             .unwrap();
+        assert!(v.remove_operations(&["nao-existe".into()]).is_err());
         assert!(v.list_operations().unwrap().is_empty());
 
         let events = v.list_events(10, 0).unwrap();

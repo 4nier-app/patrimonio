@@ -83,6 +83,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Código do mercado fracionário da B3 (ABCD3F, como aparece nas notas) é
   gravado como o do lote padrão (ABCD3): mesmo ativo, cotação e preço médio.
 - Remover um lançamento não pede mais motivo: basta confirmar.
+- Remover a nota inteira de uma vez: ao remover um lançamento, o botão
+  "Remover a nota inteira" tira todos os lançamentos da mesma conta e do mesmo
+  dia.
 
 
 ## [0.4.0] - Não lançada

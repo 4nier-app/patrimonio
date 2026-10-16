@@ -192,6 +192,7 @@ export const market = {
   create: (operation: Operation) => invoke<Operation>("create_operation", { operation }),
   update: (operation: Operation, reason: string) => invoke<Operation>("update_operation", { operation, reason }),
   remove: (id: string) => invoke<void>("remove_operation", { id, reason: null }),
+  removeMany: (ids: string[]) => invoke<number>("remove_operations", { ids }),
   portfolio: () => invoke<PortfolioView>("portfolio"),
   returns: () => invoke<ReturnsView>("returns_report"),
   updateQuotes: () => invoke<UpdateLine[]>("update_quotes"),

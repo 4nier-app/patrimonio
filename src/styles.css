@@ -317,3 +317,4 @@ button.ret-month:hover { border-color: var(--accent); filter: none; }
 .returns-page .section-head .segmented { width: auto; min-width: 0; align-self: flex-start; }
 .ret-table th { white-space: normal; }
 @media (max-width: 560px) { .ret-head { gap: 12px; } .ret-head h3 { flex-basis: 100%; } .ret-total { align-items: flex-start; padding-left: 0; } }
+button.danger { background: var(--error); color: #fff; }

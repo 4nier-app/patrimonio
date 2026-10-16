@@ -344,6 +344,11 @@ fn remove_operation(
 }
 
 #[tauri::command]
+fn remove_operations(ids: Vec<String>, state: State<AppState>) -> Result<usize, String> {
+    with_vault(&state, |v| v.remove_operations(&ids))
+}
+
+#[tauri::command]
 fn note_status(hashes: Vec<String>, state: State<AppState>) -> Result<Vec<NoteStatus>, String> {
     with_vault(&state, |v| {
         hashes.iter().map(|h| v.note_status(h)).collect()
@@ -454,6 +459,7 @@ pub fn run() {
             create_operation,
             update_operation,
             remove_operation,
+            remove_operations,
             portfolio,
             returns_report,
             dashboard,

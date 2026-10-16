@@ -302,6 +302,23 @@ export default function Operations() {
     }
   }
 
+  /** Mesma nota: mesma conta e mesmo dia. */
+  const noteOf = (o: Operation) => list.filter((x) => x.operation.account === o.account && x.operation.date === o.date);
+
+  async function confirmRemoveNote(o: Operation) {
+    setError(null);
+    const ids = noteOf(o).map((x) => x.operation.id);
+    try {
+      const n = await market.removeMany(ids);
+      setRemoving(null);
+      setMessage(`Nota removida: ${n} lançamentos. Eles continuam visíveis na Auditoria.`);
+      if (ids.includes(form.id)) setForm(EMPTY);
+      load();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
   const total =
     preview && !preview.valid && !transfer
       ? form.side === "COMPRA"
@@ -566,8 +583,14 @@ export default function Operations() {
                       <div className="remove-box">
                         <span>Remover este lançamento?</span>
                         <button autoFocus onClick={() => confirmRemove(p.operation.id)}>
-                          Confirmar remoção
+                          {noteOf(p.operation).length > 1 ? "Remover só este" : "Confirmar remoção"}
                         </button>
+                        {noteOf(p.operation).length > 1 && (
+                          <button className="danger" onClick={() => confirmRemoveNote(p.operation)}>
+                            Remover a nota inteira ({noteOf(p.operation).length} lançamentos de {date(p.operation.date)} em{" "}
+                            {p.operation.account})
+                          </button>
+                        )}
                         <button className="secondary" onClick={() => setRemoving(null)}>
                           Cancelar
                         </button>
