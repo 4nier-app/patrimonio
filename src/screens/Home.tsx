@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api, errorMessage, market, type UpdateLine, type VaultStatus } from "../api";
 import Logo from "../components/Logo";
 import Audit from "./Audit";
@@ -37,14 +37,29 @@ export default function Home({ status, onLocked, onChanged }: Props) {
     onLocked();
   }
 
+  // Um pedido durante uma atualização roda de novo quando ela terminar.
+  const running = useRef(false);
+  const again = useRef(false);
+
   async function updateQuotes() {
+    if (running.current) {
+      again.current = true;
+      return;
+    }
+    running.current = true;
     setUpdating(true);
     setReport(null);
     try {
-      setReport(await market.updateQuotes());
-    } catch (e) {
-      setReport([{ source: "Cotações", ok: false, message: errorMessage(e) }]);
+      do {
+        again.current = false;
+        try {
+          setReport(await market.updateQuotes());
+        } catch (e) {
+          setReport([{ source: "Cotações", ok: false, message: errorMessage(e) }]);
+        }
+      } while (again.current);
     } finally {
+      running.current = false;
       setUpdating(false);
       setRefresh((n) => n + 1);
     }
@@ -106,10 +121,10 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       <main className="content">
         {tab === "painel" && <Dashboard refresh={refresh} />}
         {tab === "carteira" && <Portfolio refresh={refresh} />}
-        {tab === "lancamentos" && <Operations />}
+        {tab === "lancamentos" && <Operations onChanged={() => void updateQuotes()} />}
         {tab === "importar" && (
           <Suspense fallback={<p className="muted">Carregando…</p>}>
-            <ImportNotes onImported={() => setRefresh((r) => r + 1)} />
+            <ImportNotes onImported={() => void updateQuotes()} />
           </Suspense>
         )}
         {tab === "rentabilidade" && <Returns key={refresh} />}

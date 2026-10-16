@@ -86,6 +86,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Remover a nota inteira de uma vez: ao remover um lançamento, o botão
   "Remover a nota inteira" tira todos os lançamentos da mesma conta e do mesmo
   dia.
+- Depois de incluir, alterar, remover ou importar lançamentos, as cotações são
+  atualizadas sozinhas.
 
 
 ## [0.4.0] - Não lançada

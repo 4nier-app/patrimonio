@@ -173,7 +173,8 @@ function toOperation(f: Form, currency: Currency): Operation | string {
   };
 }
 
-export default function Operations() {
+/** `onChanged`: chamado depois de incluir, alterar ou remover, para atualizar as cotações. */
+export default function Operations({ onChanged }: { onChanged: () => void }) {
   const [list, setList] = useState<PricedOperation[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [suggestions, setSuggestions] = useState<Asset[]>([]);
@@ -260,6 +261,7 @@ export default function Operations() {
       setForm({ ...EMPTY, account: form.account, date: form.date, priceDecimals: priceDecimals(currency) });
       setReason("");
       load();
+      onChanged();
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -297,6 +299,7 @@ export default function Operations() {
       setMessage("Lançamento removido. Ele continua visível na Auditoria.");
       if (form.id === id) setForm(EMPTY);
       load();
+      onChanged();
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -314,6 +317,7 @@ export default function Operations() {
       setMessage(`Nota removida: ${n} lançamentos. Eles continuam visíveis na Auditoria.`);
       if (ids.includes(form.id)) setForm(EMPTY);
       load();
+      onChanged();
     } catch (err) {
       setError(errorMessage(err));
     }
