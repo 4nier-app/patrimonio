@@ -326,3 +326,43 @@ button.danger:not(.link) { background: var(--error); color: #fff; }
 .ops-filters .muted { margin-left: auto; }
 .ret-pick { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; min-width: 160px; }
 tr.ops-group td { background: var(--bg); }
+
+/* Impostos */
+.banner.overdue { color: var(--error); font-weight: 600; }
+.taxes-page .section-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.taxes-page .section-head > div { flex: 1; min-width: 240px; }
+.tax-alert { margin: 0 0 16px; }
+.tax-warnings { color: var(--warning-text); background: var(--warning-bg); border-radius: 8px; padding: 8px 8px 8px 28px; margin: 0 0 16px; }
+.tax-month { margin-bottom: 12px; padding: 16px; border-left: 4px solid var(--border); }
+.tax-month.ok { border-left-color: var(--ok); }
+.tax-month.warn { border-left-color: var(--warning-text); }
+.tax-month.bad { border-left-color: var(--error); }
+.tax-month-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tax-month-title { font-size: 1rem; font-weight: 600; color: var(--text); padding: 0; }
+.tax-status { font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--bg); color: var(--muted); }
+.tax-status.ok { color: var(--ok); }
+.tax-status.warn { color: var(--warning-text); background: var(--warning-bg); }
+.tax-status.bad { color: var(--error); }
+.tax-month-value { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+.tax-paid { margin: 8px 0 0; color: var(--ok); }
+.tax-month > button.small-btn { margin-top: 10px; padding: 4px 12px; font-size: 0.85rem; }
+.tax-pay { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 10px; }
+.tax-pay label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.tax-pay input { width: 160px; }
+.tax-detail { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.tax-detail p { margin: 0 0 8px; }
+.tax-group h4, .tax-sales h4 { margin: 12px 0 6px; font-size: 0.9rem; }
+.tax-group dl, .tax-total { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; margin: 0; font-size: 0.9rem; }
+.tax-group dd, .tax-total dd { margin: 0; text-align: right; white-space: nowrap; }
+.tax-group dd.pos, .tax-total dd.pos { color: var(--ok); }
+.tax-group dd.neg, .tax-total dd.neg { color: var(--error); }
+.tax-total { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.tax-total.first { margin-top: 0; padding-top: 0; border-top: 0; }
+.tax-sale { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.tax-sale:last-child { border-bottom: 0; }
+.tax-sale-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.tax-sale-head .ret-badge { margin-left: 0; }
+.tax-sale-calc { color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.tax-sale-calc .pos { color: var(--ok); }
+.tax-sale-calc .neg { color: var(--error); }
+.tax-positions { width: 100%; }

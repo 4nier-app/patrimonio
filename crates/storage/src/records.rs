@@ -861,6 +861,97 @@ impl PriceSource for PriceTable {
     }
 }
 
+/// DARF marcado como pago.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DarfPayment {
+    /// Competência "AAAA-MM".
+    pub month: String,
+    pub paid_on: NaiveDate,
+    pub amount: Decimal,
+}
+
+impl Vault {
+    pub fn list_darf_payments(&self) -> Result<Vec<DarfPayment>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT month, paid_on, amount FROM darf_payments ORDER BY month")?;
+        let rows = stmt.query_map([], |r| {
+            let paid_on: String = r.get(1)?;
+            Ok(DarfPayment {
+                month: r.get(0)?,
+                paid_on: NaiveDate::from_str(&paid_on).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?,
+                amount: dec(r.get(2)?, 2)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Marca o DARF de uma competência como pago (ou atualiza o pagamento).
+    pub fn mark_darf_paid(&mut self, payment: &DarfPayment) -> Result<()> {
+        let valid = payment.month.len() == 7
+            && NaiveDate::from_str(&format!("{}-01", payment.month)).is_ok();
+        if !valid {
+            return Err(bad("competência inválida"));
+        }
+        if payment.amount < Decimal::ZERO {
+            return Err(bad("o valor pago não pode ser negativo"));
+        }
+        let before = self.darf_payment_json(&payment.month)?;
+        self.conn.execute(
+            "INSERT INTO darf_payments (month, paid_on, amount, created_at) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT (month) DO UPDATE SET paid_on = excluded.paid_on, amount = excluded.amount",
+            params![
+                payment.month,
+                payment.paid_on.to_string(),
+                payment.amount.to_string(),
+                now_iso()
+            ],
+        )?;
+        let after = serde_json::to_string(payment).map_err(|e| bad(e.to_string()))?;
+        let action = if before.is_some() {
+            Action::Alterada
+        } else {
+            Action::Criada
+        };
+        self.append_event(
+            "DARF",
+            &payment.month,
+            action,
+            before.as_deref(),
+            Some(&after),
+            None,
+        )?;
+        Ok(())
+    }
+
+    /// Desfaz a marcação de pago.
+    pub fn unmark_darf_paid(&mut self, month: &str) -> Result<()> {
+        let Some(before) = self.darf_payment_json(month)? else {
+            return Ok(());
+        };
+        self.conn
+            .execute("DELETE FROM darf_payments WHERE month = ?1", [month])?;
+        self.append_event("DARF", month, Action::Removida, Some(&before), None, None)?;
+        Ok(())
+    }
+
+    fn darf_payment_json(&self, month: &str) -> Result<Option<String>> {
+        let found = self
+            .list_darf_payments()?
+            .into_iter()
+            .find(|p| p.month == month);
+        found
+            .map(|p| serde_json::to_string(&p).map_err(|e| bad(e.to_string())))
+            .transpose()
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -915,6 +1006,28 @@ mod tests {
         v.save_quotes(&[q("BTC")]).unwrap();
         v.seed_crypto().unwrap();
         assert_eq!(v.last_quote_date("BTC", "yahoo").unwrap(), Some(d));
+    }
+
+    #[test]
+    fn darf_pago_fica_registrado_na_auditoria() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = vault(tmp.path());
+        let p = DarfPayment {
+            month: "2026-03".into(),
+            paid_on: NaiveDate::from_ymd_opt(2026, 4, 28).unwrap(),
+            amount: dec!(2098.75),
+        };
+        v.mark_darf_paid(&p).unwrap();
+        assert_eq!(v.list_darf_payments().unwrap(), vec![p.clone()]);
+        assert!(v
+            .mark_darf_paid(&DarfPayment {
+                month: "2026-13".into(),
+                ..p.clone()
+            })
+            .is_err());
+        v.unmark_darf_paid("2026-03").unwrap();
+        assert!(v.list_darf_payments().unwrap().is_empty());
+        assert!(v.verify_integrity().unwrap().ok);
     }
 
     fn sample() -> Operation {

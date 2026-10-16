@@ -1,6 +1,6 @@
 //! Montagem das telas a partir do cofre e das regras do núcleo.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use carteira_core::fees::{default_rules, NoteFee};
 use carteira_core::model::{FxRate, FxSource, BRL};
@@ -11,8 +11,8 @@ use carteira_core::portfolio::{positions_with_fx, Position};
 use carteira_core::returns::{
     monthly_returns_in, window_result, yearly_returns, Conversion, MonthResult, Scope, YearResult,
 };
-use carteira_storage::{normalize_ticker, PriceTable, Vault};
-use chrono::NaiveDate;
+use carteira_storage::{normalize_ticker, DarfPayment, PriceTable, Vault};
+use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use serde::Serialize;
 
@@ -337,11 +337,11 @@ pub struct DashboardView {
 
 fn kind_label(kind: Option<&str>, currency: &str) -> &'static str {
     match (currency == BRL, kind) {
+        (_, Some("CRIPTO")) => "Criptomoedas",
         (true, Some("ACAO")) => "Ações",
         (true, Some("FII")) => "FIIs",
         (true, Some("ETF")) => "ETFs",
         (true, Some("BDR")) => "BDRs",
-        (true, Some("CRIPTO")) => "Criptomoedas",
         (true, _) => "Outros (B3)",
         (false, Some("ETF")) => "ETFs no exterior",
         (false, _) => "Ações no exterior",
@@ -707,6 +707,110 @@ pub fn dashboard_days(
     })
 }
 
+// ---------- impostos ----------
+
+#[derive(Serialize)]
+pub struct TaxMonthView {
+    #[serde(flatten)]
+    pub tax: carteira_core::tax::MonthTax,
+    /// "PAGO", "PENDENTE", "ATRASADO", "EM_ANDAMENTO" (mês corrente) ou "SEM_DARF".
+    pub status: &'static str,
+    pub paid: Option<DarfPayment>,
+}
+
+#[derive(Serialize)]
+pub struct TaxView {
+    pub months: Vec<TaxMonthView>,
+    pub annual: carteira_core::tax::AnnualReport,
+    /// Nome de cada ativo, para a lista de bens.
+    pub names: BTreeMap<String, String>,
+    pub warnings: Vec<String>,
+    pub darf_code: &'static str,
+}
+
+pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
+    use carteira_core::tax;
+    let ops = priced(v)?;
+    let mut kinds: BTreeMap<String, String> = BTreeMap::new();
+    let mut names: BTreeMap<String, String> = BTreeMap::new();
+    for t in ops
+        .iter()
+        .map(|p| &p.operation.asset)
+        .collect::<BTreeSet<_>>()
+    {
+        if let Some(a) = v.get_asset(t).map_err(s)? {
+            kinds.insert(t.clone(), a.kind);
+            if !a.name.is_empty() {
+                names.insert(t.clone(), a.name);
+            }
+        }
+    }
+    let kind_of = |t: &str| kinds.get(t).cloned();
+    let b3 = tax::b3_months(&ops, &kind_of, as_of);
+    let fx = v.fx_table().map_err(s)?;
+    let annual = tax::annual(&ops, &kind_of, &fx, as_of);
+    let paid: BTreeMap<String, DarfPayment> = v
+        .list_darf_payments()
+        .map_err(s)?
+        .into_iter()
+        .map(|p| (p.month.clone(), p))
+        .collect();
+    let current = format!("{:04}-{:02}", as_of.year(), as_of.month());
+    let months = b3
+        .months
+        .into_iter()
+        .rev()
+        .map(|m| {
+            let paid = paid.get(&m.month).cloned();
+            let status = if paid.is_some() {
+                "PAGO"
+            } else if m.month == current {
+                "EM_ANDAMENTO"
+            } else if m.darf.is_zero() {
+                "SEM_DARF"
+            } else if as_of > m.due_date {
+                "ATRASADO"
+            } else {
+                "PENDENTE"
+            };
+            TaxMonthView {
+                tax: m,
+                status,
+                paid,
+            }
+        })
+        .collect();
+    let mut warnings = b3.warnings;
+    warnings.extend(annual.warnings.iter().cloned());
+    let unknown: Vec<&String> = ops
+        .iter()
+        .filter(|p| {
+            p.operation.currency == BRL && !carteira_core::crypto::is_crypto(&p.operation.asset)
+        })
+        .map(|p| &p.operation.asset)
+        .filter(|t| kinds.get(*t).map_or(true, |k| k == "OUTRO"))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    if !unknown.is_empty() {
+        warnings.push(format!(
+            "Sem classificação no catálogo da B3 (tratados como operação comum, sem isenção): {}.",
+            unknown
+                .iter()
+                .map(|t| t.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    Ok(TaxView {
+        months,
+        annual,
+        names,
+        warnings,
+        darf_code: tax::DARF_CODE,
+    })
+}
+
 /// Períodos de cada ativo na carteira, somando todas as contas.
 fn timeline(ops: &[PricedOperation]) -> Vec<Span> {
     use std::collections::BTreeMap;
@@ -777,6 +881,39 @@ mod tests {
             from_account: None,
             residue: None,
         }
+    }
+
+    #[test]
+    fn impostos_com_darf_pendente_e_pago() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-1",
+            "0.7.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
+        // TEST3 fora do catálogo: operação comum sem isenção, com aviso.
+        v.create_operation(op("TEST3", d(1, 5), Side::Compra, dec!(100)))
+            .unwrap();
+        let mut sale = op("TEST3", d(2, 5), Side::Venda, dec!(100));
+        sale.price = dec!(20);
+        v.create_operation(sale).unwrap();
+        let view = taxes(&v, d(3, 10)).unwrap();
+        let feb = view.months.iter().find(|m| m.tax.month == "2026-02").unwrap();
+        // Lucro 1.000 × 15% = 150; dedo-duro de R$ 0,10 fica dispensado.
+        assert_eq!((feb.tax.darf, feb.status), (dec!(150), "PENDENTE"));
+        assert!(view.warnings.iter().any(|w| w.contains("TEST3")));
+        assert_eq!(taxes(&v, d(4, 1)).unwrap().months[0].status, "ATRASADO");
+        v.mark_darf_paid(&DarfPayment {
+            month: "2026-02".into(),
+            paid_on: d(3, 20),
+            amount: dec!(150),
+        })
+        .unwrap();
+        let view = taxes(&v, d(4, 1)).unwrap();
+        assert_eq!(view.months[0].status, "PAGO");
+        assert_eq!(view.annual.positions[&2026].len(), 0);
     }
 
     #[test]

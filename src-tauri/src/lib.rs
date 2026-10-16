@@ -385,6 +385,25 @@ fn returns_report(state: State<AppState>) -> Result<views::ReturnsView, String> 
 }
 
 #[tauri::command]
+fn taxes(state: State<AppState>) -> Result<views::TaxView, String> {
+    with_vault_str(&state, |v| views::taxes(v, today()))
+}
+
+/// Marca o DARF de uma competência como pago.
+#[tauri::command]
+fn mark_darf_paid(
+    payment: carteira_storage::DarfPayment,
+    state: State<AppState>,
+) -> Result<(), String> {
+    with_vault(&state, |v| v.mark_darf_paid(&payment))
+}
+
+#[tauri::command]
+fn unmark_darf_paid(month: String, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.unmark_darf_paid(&month))
+}
+
+#[tauri::command]
 fn dashboard(state: State<AppState>) -> Result<views::DashboardView, String> {
     with_vault_str(&state, |v| views::dashboard(v, today()))
 }
@@ -467,6 +486,9 @@ pub fn run() {
             resolve_b3_names,
             import_note,
             dashboard_days,
+            taxes,
+            mark_darf_paid,
+            unmark_darf_paid,
             list_quote_updates,
             update_quotes,
             reset_password,

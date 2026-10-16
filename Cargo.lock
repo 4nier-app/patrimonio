@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "carteira-app"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "carteira-core",
  "carteira-ledger",
@@ -515,7 +515,7 @@ dependencies = [
 
 [[package]]
 name = "carteira-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "chrono",
  "rust_decimal",
@@ -525,7 +525,7 @@ dependencies = [
 
 [[package]]
 name = "carteira-ledger"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "hex",
  "serde",
@@ -536,7 +536,7 @@ dependencies = [
 
 [[package]]
 name = "carteira-providers"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "chrono",
  "rust_decimal",
@@ -550,7 +550,7 @@ dependencies = [
 
 [[package]]
 name = "carteira-storage"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "argon2",
  "base64 0.22.1",

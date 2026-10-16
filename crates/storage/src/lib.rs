@@ -26,8 +26,8 @@ use kdf::DataKey;
 pub use kdf::KdfParams;
 pub use notes::{NoteImport, NoteStatus};
 pub use records::{
-    normalize_ticker, Account, Asset, FxTable, NewFxRate, NewQuote, PriceTable, QuoteUpdate,
-    USD_BRL,
+    normalize_ticker, Account, Asset, DarfPayment, FxTable, NewFxRate, NewQuote, PriceTable,
+    QuoteUpdate, USD_BRL,
 };
 
 pub const DB_FILE: &str = "carteira.db";

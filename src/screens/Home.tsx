@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { api, errorMessage, market, type UpdateLine, type VaultStatus } from "../api";
+import { api, errorMessage, market, taxApi, type TaxView, type UpdateLine, type VaultStatus } from "../api";
+import { date, money } from "../format";
 import Logo from "../components/Logo";
 import Audit from "./Audit";
 import Dashboard from "./Dashboard";
@@ -7,6 +8,7 @@ import Operations from "./Operations";
 import Portfolio from "./Portfolio";
 import Returns from "./Returns";
 import Security from "./Security";
+import Taxes, { pendingDarfs } from "./Taxes";
 
 // A leitura de PDF (pdf.js) só carrega quando a aba é aberta.
 const ImportNotes = lazy(() => import("./ImportNotes"));
@@ -17,6 +19,7 @@ const TABS = [
   { id: "lancamentos", label: "Lançamentos" },
   { id: "importar", label: "Importar notas" },
   { id: "rentabilidade", label: "Rentabilidade" },
+  { id: "impostos", label: "Impostos" },
   { id: "auditoria", label: "Auditoria" },
   { id: "seguranca", label: "Segurança" },
 ] as const;
@@ -31,6 +34,17 @@ export default function Home({ status, onLocked, onChanged }: Props) {
   const [report, setReport] = useState<UpdateLine[] | null>(null);
   // Muda a cada atualização de cotações para as telas recarregarem.
   const [refresh, setRefresh] = useState(0);
+  const [taxes, setTaxes] = useState<TaxView | null>(null);
+
+  function loadTaxes() {
+    taxApi
+      .load()
+      .then(setTaxes)
+      .catch(() => setTaxes(null));
+  }
+
+  useEffect(loadTaxes, [refresh]);
+  const darfs = pendingDarfs(taxes);
 
   async function lock() {
     await api.lock();
@@ -118,6 +132,17 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         </div>
       )}
 
+      {darfs.length > 0 && tab !== "impostos" && (
+        <div className={`banner warning${darfs.some((m) => m.status === "ATRASADO") ? " overdue" : ""}`} role="status">
+          {darfs.length === 1
+            ? `DARF de ${money(darfs[0].darf)} ${darfs[0].status === "ATRASADO" ? "venceu" : "vence"} em ${date(darfs[0].due_date)}.`
+            : `${darfs.length} DARFs a pagar, somando ${money(String(darfs.reduce((t, m) => t + Number(m.darf), 0)))}.`}{" "}
+          <button className="link" onClick={() => setTab("impostos")}>
+            Ver Impostos
+          </button>
+        </div>
+      )}
+
       <main className="content">
         {tab === "painel" && <Dashboard refresh={refresh} />}
         {tab === "carteira" && <Portfolio refresh={refresh} />}
@@ -128,6 +153,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           </Suspense>
         )}
         {tab === "rentabilidade" && <Returns key={refresh} />}
+        {tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
         {tab === "auditoria" && <Audit status={status} />}
         {tab === "seguranca" && (
           <Security
