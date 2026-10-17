@@ -32,6 +32,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
     FGTS, conta e benefício mostram só o saldo informado em cada mês, sem
     repetir nem estimar nos meses seguintes; o 31/12 do ano anterior vem do
     que foi informado em dezembro daquele ano.
+  - O cadastro em Saldos e cofrinhos ficou só com tipo, banco e nome (e
+    "isento de IR" no cofrinho): os saldos são informados na Evolução.
   - Total dos investimentos e total geral. A variação dos investimentos é
     separada em dinheiro novo (aportes menos resgates) e rendimento, para
     um aporte não parecer lucro nem um saque parecer prejuízo.
