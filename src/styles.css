@@ -518,11 +518,11 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .evolution { display: flex; flex-direction: column; gap: 12px; }
 .evo-card { padding: 8px 0; }
 .evo-scroll { overflow-x: auto; }
-.evo-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
-.evo-table th, .evo-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.evo-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.evo-table th, .evo-table td { padding: 5px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .evo-table thead th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); white-space: nowrap; }
 .evo-table tbody th, .evo-table tfoot th { text-align: left; font-weight: 400; }
-.evo-table th:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 150px; max-width: 220px; padding-left: 16px; }
+.evo-table th:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); width: 120px; min-width: 120px; max-width: 120px; padding-left: 12px; }
 .evo-table td:last-child, .evo-table th:last-child { padding-right: 16px; }
 .evo-sub { display: block; font-size: 0.68rem; text-transform: none; letter-spacing: 0; font-weight: 400; }
 .evo-col.today { color: var(--accent); }
@@ -534,17 +534,17 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .evo-pct { display: block; font-size: 0.68rem; color: var(--muted); }
 .evo-gain { border-left: 1px solid var(--border); }
 .evo-group th, .evo-group td { background: var(--bg); }
-.evo-group th:first-child { background: var(--bg); font-weight: 600; white-space: nowrap; }
+.evo-group th:first-child { background: var(--bg); font-weight: 600; white-space: normal; }
 .evo-group:hover th, .evo-group:hover td { filter: brightness(0.97); }
-.evo-row th:first-child { padding-left: 32px; }
+.evo-row th:first-child { padding-left: 20px; }
 .evo-asset { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .evo-detail { display: block; font-size: 0.7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .evo-total th, .evo-total td { border-top: 2px solid var(--border); }
 .evo-total th:first-child { font-weight: 700; }
 .evo-total.grand th, .evo-total.grand td { background: var(--bg); }
-.evo-flow th:first-child { color: var(--muted); padding-left: 32px; font-size: 0.75rem; }
+.evo-flow th:first-child { color: var(--muted); padding-left: 20px; font-size: 0.72rem; }
 .evo-flow td { color: var(--muted); }
-.evo-table tbody th, .evo-table tfoot th { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 0.8rem; }
+.evo-table tbody th, .evo-table tfoot th { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 0.75rem; }
 .evo-table .evo-flow th:first-child, .evo-detail { color: var(--muted); }
 .evo-cell.editable { cursor: pointer; }
 .evo-cell.editable:hover { outline: 1px dashed var(--accent); outline-offset: -3px; }

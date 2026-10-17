@@ -34,6 +34,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Total dos investimentos e total geral. A variação dos investimentos é
     separada em dinheiro novo (aportes menos resgates) e rendimento, para
     um aporte não parecer lucro nem um saque parecer prejuízo.
+  - Valores com centavos. A coluna dos nomes é estreita (o nome completo
+    aparece ao passar o mouse) e, se a janela for pequena, a tabela rola
+    para o lado com os nomes fixos.
 
 ## [0.10.0] - 2026-10-17
 

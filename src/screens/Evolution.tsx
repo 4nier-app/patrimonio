@@ -4,9 +4,9 @@ import CashInput from "../components/CashInput";
 import Intro from "../components/Intro";
 import { date, money, monthLabel, parseDecimalInput, percent, toCashMask, tone } from "../format";
 
-// Na tabela, reais sem centavos para caber o ano inteiro; o valor exato fica na dica.
-const intFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
-const short = (v: Dec) => intFmt.format(Number(v));
+// Na tabela, valores sem "R$" (o cabeçalho já diz) para caber o ano inteiro.
+const numFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const short = (v: Dec) => numFmt.format(Number(v));
 
 const COLLAPSED_KEY = "4nier.evolucao.fechados";
 
@@ -264,7 +264,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                     {open &&
                       g.rows.map((r) => (
                         <tr key={`${key}:${r.asset ?? r.name}:${r.detail ?? ""}`} className="evo-row">
-                          <th scope="row">
+                          <th scope="row" title={r.detail ? `${r.name}\n${r.detail}` : r.name}>
                             <span className="evo-asset">{r.name}</span>
                             {r.detail && <span className="evo-detail">{r.detail}</span>}
                           </th>
