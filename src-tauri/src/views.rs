@@ -455,7 +455,7 @@ fn other_balances(v: &Vault) -> Result<Vec<OtherBalance>, String> {
         .filter(|r| !r.savings.kind.is_investment())
         .map(|r| OtherBalance {
             id: r.savings.id.clone(),
-            name: r.savings.name.clone(),
+            name: r.savings.title().to_string(),
             account: r.savings.account.clone(),
             kind: r.savings.kind.label(),
             balance: r.balance,
@@ -943,7 +943,7 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                 .iter()
                 .map(|(year, value)| SavingsYearEnd {
                     year: *year,
-                    name: r.savings.name.clone(),
+                    name: r.savings.title().to_string(),
                     account: r.savings.account.clone(),
                     kind: r.savings.kind.label(),
                     value: *value,

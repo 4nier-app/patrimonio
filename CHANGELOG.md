@@ -33,9 +33,10 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   estimativa (o FGTS não soma mais 3% ao ano); o cartão mostra o último saldo
   informado. Para apagar um saldo digitado errado, clique no mês na Evolução e
   use "Apagar este saldo".
-- Na Evolução, a linha da conta não repete mais o tipo: "Conta corrente" em
-  cima e só o banco embaixo. O nome no cadastro é opcional; em branco, vira o
-  tipo.
+- O nome no cadastro de saldos é opcional e fica em branco de verdade. Sem
+  nome, a Evolução mostra o banco em cima e o tipo embaixo ("Itaú" / "Conta
+  corrente"); com nome, o nome em cima e o banco embaixo. Cadastros antigos
+  com o nome igual ao tipo passam a aparecer assim também.
 - Ao trocar de aba, a tela volta para o topo.
 - **Cofrinhos não são mais estimados**: como a conta corrente e os cartões
   benefício, valem só os saldos que você informa na Evolução, mês a mês. O app

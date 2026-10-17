@@ -34,8 +34,8 @@ const ISSUERS: Record<SavingsKind, string[]> = {
 
 const NAME_HINT: Record<SavingsKind, string> = {
   COFRINHO: "Ex.: Reserva de emergência",
-  FGTS: "Ex.: FGTS",
-  CONTA: "Ex.: Conta corrente",
+  FGTS: "Em branco: mostra só o banco",
+  CONTA: "Ex.: Conta conjunta (em branco: mostra só o banco)",
   BENEFICIO: "Ex.: Refeição",
 };
 
@@ -47,6 +47,10 @@ const EMPTY_NEW: NewForm = { id: "", kind: null, account: "", name: "", rate: "1
 type MoveForm = { id: string; savingsId: string; kind: SavingsMoveKind; date: string; amount: string; ir: string; iof: string };
 
 const cash = (v: string) => toCashMask(v, 2, "BRL").text;
+
+/** Nome para mensagens: o próprio, ou o tipo e o banco. */
+const titleOf = (it: SavingsItem) =>
+  it.savings.name && it.savings.name !== it.kind_label ? it.savings.name : `${it.kind_label} ${it.savings.account}`;
 
 export default function Savings({ onChanged }: { onChanged: () => void }) {
   const [view, setView] = useState<SavingsView | null>(null);
@@ -85,7 +89,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       id: form.id,
       kind: form.kind,
       account: form.account.trim(),
-      name: form.name.trim() || KINDS.find((k) => k.id === form.kind)!.title,
+      name: form.name.trim(),
       rate_pct: parseDecimalInput(form.rate) ?? "100",
       tax_free: form.taxFree,
       note: null,
@@ -143,7 +147,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       await savingsApi.remove(it.savings.id);
       changed("");
       setSaved(null);
-      offerUndo(`${it.savings.name} removido.`, async () => {
+      offerUndo(`${titleOf(it)} removido.`, async () => {
         await savingsApi.restore(it.savings.id);
         load();
         onChanged();
@@ -189,7 +193,9 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   }
 
   function editSavings(s: SavingsT) {
-    setForm({ id: s.id, kind: s.kind, account: s.account, name: s.name, rate: s.rate_pct, taxFree: s.tax_free });
+    // Cadastros antigos guardavam o tipo como nome; aqui ele aparece em branco.
+    const own = s.name === KINDS.find((k) => k.id === s.kind)?.title ? "" : s.name;
+    setForm({ id: s.id, kind: s.kind, account: s.account, name: own, rate: s.rate_pct, taxFree: s.tax_free });
     setSaved(null);
     window.scrollTo({ top: 0 });
   }
@@ -375,9 +381,15 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               <div className="card savings-card" key={s.id}>
                 <div className="savings-head">
                   <div>
-                    {s.name !== it.kind_label && <span className="tag">{it.kind_label}</span>}
+                    <span className="tag">{it.kind_label}</span>
                     <h3>
-                      {s.name} <span className="muted">· {s.account}</span>
+                      {s.name && s.name !== it.kind_label ? (
+                        <>
+                          {s.name} <span className="muted">· {s.account}</span>
+                        </>
+                      ) : (
+                        s.account
+                      )}
                     </h3>
                     <p className="muted small">
                       {it.last_informed ? `Último saldo informado em ${date(it.last_informed)}` : "Nenhum saldo informado ainda"}

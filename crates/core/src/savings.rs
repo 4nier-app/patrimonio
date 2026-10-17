@@ -103,12 +103,21 @@ pub struct Savings {
 }
 
 impl Savings {
+    /// Nome dado pelo usuário. Em branco (ou igual ao tipo, como os cadastros
+    /// antigos ficavam) não há nome próprio: o tipo e o banco já dizem tudo.
+    pub fn own_name(&self) -> Option<&str> {
+        let n = self.name.trim();
+        (!n.is_empty() && n != self.kind.label()).then_some(n)
+    }
+
+    /// Nome para listas: o próprio ou o tipo ("Conta corrente").
+    pub fn title(&self) -> &str {
+        self.own_name().unwrap_or(self.kind.label())
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.account.trim().is_empty() {
             return Err("informe o banco (conta)".into());
-        }
-        if self.name.trim().is_empty() {
-            return Err("dê um nome".into());
         }
         if self.kind == SavingsKind::Cofrinho
             && (self.rate_pct <= Decimal::ZERO || self.rate_pct > Decimal::from(300))
@@ -383,7 +392,7 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
             quantity: Decimal::ZERO,
             price: u,
             manual_fees: Some(Decimal::ZERO),
-            note: Some(savings.name.clone()),
+            note: Some(savings.title().to_string()),
             currency: BRL.into(),
             from_account: None,
             residue: None,
@@ -634,6 +643,20 @@ mod tests {
         assert!(!r.checks[0].suspicious);
         assert_eq!(r.balance_on(d(3, 15)), dec!(1500));
         assert_eq!(r.balance_on(d(2, 1)), dec!(0));
+    }
+
+    #[test]
+    fn nome_em_branco_ou_igual_ao_tipo_nao_e_nome_proprio() {
+        let conta = |name: &str| Savings {
+            kind: SavingsKind::Conta,
+            name: name.into(),
+            ..cofrinho()
+        };
+        assert!(conta("").validate().is_ok());
+        assert_eq!(conta("").own_name(), None);
+        assert_eq!(conta("Conta corrente").own_name(), None);
+        assert_eq!(conta("Conta corrente").title(), "Conta corrente");
+        assert_eq!(conta("Conjunta").own_name(), Some("Conjunta"));
     }
 
     #[test]

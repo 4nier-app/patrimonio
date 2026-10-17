@@ -343,10 +343,17 @@ fn build(
         rows.entry(key).or_default().push(Row {
             asset: r.savings.kind.is_investment().then(|| r.ticker.clone()),
             savings_id: Some(r.savings.id.clone()),
-            name: r.savings.name.clone(),
-            // O nome já diz o tipo quando não foi preenchido ("Conta
-            // corrente"); embaixo, só o banco.
-            detail: Some(r.savings.account.clone()),
+            // Com nome próprio: nome em cima e banco embaixo. Sem nome: o
+            // banco em cima e o tipo embaixo ("Itaú" / "Conta corrente").
+            name: r
+                .savings
+                .own_name()
+                .unwrap_or(&r.savings.account)
+                .to_string(),
+            detail: Some(match r.savings.own_name() {
+                Some(_) => r.savings.account.clone(),
+                None => r.savings.kind.label().to_string(),
+            }),
             values,
             missing: vec![false; n],
             gain: None,
