@@ -51,7 +51,9 @@ mod tests {
     #[test]
     fn link_mailto_codificado() {
         let url = mailto("eu+teste@exemplo.com", "ABCD-EFGH", "15/10/2026 às 10:00");
-        assert!(url.starts_with("mailto:eu%2Bteste@exemplo.com?subject=4Nier%20Patrim%C3%B4nio%20Audit%C3%A1vel"));
+        assert!(url.starts_with(
+            "mailto:eu%2Bteste@exemplo.com?subject=4Nier%20Patrim%C3%B4nio%20Audit%C3%A1vel"
+        ));
         assert!(url.contains("ABCD-EFGH"));
         assert!(url.contains("%0D%0A"));
         assert!(!url.contains(' '));
