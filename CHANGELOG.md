@@ -6,7 +6,44 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.10.0] - Não lançada
+## [0.11.0] - Não lançada
+
+### Adicionado
+- Nova aba **Evolução**: o patrimônio no fim de cada mês, em reais (o que
+  está em dólar vai pela PTAX do dia), como uma planilha de controle.
+  - Linhas agrupadas: fundos de investimento (por banco, incluindo os
+    FMP-FGTS), ações e ETFs na B3, fundos imobiliários, ações e ETFs no
+    exterior, criptomoedas, renda fixa (cofrinhos), FGTS e dinheiro (conta
+    corrente e cartões benefício). Cada grupo recolhe com um clique e o app
+    lembra.
+  - Colunas: 31/12 do ano anterior e os 12 meses do ano. No ano atual, vai
+    até o mês corrente, que aparece como ontem e hoje. "Todos os anos"
+    mostra o 31/12 de cada ano e lista só o que você ainda tem; o que já
+    foi vendido vira uma linha "Já vendidos" por grupo, para os totais dos
+    anos passados continuarem completos.
+  - Embaixo de cada valor, a variação em relação à coluna anterior. Ativo
+    vendido some das colunas seguintes (o dinheiro está onde foi parar).
+  - Última coluna, "No período": o resultado de cada ativo descontando
+    compras e vendas, então um ativo vendido no meio do ano mostra o que
+    rendeu até a venda, e não uma queda de 100%.
+  - Saldos (conta corrente, FGTS, cofrinhos e cartões benefício) podem ser
+    informados direto na tabela: clique no mês e digite o saldo, inclusive
+    de meses e anos passados. Se já havia saldo nesse dia, ele é corrigido.
+    FGTS, conta e benefício mostram só o saldo informado em cada mês, sem
+    repetir nem estimar nos meses seguintes; o 31/12 do ano anterior vem do
+    que foi informado em dezembro daquele ano.
+  - **Saldos e cofrinhos** saiu de Lançamentos e virou uma seção da
+    Evolução (Evolução › Saldos e cofrinhos). O cadastro ficou só com tipo,
+    banco e nome (e "isento de IR" no cofrinho): os saldos são informados
+    na tabela da Evolução.
+  - Total dos investimentos e total geral. A variação dos investimentos é
+    separada em dinheiro novo (aportes menos resgates) e rendimento, para
+    um aporte não parecer lucro nem um saque parecer prejuízo.
+  - Valores com centavos. A coluna dos nomes é estreita (o nome completo
+    aparece ao passar o mouse) e, se a janela for pequena, a tabela rola
+    para o lado com os nomes fixos.
+
+## [0.10.0] - 2026-10-17
 
 ### Adicionado
 - Lançamentos → **Saldos e cofrinhos**: acompanhe cofrinhos (caixinhas que

@@ -328,6 +328,25 @@ pub struct SavingsReport {
     pub redemptions: Vec<Redemption>,
     /// Saldo bruto em 31/12 de cada ano (para Bens e Direitos).
     pub year_end: Vec<(i32, Decimal)>,
+    /// Cotas no fim de cada dia com movimento, para o saldo em qualquer data.
+    pub units_history: Vec<(NaiveDate, Decimal)>,
+}
+
+impl SavingsReport {
+    /// Saldo bruto estimado no fim de `date` (zero antes do primeiro movimento).
+    pub fn balance_on(&self, date: NaiveDate) -> Decimal {
+        let Some((_, units)) = self.units_history.iter().rev().find(|(d, _)| *d <= date) else {
+            return Decimal::ZERO;
+        };
+        let unit = self
+            .unit_values
+            .iter()
+            .rev()
+            .find(|(d, _)| *d <= date)
+            .map(|(_, u)| *u)
+            .unwrap_or(Decimal::ONE);
+        cents(*units * unit)
+    }
 }
 
 /// Monta o cofrinho a partir dos movimentos e do CDI diário (% ao dia, série
@@ -364,6 +383,7 @@ pub fn build(
         checks: Vec::new(),
         redemptions: Vec::new(),
         year_end: Vec::new(),
+        units_history: Vec::new(),
     };
     let Some(first) = moves.first().map(|m| m.date) else {
         return report;
@@ -555,6 +575,11 @@ pub fn build(
                 }
             }
         }
+        let held = units(&lots);
+        match report.units_history.last_mut() {
+            Some((d, q)) if *d == m.date => *q = held,
+            _ => report.units_history.push((m.date, held)),
+        }
     }
     let u = unit_on(today);
     while today.year() > last_year {
@@ -717,6 +742,8 @@ mod tests {
         assert_eq!(r.balance, dec!(400));
         assert_eq!(r.balance_net, dec!(400));
         assert!(!r.checks[0].suspicious);
+        assert_eq!(r.balance_on(d(3, 15)), dec!(1500));
+        assert_eq!(r.balance_on(d(2, 1)), dec!(0));
     }
 
     #[test]

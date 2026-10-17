@@ -41,8 +41,8 @@ const NAME_HINT: Record<SavingsKind, string> = {
 
 const MOVE_LABEL: Record<SavingsMoveKind, string> = { DEPOSITO: "Depósito", RESGATE: "Resgate", SALDO: "Saldo informado" };
 
-type NewForm = { id: string; kind: SavingsKind | null; account: string; name: string; rate: string; taxFree: boolean; balance: string; date: string };
-const EMPTY_NEW: NewForm = { id: "", kind: null, account: "", name: "", rate: "100", taxFree: false, balance: "", date: today() };
+type NewForm = { id: string; kind: SavingsKind | null; account: string; name: string; rate: string; taxFree: boolean };
+const EMPTY_NEW: NewForm = { id: "", kind: null, account: "", name: "", rate: "100", taxFree: false };
 
 type MoveForm = { id: string; savingsId: string; kind: SavingsMoveKind; date: string; amount: string; ir: string; iof: string };
 
@@ -96,21 +96,8 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
         await savingsApi.update(item);
         changed("Alteração salva.");
       } else {
-        const created = await savingsApi.create(item);
-        const balance = parseDecimalInput(form.balance);
-        if (balance && Number(balance) > 0) {
-          await savingsApi.createMove({
-            id: "",
-            savings_id: created.id,
-            date: form.date,
-            kind: "SALDO",
-            amount: balance,
-            ir: null,
-            iof: null,
-            note: null,
-          });
-        }
-        changed(`${item.name} cadastrado.`);
+        await savingsApi.create(item);
+        changed(`${item.name} cadastrado. Informe o saldo de cada mês em Evolução › Patrimônio, clicando na célula.`);
       }
       setForm(null);
     } catch (err) {
@@ -202,7 +189,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   }
 
   function editSavings(s: SavingsT) {
-    setForm({ id: s.id, kind: s.kind, account: s.account, name: s.name, rate: s.rate_pct, taxFree: s.tax_free, balance: "", date: today() });
+    setForm({ id: s.id, kind: s.kind, account: s.account, name: s.name, rate: s.rate_pct, taxFree: s.tax_free });
     setSaved(null);
     window.scrollTo({ top: 0 });
   }
@@ -343,29 +330,9 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                 </label>
                 {form.kind === "COFRINHO" && (
                   <>
-                    <label>
-                      Rende quanto do CDI?
-                      <span className="sentence">
-                        <input inputMode="decimal" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value.replace(/[^\d,]/g, "") })} />% do CDI
-                      </span>
-                      <span className="muted small">Só para estimar entre um saldo e outro. Se mudar, não precisa atualizar.</span>
-                    </label>
                     <label className="check">
                       <input type="checkbox" checked={form.taxFree} onChange={(e) => setForm({ ...form, taxFree: e.target.checked })} />
                       Isento de IR (LCI, LCA)
-                    </label>
-                  </>
-                )}
-                {!form.id && (
-                  <>
-                    <label>
-                      Saldo atual
-                      <CashInput value={form.balance} decimals={2} currency="BRL" onChange={(v) => setForm({ ...form, balance: v })} />
-                      <span className="muted small">Pode deixar em branco e lançar depósitos depois.</span>
-                    </label>
-                    <label>
-                      Data do saldo
-                      <input type="date" value={form.date} max={today()} onChange={(e) => setForm({ ...form, date: e.target.value })} />
                     </label>
                   </>
                 )}
@@ -422,7 +389,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     </h3>
                     <p className="muted small">
                       {it.last_informed ? `Último saldo informado em ${date(it.last_informed)}` : "Nenhum saldo informado ainda"}
-                      {isCofrinho && ` · ${Number(s.rate_pct).toLocaleString("pt-BR")}% do CDI${s.tax_free ? " · isento de IR" : ""}`}
+                      {isCofrinho && s.tax_free && " · isento de IR"}
                     </p>
                   </div>
                   <div className="savings-balance">

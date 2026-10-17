@@ -10,6 +10,7 @@ import Incomes from "./Incomes";
 import Broker, { rememberAsset } from "./Broker";
 import Dashboard from "./Dashboard";
 import Events from "./Events";
+import Evolution from "./Evolution";
 import Operations from "./Operations";
 import Portfolio from "./Portfolio";
 import Returns from "./Returns";
@@ -24,6 +25,7 @@ const ImportNotes = lazy(() => import("./ImportNotes"));
 
 const TABS = [
   { id: "painel", label: "Painel" },
+  { id: "evolucao", label: "Evolução" },
   { id: "carteira", label: "Carteira" },
   { id: "homebroker", label: "Home broker" },
   { id: "lancamentos", label: "Lançamentos" },
@@ -37,10 +39,13 @@ type Tab = (typeof TABS)[number]["id"];
 
 // Abas com seções internas, para o menu principal ficar enxuto.
 const SECTIONS = {
+  evolucao: [
+    { id: "patrimonio", label: "Patrimônio" },
+    { id: "saldos", label: "Saldos e cofrinhos" },
+  ],
   lancamentos: [
     { id: "manual", label: "Incluir e editar" },
     { id: "importar", label: "Importar notas" },
-    { id: "saldos", label: "Saldos e cofrinhos" },
     { id: "eventos", label: "Eventos (bonificação, desdobramento)" },
   ],
   seguranca: [
@@ -66,7 +71,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
   // do teclado fecha a página do ativo em vez de sair do aplicativo.
   function openAsset(a: string) {
     // Cofrinho não tem gráfico de mercado: os detalhes ficam em Saldos.
-    if (isSavings(a)) return setTab("lancamentos", "saldos");
+    if (isSavings(a)) return setTab("evolucao", "saldos");
     if (!assetRef.current) window.history.pushState({ asset: a }, "");
     else window.history.replaceState({ asset: a }, "");
     setAsset(a);
@@ -81,7 +86,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  const [section, setSection] = useState<Record<string, Section>>({ lancamentos: "manual", seguranca: "seguranca" });
+  const [section, setSection] = useState<Record<string, Section>>({ evolucao: "patrimonio", lancamentos: "manual", seguranca: "seguranca" });
   function setTab(t: Tab, s?: Section) {
     if (assetRef.current && window.history.state?.asset) window.history.back();
     setAsset(null);
@@ -256,7 +261,10 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               <ImportNotes onImported={() => void updateQuotes()} />
             </Suspense>
           )}
-          {!asset && tab === "lancamentos" && current === "saldos" && <Savings onChanged={() => void updateQuotes()} />}
+          {!asset && tab === "evolucao" && current === "patrimonio" && (
+            <Evolution key={refresh} onSavings={() => setTab("evolucao", "saldos")} />
+          )}
+          {!asset && tab === "evolucao" && current === "saldos" && <Savings onChanged={() => void updateQuotes()} />}
           {!asset && tab === "lancamentos" && current === "eventos" && <Events onChanged={() => void updateQuotes()} />}
           {!asset && tab === "rentabilidade" && <Returns key={refresh} onToday={() => setTab("homebroker")} />}
           {!asset && tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}

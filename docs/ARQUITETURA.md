@@ -88,6 +88,20 @@ Lançados uma vez por ativo, com a data com e a proporção do anúncio. Cada ev
 ### 4.3b Saldos e reservas (cofrinhos, FGTS, conta corrente, cartão benefício)
 Guiados pelo saldo que o banco mostra, porque a taxa dos cofrinhos muda sem aviso. Cada saldo tem movimentos: depósito, resgate (valor líquido que caiu na conta, com IR e IOF opcionais) e saldo informado. O cofrinho vira uma cota sintética (`RF:<id>`) que vale R$ 1 no primeiro movimento e cresce pelo CDI diário (série 12 do SGS) vezes o % do CDI cadastrado; um dia rende o CDI do dia útil anterior. Depósito é compra de cotas, resgate é venda (IR regressivo e IOF estimados por lote, do mais antigo, quando não informados) e o saldo informado ajusta a quantidade de cotas sem dinheiro (`AJUSTE`), corrigindo a estimativa; diferença acima de 2% (e de R$ 5) gera aviso de movimento esquecido. O primeiro saldo informado sem depósitos é o saldo inicial. FGTS estima 3% ao ano; conta e benefício não rendem. Só cofrinhos entram nas operações do motor (carteira, rentabilidade); os demais aparecem apenas no patrimônio ("Outros saldos") e no saldo de 31/12 para Bens e Direitos. Como os fundos, cofrinhos não têm taxas da B3 nem DARF (o banco retém). As operações e cotas são recalculadas a cada consulta, não gravadas.
 
+
+### 4.3c Evolução do patrimônio
+
+`src-tauri/src/evolution.rs` monta a aba Evolução: para cada coluna (fim de
+mês, 31/12 ou hoje), a posição de cada ativo em `positions_with_fx` na data,
+avaliada em reais pela PTAX, e o saldo de cada reserva em
+`SavingsReport::balance_on` (cotas na data × valor da cota). É um retrato do
+patrimônio, não rentabilidade: a variação simples entre colunas inclui
+aportes e saques. Para explicar a variação, o "dinheiro novo" soma o fluxo
+de caixa (`Trade::cash_flow`) dos investimentos entre duas colunas, e o
+rendimento é a variação dos investimentos menos esse dinheiro novo.
+Investimento é toda linha com código no motor (ativos, fundos e
+cofrinhos); FGTS, conta corrente e cartões benefício entram só no total
+geral.
 ### 4.4 Cotações e câmbio (imutáveis)
 - **quote**: `id, asset_id, data, fechamento, moeda, fonte, oficial (bool), obtida_em, hash_payload`
 - **fx_rate**: `id, data, par (USD/BRL), compra, venda, tipo_boletim, fonte (PTAX-BCB), obtida_em, hash_payload`

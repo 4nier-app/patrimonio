@@ -286,6 +286,48 @@ export const dashboardApi = {
   days: (year: number, month: number) => invoke<DaysView>("dashboard_days", { year, month }),
 };
 
+// ---------- evolução do patrimônio ----------
+
+export type EvolutionColumn = { date: string; kind: "BASE" | "MONTH" | "YEAR" | "YESTERDAY" | "TODAY" };
+export type EvolutionRow = {
+  /** Código no motor; vazio para FGTS, conta e benefício (não são investimento). */
+  asset: string | null;
+  /** Saldo de Saldos e cofrinhos: dá para informar o valor clicando na célula. */
+  savings_id: string | null;
+  name: string;
+  detail: string | null;
+  values: (Dec | null)[];
+  missing: boolean[];
+  gain: EvolutionGain | null;
+};
+/** Resultado no período: valor final + vendas − compras − valor inicial; base = inicial + compras. */
+export type EvolutionGain = { value: Dec; base: Dec };
+export type EvolutionGroup = {
+  id: string;
+  label: string;
+  investment: boolean;
+  rows: EvolutionRow[];
+  total: (Dec | null)[];
+  gain: EvolutionGain | null;
+};
+export type EvolutionView = {
+  years: number[];
+  year: number | null;
+  columns: EvolutionColumn[];
+  groups: EvolutionGroup[];
+  total: (Dec | null)[];
+  investments: (Dec | null)[];
+  /** Aportes − resgates dos investimentos desde a coluna anterior. */
+  new_money: (Dec | null)[];
+  total_gain: EvolutionGain | null;
+  investments_gain: EvolutionGain | null;
+  incomplete: boolean;
+};
+
+export const evolutionApi = {
+  load: (year: number | null) => invoke<EvolutionView>("evolution", { year }),
+};
+
 // ---------- impostos ----------
 
 export type TaxGroup = "COMUM" | "DAY_TRADE" | "FII";
