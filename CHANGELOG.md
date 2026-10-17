@@ -28,6 +28,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Saldos (conta corrente, FGTS, cofrinhos e cartões benefício) podem ser
     informados direto na tabela: clique no mês e digite o saldo, inclusive
     de meses e anos passados. Se já havia saldo nesse dia, ele é corrigido.
+    FGTS, conta e benefício mostram só o saldo informado em cada mês, sem
+    repetir nem estimar nos meses seguintes; o 31/12 do ano anterior vem do
+    que foi informado em dezembro daquele ano.
   - Total dos investimentos e total geral. A variação dos investimentos é
     separada em dinheiro novo (aportes menos resgates) e rendimento, para
     um aporte não parecer lucro nem um saque parecer prejuízo.

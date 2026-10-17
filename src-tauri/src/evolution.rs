@@ -298,8 +298,23 @@ fn build(
         let values: Vec<Option<Decimal>> = cols
             .iter()
             .map(|c| {
-                let started = r.units_history.first().is_some_and(|(d, _)| *d <= c.date);
-                started.then(|| r.balance_on(c.date))
+                if r.savings.kind.is_investment() {
+                    let started = r.units_history.first().is_some_and(|(d, _)| *d <= c.date);
+                    return started.then(|| r.balance_on(c.date));
+                }
+                // FGTS, conta e benefício: só o saldo informado no próprio mês,
+                // sem estimar nem repetir nos meses seguintes. Ontem e hoje
+                // mostram o último saldo informado.
+                let from = match c.kind {
+                    ColumnKind::Yesterday | ColumnKind::Today => NaiveDate::MIN,
+                    _ => c.date.with_day(1).expect("dia 1 existe"),
+                };
+                let last = r
+                    .units_history
+                    .iter()
+                    .rev()
+                    .find(|(d, _)| *d <= c.date && *d >= from)?;
+                Some(r.balance_on(last.0))
             })
             .collect();
         // Saldo recém-cadastrado, ainda sem valor, aparece em branco para o
@@ -728,6 +743,12 @@ mod tests {
             total.value,
             view.total[view.columns.len() - 1].unwrap() - dec!(1710)
         );
+        // Conta: o saldo de janeiro não se repete em fevereiro; hoje mostra o
+        // último saldo informado.
+        let conta = &view.groups[1].rows[0];
+        assert_eq!(conta.values[0], Some(dec!(500)));
+        assert_eq!(conta.values[1], None);
+        assert_eq!(conta.values[3], Some(dec!(500)));
         assert!(!view.incomplete);
 
         let all = evolution(&v, None, d(2026, 3, 4)).unwrap();
