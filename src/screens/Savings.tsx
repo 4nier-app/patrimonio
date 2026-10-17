@@ -83,10 +83,22 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     onChanged();
   }
 
-  // O primeiro FGTS (o do usuário) não tem nome; o de outra pessoa precisa de um.
-  const unnamedFgts = (view?.items ?? []).filter((it) => it.savings.kind === "FGTS" && (!it.savings.name || it.savings.name === it.kind_label));
-  const fgtsTaken = unnamedFgts.length > 0;
-  const needsName = form?.kind === "FGTS" && unnamedFgts.some((it) => it.savings.id !== form.id);
+  // Do mesmo tipo e no mesmo banco, só um fica sem nome: o segundo Itaú, ou o
+  // FGTS de outra pessoa, precisa de um.
+  const unnamed = (view?.items ?? []).filter((it) => !it.savings.name || it.savings.name === it.kind_label);
+  const bankOf = (kind: SavingsKind, account: string) => (kind === "FGTS" ? "" : account.trim().toLowerCase());
+  const fgtsTaken = unnamed.some((it) => it.savings.kind === "FGTS");
+  const needsName =
+    !!form?.kind &&
+    unnamed.some(
+      (it) =>
+        it.savings.id !== form.id &&
+        it.savings.kind === form.kind &&
+        bankOf(it.savings.kind, it.savings.account) === bankOf(form.kind!, form.account),
+    );
+  // Conta e FGTS só mostram o nome quando ele é preciso (ou quando já tinham um).
+  const hadName = !!form?.id && !unnamed.some((it) => it.savings.id === form.id);
+  const showName = needsName || hadName || (form?.kind !== "FGTS" && form?.kind !== "CONTA");
 
   async function saveSavings(e: React.FormEvent) {
     e.preventDefault();
@@ -97,7 +109,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       kind: form.kind,
       // FGTS não tem banco.
       account: form.kind === "FGTS" ? "" : form.account.trim(),
-      name: form.kind === "FGTS" && !needsName ? "" : form.name.trim(),
+      name: showName ? form.name.trim() : "",
       rate_pct: parseDecimalInput(form.rate) ?? "100",
       tax_free: form.taxFree,
       note: null,
@@ -343,12 +355,12 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   </datalist>
                 </label>
                 )}
-                {(form.kind !== "FGTS" || needsName) && (
+                {showName && (
                   <label>
-                    {needsName ? "De quem é este FGTS" : "Nome (opcional)"}
+                    {needsName ? (form.kind === "FGTS" ? "De quem é este FGTS" : "Nome (para diferenciar da outra)") : "Nome (opcional)"}
                     <input
                       value={form.name}
-                      placeholder={needsName ? "Ex.: Esposa" : NAME_HINT[form.kind]}
+                      placeholder={needsName ? (form.kind === "FGTS" ? "Ex.: Esposa" : "Ex.: Conta conjunta") : NAME_HINT[form.kind]}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       required={needsName}
                     />

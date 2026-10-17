@@ -41,6 +41,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   Evolução, é uma linha só, sem grupo com total em cima. Para acompanhar o
   FGTS de outra pessoa (como o do cônjuge), dá para cadastrar outro, e só esse
   pede um nome; aí a Evolução volta a mostrar o grupo com o total.
+- A mesma regra vale para os outros saldos: do mesmo tipo e no mesmo banco, só
+  um fica sem nome. O primeiro Itaú não pede nome; um segundo Itaú pede. Na
+  conta corrente, o campo Nome só aparece quando é preciso.
 - Ao trocar de aba, a tela volta para o topo.
 - **Cofrinhos não são mais estimados**: como a conta corrente e os cartões
   benefício, valem só os saldos que você informa na Evolução, mês a mês. O app
