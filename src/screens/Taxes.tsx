@@ -313,7 +313,8 @@ function Positions({ list, names, year }: { list: YearEndPosition[]; names: Reco
     <div className="card">
       <p className="small muted">
         Posição em 31/12/{year} pelo custo de aquisição (preço médio com taxas), como pede a ficha Bens e Direitos. No
-        exterior, o custo em reais soma cada compra pela PTAX da data.
+        exterior, o custo em reais soma cada compra pela PTAX da data. Fundos de investimento entram pelo valor aplicado
+        (resgates e come-cotas tiram cotas pelo custo médio); confira com o informe de rendimentos do banco.
       </p>
       <table className="tax-positions">
         <thead>
