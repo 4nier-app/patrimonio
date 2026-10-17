@@ -293,17 +293,14 @@ fn build(
     }
 
     // Saldos: cofrinhos em renda fixa; FGTS; conta e benefício em dinheiro.
+    // Nenhum é estimado: vale o que o usuário informa na tabela.
     for r in inp.reports {
         let values: Vec<Option<Decimal>> = cols
             .iter()
             .map(|c| {
-                if r.savings.kind.is_investment() {
-                    let started = r.units_history.first().is_some_and(|(d, _)| *d <= c.date);
-                    return started.then(|| r.balance_on(c.date));
-                }
-                // FGTS, conta e benefício: só o saldo informado no próprio mês,
-                // sem estimar nem repetir nos meses seguintes. Ontem e hoje
-                // mostram o último saldo informado.
+                // Só o saldo informado (ou movimentado) no próprio mês, sem
+                // estimar nem repetir nos meses seguintes. Ontem e hoje
+                // mostram o último saldo.
                 let from = match c.kind {
                     ColumnKind::Yesterday | ColumnKind::Today => NaiveDate::MIN,
                     _ => c.date.with_day(1).expect("dia 1 existe"),

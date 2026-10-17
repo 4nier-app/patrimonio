@@ -41,14 +41,13 @@ fn today() -> NaiveDate {
     chrono::Local::now().date_naive()
 }
 
-/// Cada saldo cadastrado, calculado pelos movimentos e pelo CDI baixado.
+/// Cada saldo cadastrado, pelos movimentos e saldos informados.
 pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
     let list = v.list_savings().map_err(s)?;
     if list.is_empty() {
         return Ok(Vec::new());
     }
     let moves = v.list_savings_moves().map_err(s)?;
-    let (cdi, _) = v.index_points("CDI").map_err(s)?;
     let today = today();
     Ok(list
         .iter()
@@ -58,7 +57,7 @@ pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
                 .filter(|m| m.savings_id == sv.id)
                 .cloned()
                 .collect();
-            carteira_core::savings::build(sv, &mine, &cdi, today)
+            carteira_core::savings::build(sv, &mine, today)
         })
         .collect())
 }

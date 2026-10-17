@@ -19,7 +19,7 @@ import { date, money, parseDecimalInput, toCashMask, tone } from "../format";
 const today = () => new Date().toLocaleDateString("sv-SE");
 
 const KINDS: { id: SavingsKind; title: string; text: string; example: string }[] = [
-  { id: "COFRINHO", title: "Cofrinho", text: "Caixinha ou conta que rende um percentual do CDI.", example: "Ex.: Nubank, Mercado Pago, 99Pay" },
+  { id: "COFRINHO", title: "Cofrinho", text: "Caixinha ou conta que rende, com resgate a qualquer hora.", example: "Ex.: Nubank, Mercado Pago, 99Pay" },
   { id: "FGTS", title: "FGTS", text: "Saldo do FGTS, como aparece no app do FGTS.", example: "Rende 3% ao ano + TR + lucros" },
   { id: "CONTA", title: "Conta corrente", text: "Dinheiro parado na conta, sem rendimento.", example: "Ex.: Itaú, Bradesco" },
   { id: "BENEFICIO", title: "Cartão benefício", text: "Saldo de vale-refeição ou alimentação.", example: "Ex.: Swile, Alelo, VR" },
@@ -223,7 +223,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
             {move.kind === "SALDO" ? "Saldo que o app do banco mostra" : move.kind === "DEPOSITO" ? "Valor depositado" : "Valor que caiu na conta"}
             <CashInput value={move.amount} decimals={2} currency="BRL" onChange={(v) => setMove({ ...move, amount: v })} required />
           </label>
-          {move.kind === "RESGATE" && !it.savings.tax_free && (
+          {move.kind === "RESGATE" && it.savings.kind === "COFRINHO" && (
             <>
               <label>
                 IR retido (opcional)
@@ -236,8 +236,8 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
             </>
           )}
         </div>
-        {move.kind === "RESGATE" && !it.savings.tax_free && (
-          <p className="muted small">Se o banco não mostrar o IR e o IOF, deixe em branco: o app estima pela tabela regressiva.</p>
+        {move.kind === "RESGATE" && it.savings.kind === "COFRINHO" && (
+          <p className="muted small">Se o banco não mostrar o IR e o IOF, deixe em branco.</p>
         )}
         <div className="actions">
           <button type="submit" disabled={busy}>
@@ -261,8 +261,8 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     }
     if (m.kind === "RESGATE") {
       const r = it.redemptions.find((x) => x.move_id === m.id);
-      if (!r || it.savings.tax_free) return "";
-      return `bruto ${money(r.gross)} · IR ${money(r.ir)} · IOF ${money(r.iof)}${r.estimated ? " (estimados)" : ""}`;
+      if (!r || (Number(r.ir) === 0 && Number(r.iof) === 0)) return "";
+      return `bruto ${money(r.gross)} · IR ${money(r.ir)} · IOF ${money(r.iof)}`;
     }
     return "";
   }
@@ -275,10 +275,10 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           <Intro
             more={
               <>
-                O que vale é o saldo que o banco mostra. De vez em quando, informe o saldo do dia: entre um saldo e outro, o app só estima o rendimento
-                (cofrinho pelo CDI, FGTS a 3% ao ano), e cada saldo novo corrige a estimativa. Se o saldo informado ficar muito longe do esperado, o app avisa,
-                porque provavelmente faltou lançar um depósito ou resgate. Cofrinhos entram na carteira e na rentabilidade; FGTS, conta corrente e cartões
-                benefício aparecem só no patrimônio do Painel, em "Outros saldos". O saldo de 31/12 de cada um aparece em Impostos, para Bens e Direitos.
+                O que vale é o saldo que o banco mostra: informe o saldo de cada mês clicando no mês, em Evolução › Patrimônio. O app não estima nada
+                entre um saldo e outro. No cofrinho, lance também os depósitos e resgates, para o rendimento não contar dinheiro novo; se o saldo informado
+                ficar muito longe do esperado, o app avisa, porque provavelmente faltou lançar um deles. Cofrinhos entram na carteira e na rentabilidade;
+                FGTS, conta corrente e cartões benefício entram só no patrimônio. O saldo de 31/12 de cada um aparece em Impostos, para Bens e Direitos.
               </>
             }
           >
@@ -302,7 +302,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   key={k.id}
                   type="button"
                   className={`event-kind${form.kind === k.id ? " active" : ""}`}
-                  onClick={() => setForm({ ...form, kind: k.id, taxFree: false })}
+                  onClick={() => setForm({ ...form, kind: k.id })}
                 >
                   <strong>{k.title}</strong>
                   <span>{k.text}</span>
@@ -328,18 +328,6 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   Nome
                   <input value={form.name} placeholder={NAME_HINT[form.kind]} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </label>
-                {form.kind === "COFRINHO" && (
-                  <>
-                    <label className="check">
-                      <input type="checkbox" checked={form.taxFree} onChange={(e) => setForm({ ...form, taxFree: e.target.checked })} />
-                      O saldo que o banco mostra já é líquido de IR
-                    </label>
-                    <p className="muted small">
-                      Marque se o app do banco já mostra o saldo com o IR descontado (como o Mercado Pago) ou se o investimento é isento (LCI,
-                      LCA). Assim o 4Nier não desconta IR e IOF de novo. Deixe desmarcado se o banco mostra o saldo bruto.
-                    </p>
-                  </>
-                )}
               </div>
             </>
           )}
@@ -393,16 +381,14 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     </h3>
                     <p className="muted small">
                       {it.last_informed ? `Último saldo informado em ${date(it.last_informed)}` : "Nenhum saldo informado ainda"}
-                      {isCofrinho && s.tax_free && " · saldo líquido de IR"}
-                    </p>
+                                          </p>
                   </div>
                   <div className="savings-balance">
-                    <span className="muted small">{s.kind === "CONTA" || s.kind === "BENEFICIO" ? "Saldo" : "Saldo estimado hoje"}</span>
+                    <span className="muted small">{s.kind === "FGTS" ? "Saldo estimado hoje" : "Saldo"}</span>
                     <strong>{money(it.balance)}</strong>
                     {isCofrinho && Number(it.earned) !== 0 && (
                       <span className={`small ${tone(it.earned)}`}>
                         rendimento {money(it.earned)}
-                        {!s.tax_free && ` · líquido ${money(it.balance_net)}`}
                       </span>
                     )}
                   </div>
@@ -414,9 +400,6 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     {Number(lastCheck.difference) > 0 ? "acima" : "abaixo"} do esperado. Faltou lançar algum{" "}
                     {Number(lastCheck.difference) > 0 ? "depósito" : "resgate"}? Se não, pode ignorar: o app já usa o saldo informado.
                   </p>
-                )}
-                {isCofrinho && !view.cdi_until && it.moves.length > 0 && (
-                  <p className="muted small">O CDI ainda não foi baixado; o rendimento aparece depois de atualizar as cotações.</p>
                 )}
 
                 {!move || move.savingsId !== s.id ? (
