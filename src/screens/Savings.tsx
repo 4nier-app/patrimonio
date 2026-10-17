@@ -50,7 +50,9 @@ const cash = (v: string) => toCashMask(v, 2, "BRL").text;
 
 /** Nome para mensagens: o próprio, ou o tipo e o banco. */
 const titleOf = (it: SavingsItem) =>
-  it.savings.kind !== "FGTS" && it.savings.name && it.savings.name !== it.kind_label ? it.savings.name : `${it.kind_label} ${it.savings.kind === "FGTS" ? "" : it.savings.account}`.trim();
+  it.savings.name && it.savings.name !== it.kind_label
+    ? it.savings.name
+    : `${it.kind_label} ${it.savings.kind === "FGTS" ? "" : it.savings.account}`.trim();
 
 export default function Savings({ onChanged }: { onChanged: () => void }) {
   const [view, setView] = useState<SavingsView | null>(null);
@@ -81,6 +83,11 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     onChanged();
   }
 
+  // O primeiro FGTS (o do usuário) não tem nome; o de outra pessoa precisa de um.
+  const unnamedFgts = (view?.items ?? []).filter((it) => it.savings.kind === "FGTS" && (!it.savings.name || it.savings.name === it.kind_label));
+  const fgtsTaken = unnamedFgts.length > 0;
+  const needsName = form?.kind === "FGTS" && unnamedFgts.some((it) => it.savings.id !== form.id);
+
   async function saveSavings(e: React.FormEvent) {
     e.preventDefault();
     if (!form?.kind) return;
@@ -90,7 +97,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       kind: form.kind,
       // FGTS não tem banco.
       account: form.kind === "FGTS" ? "" : form.account.trim(),
-      name: form.kind === "FGTS" ? "" : form.name.trim(),
+      name: form.kind === "FGTS" && !needsName ? "" : form.name.trim(),
       rate_pct: parseDecimalInput(form.rate) ?? "100",
       tax_free: form.taxFree,
       note: null,
@@ -305,19 +312,17 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           {!form.id && (
             <div className="event-kinds">
               {KINDS.map((k) => {
-                // FGTS é um só: o saldo total que o app do FGTS mostra.
-                const taken = k.id === "FGTS" && view?.items.some((it) => it.savings.kind === "FGTS");
+                const second = k.id === "FGTS" && fgtsTaken;
                 return (
                   <button
                     key={k.id}
                     type="button"
                     className={`event-kind${form.kind === k.id ? " active" : ""}`}
-                    disabled={taken}
                     onClick={() => setForm({ ...form, kind: k.id })}
                   >
                     <strong>{k.title}</strong>
                     <span>{k.text}</span>
-                    <span className="muted small">{taken ? "Já cadastrado" : k.example}</span>
+                    <span className="muted small">{second ? "Já há um FGTS: este será de outra pessoa" : k.example}</span>
                   </button>
                 );
               })}
@@ -338,13 +343,20 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   </datalist>
                 </label>
                 )}
-                {form.kind !== "FGTS" && (
+                {(form.kind !== "FGTS" || needsName) && (
                   <label>
-                    Nome (opcional)
-                    <input value={form.name} placeholder={NAME_HINT[form.kind]} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    {needsName ? "De quem é este FGTS" : "Nome (opcional)"}
+                    <input
+                      value={form.name}
+                      placeholder={needsName ? "Ex.: Esposa" : NAME_HINT[form.kind]}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      required={needsName}
+                    />
                   </label>
                 )}
-                {form.kind === "FGTS" && <p className="muted small">Nada a preencher: o FGTS é um só, com o saldo total que o app do FGTS mostra.</p>}
+                {form.kind === "FGTS" && !needsName && (
+                  <p className="muted small">Nada a preencher: vale o saldo total que o app do FGTS mostra.</p>
+                )}
               </div>
             </>
           )}
@@ -394,13 +406,13 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   <div>
                     <span className="tag">{it.kind_label}</span>
                     <h3>
-                      {s.kind === "FGTS" ? (
-                        it.kind_label
-                      ) : s.name && s.name !== it.kind_label ? (
+                      {s.name && s.name !== it.kind_label ? (
                         <>
                           {s.name}
-                          {s.account && <span className="muted"> · {s.account}</span>}
+                          {s.kind !== "FGTS" && s.account && <span className="muted"> · {s.account}</span>}
                         </>
+                      ) : s.kind === "FGTS" ? (
+                        it.kind_label
                       ) : (
                         s.account || it.kind_label
                       )}

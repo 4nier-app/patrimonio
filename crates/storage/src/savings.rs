@@ -55,10 +55,9 @@ fn prepare(s: &mut Savings) -> Result<()> {
     s.account = s.account.trim().to_string();
     s.name = s.name.trim().to_string();
     s.note = clean(s.note.take());
-    // FGTS não tem banco nem nome a informar.
+    // FGTS não tem banco; o nome só é pedido do segundo FGTS em diante.
     if s.kind == SavingsKind::Fgts {
         s.account.clear();
-        s.name.clear();
     }
     if s.kind != SavingsKind::Cofrinho {
         s.rate_pct = rust_decimal::Decimal::ONE_HUNDRED;
@@ -85,7 +84,7 @@ impl Vault {
         }
         self.upsert_assets(&[Asset {
             ticker: savings::ticker(&s.id),
-            name: format!("{} · {}", s.name, s.account),
+            name: format!("{} · {}", s.title(), s.account),
             kind: savings::KIND.into(),
             market: savings::KIND.into(),
             currency: carteira_core::model::BRL.into(),
@@ -95,8 +94,27 @@ impl Vault {
         Ok(())
     }
 
+    /// Só um FGTS pode ficar sem nome (o do próprio usuário); o de outra
+    /// pessoa, como o do cônjuge, precisa de um.
+    fn check_fgts_name(&self, s: &Savings) -> Result<()> {
+        if s.kind != SavingsKind::Fgts || s.own_name().is_some() {
+            return Ok(());
+        }
+        let taken = self
+            .list_savings()?
+            .iter()
+            .any(|o| o.id != s.id && o.kind == SavingsKind::Fgts && o.own_name().is_none());
+        if taken {
+            return Err(bad(
+                "já existe um FGTS sem nome; dê um nome a este (de quem é o FGTS)",
+            ));
+        }
+        Ok(())
+    }
+
     pub fn create_savings(&mut self, mut s: Savings) -> Result<Savings> {
         prepare(&mut s)?;
+        self.check_fgts_name(&s)?;
         s.id = new_id()?.replacen("op-", "sd-", 1);
         let now = now_iso();
         self.conn.execute(
@@ -141,6 +159,7 @@ impl Vault {
             .get_savings(&s.id)?
             .ok_or_else(|| bad("saldo não encontrado"))?;
         prepare(&mut s)?;
+        self.check_fgts_name(&s)?;
         if s.kind.is_investment() != before.kind.is_investment() {
             return Err(bad(
                 "não dá para transformar um cofrinho em outro tipo de saldo (ou o contrário); cadastre um novo",
@@ -368,6 +387,40 @@ mod tests {
     use crate::KdfParams;
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
+
+    #[test]
+    fn so_um_fgts_sem_nome() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-123",
+            "0.2.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
+        // FGTS: sem banco; o primeiro sem nome, o segundo precisa de um.
+        let fgts = |name: &str| Savings {
+            id: String::new(),
+            kind: SavingsKind::Fgts,
+            account: "Caixa".into(),
+            name: name.into(),
+            rate_pct: dec!(0),
+            tax_free: false,
+            note: None,
+        };
+        let f1 = v.create_savings(fgts("")).unwrap();
+        assert_eq!(f1.account, "");
+        assert!(v.create_savings(fgts("")).is_err());
+        assert!(
+            v.create_savings(fgts("FGTS")).is_err(),
+            "igual ao tipo é sem nome"
+        );
+        let f2 = v.create_savings(fgts("Esposa")).unwrap();
+        let mut unnamed = f2.clone();
+        unnamed.name = String::new();
+        assert!(v.update_savings(unnamed).is_err());
+        v.update_savings(f1).unwrap();
+    }
 
     #[test]
     fn saldos_e_movimentos_com_auditoria() {

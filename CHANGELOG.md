@@ -37,8 +37,10 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   nome, a Evolução mostra o banco em cima e o tipo embaixo ("Itaú" / "Conta
   corrente"); com nome, o nome em cima e o banco embaixo. Cadastros antigos
   com o nome igual ao tipo passam a aparecer assim também.
-- FGTS: sem banco e sem nome, e só um cadastro, com o saldo total que o app
-  do FGTS mostra. Na Evolução, é uma linha só, sem grupo com total em cima.
+- FGTS: sem banco e sem nome, com o saldo total que o app do FGTS mostra. Na
+  Evolução, é uma linha só, sem grupo com total em cima. Para acompanhar o
+  FGTS de outra pessoa (como o do cônjuge), dá para cadastrar outro, e só esse
+  pede um nome; aí a Evolução volta a mostrar o grupo com o total.
 - Ao trocar de aba, a tela volta para o topo.
 - **Cofrinhos não são mais estimados**: como a conta corrente e os cartões
   benefício, valem só os saldos que você informa na Evolução, mês a mês. O app

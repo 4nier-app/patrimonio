@@ -105,10 +105,9 @@ pub struct Savings {
 impl Savings {
     /// Nome dado pelo usuário. Em branco (ou igual ao tipo, como os cadastros
     /// antigos ficavam) não há nome próprio: o tipo e o banco já dizem tudo.
-    /// O FGTS é um só e não tem nome.
     pub fn own_name(&self) -> Option<&str> {
         let n = self.name.trim();
-        (self.kind != SavingsKind::Fgts && !n.is_empty() && n != self.kind.label()).then_some(n)
+        (!n.is_empty() && n != self.kind.label()).then_some(n)
     }
 
     /// Banco ou empresa; o FGTS não tem (cadastros antigos podem ter guardado
