@@ -20,8 +20,21 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   Carteira › Rentabilidade, junto com as análises (índices, lucro mês a mês,
   quedas, o que puxou o resultado).
 - O subtítulo do aplicativo passou a ser **Patrimônio Auditável** (a marca
-  4Nier continua). O nome da instalação no Windows não mudou, então o app
-  atualiza por cima da versão anterior.
+  4Nier continua).
+- **O programa passou a se chamar "4Nier Patrimônio Auditável"** (atalho,
+  executável e instalação). Os dados continuam os mesmos, porque o
+  identificador interno não mudou. No Windows, a nova versão é instalada ao
+  lado da antiga "Carteira Auditável", que pode ser desinstalada depois (sem
+  marcar a opção de apagar os dados do aplicativo).
+- Saldos (cofrinhos, FGTS, conta e cartão benefício): novos campos **Desde**
+  (mês e ano, obrigatório) e **Até** (só para conta encerrada). Entre esses
+  meses, a linha aparece na Evolução mesmo vazia, para informar os saldos
+  direto na tabela; depois do "até", o saldo some e não conta mais no
+  patrimônio nem nas pendências do Painel. Os cadastros existentes recebem
+  como "desde" o mês do primeiro saldo lançado.
+- Evolução: FGTS, conta e cartão benefício mostram a **variação simples** em
+  "No período" (último saldo − primeiro saldo do período) e em "Desde o
+  início" (último saldo − primeiro saldo informado).
 - Evolução: nova coluna **Desde o início**, ao lado de "No período", com o
   resultado de cada investimento desde a primeira compra (valor de hoje +
   vendas − compras), por grupo e no total dos investimentos.

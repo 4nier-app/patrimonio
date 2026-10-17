@@ -41,8 +41,33 @@ const NAME_HINT: Record<SavingsKind, string> = {
 
 const MOVE_LABEL: Record<SavingsMoveKind, string> = { DEPOSITO: "Depósito", RESGATE: "Resgate", SALDO: "Saldo informado" };
 
-type NewForm = { id: string; kind: SavingsKind | null; account: string; name: string; rate: string; taxFree: boolean };
-const EMPTY_NEW: NewForm = { id: "", kind: null, account: "", name: "", rate: "100", taxFree: false };
+type NewForm = {
+  id: string;
+  kind: SavingsKind | null;
+  account: string;
+  name: string;
+  rate: string;
+  taxFree: boolean;
+  /** "AAAA-MM", como no campo de mês. */
+  since: string;
+  until: string;
+};
+const thisMonth = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+const EMPTY_NEW = (): NewForm => ({
+  id: "",
+  kind: null,
+  account: "",
+  name: "",
+  rate: "100",
+  taxFree: false,
+  since: thisMonth(),
+  until: "",
+});
+/** "2024-09-01" → "09/2024". */
+const monthLabel = (d: string) => `${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
 type MoveForm = { id: string; savingsId: string; kind: SavingsMoveKind; date: string; amount: string; ir: string; iof: string };
 
@@ -113,6 +138,8 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       rate_pct: parseDecimalInput(form.rate) ?? "100",
       tax_free: form.taxFree,
       note: null,
+      since: form.since ? `${form.since}-01` : null,
+      until: form.until ? `${form.until}-01` : null,
     };
     setBusy(true);
     try {
@@ -215,7 +242,16 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   function editSavings(s: SavingsT) {
     // Cadastros antigos guardavam o tipo como nome; aqui ele aparece em branco.
     const own = s.name === KINDS.find((k) => k.id === s.kind)?.title ? "" : s.name;
-    setForm({ id: s.id, kind: s.kind, account: s.account, name: own, rate: s.rate_pct, taxFree: s.tax_free });
+    setForm({
+      id: s.id,
+      kind: s.kind,
+      account: s.account,
+      name: own,
+      rate: s.rate_pct,
+      taxFree: s.tax_free,
+      since: s.since?.slice(0, 7) ?? thisMonth(),
+      until: s.until?.slice(0, 7) ?? "",
+    });
     setSaved(null);
     window.scrollTo({ top: 0 });
   }
@@ -312,7 +348,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           </Intro>
         </div>
         {!form && (
-          <button onClick={() => setForm({ ...EMPTY_NEW })} type="button">
+          <button onClick={() => setForm(EMPTY_NEW())} type="button">
             + Novo saldo
           </button>
         )}
@@ -366,9 +402,29 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     />
                   </label>
                 )}
-                {form.kind === "FGTS" && !needsName && (
-                  <p className="muted small">Nada a preencher: vale o saldo total que o app do FGTS mostra.</p>
-                )}
+                <label>
+                  Desde (mês e ano)
+                  <input
+                    type="month"
+                    value={form.since}
+                    max={form.until || undefined}
+                    onChange={(e) => setForm({ ...form, since: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
+                  Até (só se encerrada)
+                  <input
+                    type="month"
+                    value={form.until}
+                    min={form.since || undefined}
+                    onChange={(e) => setForm({ ...form, until: e.target.value })}
+                  />
+                </label>
+                <p className="muted small">
+                  Entre esses meses, a linha aparece em Evolução mesmo vazia, para você informar os saldos. Depois do
+                  "até", o saldo some e não conta mais no patrimônio.
+                </p>
               </div>
             </>
           )}
@@ -430,6 +486,9 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                       )}
                     </h3>
                     <p className="muted small">
+                      {s.since && `Desde ${monthLabel(s.since)}`}
+                      {s.until && ` · encerrada em ${monthLabel(s.until)}`}
+                      {s.since && " · "}
                       {it.last_informed ? `Último saldo informado em ${date(it.last_informed)}` : "Nenhum saldo informado ainda"}
                     </p>
                   </div>

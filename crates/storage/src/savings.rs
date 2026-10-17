@@ -3,12 +3,14 @@
 
 use carteira_core::savings::{self, MoveKind, Savings, SavingsKind, SavingsMove};
 use carteira_ledger::Action;
+use chrono::{Datelike, NaiveDate};
 use rusqlite::{params, OptionalExtension};
 
 use crate::records::{bad, date, dec, new_id, Asset};
 use crate::{now_iso, Result, Vault};
 
-const SELECT: &str = "SELECT id, kind, account, name, rate_pct, tax_free, note FROM savings";
+const SELECT: &str =
+    "SELECT id, kind, account, name, rate_pct, tax_free, note, since, until FROM savings";
 const SELECT_MOVE: &str =
     "SELECT id, savings_id, move_date, kind, amount, ir, iof, note FROM savings_moves";
 
@@ -22,6 +24,14 @@ fn row_to_savings(r: &rusqlite::Row<'_>) -> rusqlite::Result<Savings> {
         rate_pct: dec(r.get(4)?, 4)?,
         tax_free: r.get::<_, i64>(5)? != 0,
         note: r.get(6)?,
+        since: r
+            .get::<_, Option<String>>(7)?
+            .map(|s| date(s, 7))
+            .transpose()?,
+        until: r
+            .get::<_, Option<String>>(8)?
+            .map(|s| date(s, 8))
+            .transpose()?,
     })
 }
 
@@ -55,6 +65,13 @@ fn prepare(s: &mut Savings) -> Result<()> {
     s.account = s.account.trim().to_string();
     s.name = s.name.trim().to_string();
     s.note = clean(s.note.take());
+    // Desde e até valem pelo mês: guarda o dia 1. Sem "desde", começa no mês
+    // atual (a tela sempre pede).
+    let month = |d: NaiveDate| d.with_day(1).expect("dia 1 existe");
+    s.since = Some(month(
+        s.since.unwrap_or_else(|| chrono::Local::now().date_naive()),
+    ));
+    s.until = s.until.map(month);
     // FGTS não tem banco; o nome só é pedido do segundo FGTS em diante.
     if s.kind == SavingsKind::Fgts {
         s.account.clear();
@@ -127,8 +144,8 @@ impl Vault {
         s.id = new_id()?.replacen("op-", "sd-", 1);
         let now = now_iso();
         self.conn.execute(
-            "INSERT INTO savings (id, kind, account, name, rate_pct, tax_free, note, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+            "INSERT INTO savings (id, kind, account, name, rate_pct, tax_free, note, since, until, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?9, ?10, ?8, ?8)",
             params![
                 s.id,
                 s.kind.as_str(),
@@ -137,7 +154,9 @@ impl Vault {
                 s.rate_pct.to_string(),
                 s.tax_free as i64,
                 s.note,
-                now
+                now,
+                s.since.map(|d| d.to_string()),
+                s.until.map(|d| d.to_string())
             ],
         )?;
         self.catalog_savings(&s)?;
@@ -179,7 +198,7 @@ impl Vault {
         }
         self.conn.execute(
             "UPDATE savings SET kind = ?2, account = ?3, name = ?4, rate_pct = ?5, tax_free = ?6,
-               note = ?7, updated_at = ?8 WHERE id = ?1",
+               note = ?7, updated_at = ?8, since = ?9, until = ?10 WHERE id = ?1",
             params![
                 s.id,
                 s.kind.as_str(),
@@ -188,7 +207,9 @@ impl Vault {
                 s.rate_pct.to_string(),
                 s.tax_free as i64,
                 s.note,
-                now_iso()
+                now_iso(),
+                s.since.map(|d| d.to_string()),
+                s.until.map(|d| d.to_string())
             ],
         )?;
         self.catalog_savings(&s)?;
@@ -416,6 +437,8 @@ mod tests {
             rate_pct: dec!(0),
             tax_free: false,
             note: None,
+            since: None,
+            until: None,
         };
         let f1 = v.create_savings(fgts("")).unwrap();
         assert_eq!(f1.account, "");
@@ -461,6 +484,8 @@ mod tests {
                 rate_pct: dec!(105),
                 tax_free: false,
                 note: None,
+                since: None,
+                until: None,
             })
             .unwrap();
         assert_eq!(s.account, "Banco X");
@@ -475,6 +500,8 @@ mod tests {
                 rate_pct: dec!(0),
                 tax_free: false,
                 note: None,
+                since: None,
+                until: None,
             })
             .unwrap();
         assert!(v.get_asset(&savings::ticker(&vr.id)).unwrap().is_none());

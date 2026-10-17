@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Carteira Auditável",
+  "productName": "4Nier Patrimônio Auditável",
   "version": "../package.json",
   "identifier": "io.github.marcelofournier.carteiraauditavel",
   "build": {

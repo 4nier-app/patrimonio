@@ -100,9 +100,27 @@ pub struct Savings {
     #[serde(default)]
     pub tax_free: bool,
     pub note: Option<String>,
+    /// Desde quando existe (dia 1 do mês): a Evolução mostra a linha a partir
+    /// daí.
+    #[serde(default)]
+    pub since: Option<NaiveDate>,
+    /// Mês de encerramento (dia 1), para conta fechada: depois dele o saldo
+    /// some e não conta mais no total.
+    #[serde(default)]
+    pub until: Option<NaiveDate>,
 }
 
 impl Savings {
+    /// Existia em algum momento entre `from` e `to`.
+    pub fn active_between(&self, from: NaiveDate, to: NaiveDate) -> bool {
+        self.since.is_none_or(|s| s <= to) && self.until.is_none_or(|u| last_day(u) >= from)
+    }
+
+    /// Ainda aberto em `date` (não passou do mês de encerramento).
+    pub fn open_on(&self, date: NaiveDate) -> bool {
+        self.until.is_none_or(|u| date <= last_day(u))
+    }
+
     /// Nome dado pelo usuário. Em branco (ou igual ao tipo, como os cadastros
     /// antigos ficavam) não há nome próprio: o tipo e o banco já dizem tudo.
     pub fn own_name(&self) -> Option<&str> {
@@ -126,6 +144,11 @@ impl Savings {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if let (Some(s), Some(u)) = (self.since, self.until) {
+            if u < s {
+                return Err("o mês de encerramento é antes do início".into());
+            }
+        }
         if self.account.trim().is_empty() && self.kind != SavingsKind::Fgts {
             return Err("informe o banco (conta)".into());
         }
@@ -333,7 +356,15 @@ impl SavingsReport {
 /// Monta o saldo a partir dos movimentos e dos saldos informados.
 pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> SavingsReport {
     let ticker = ticker(&savings.id);
-    let mut moves: Vec<&SavingsMove> = moves.iter().filter(|m| m.date <= today).collect();
+    // Conta encerrada: o saldo some no dia seguinte ao fim do mês do "até".
+    let closing = savings
+        .until
+        .and_then(|u| last_day(u).succ_opt())
+        .filter(|c| *c <= today);
+    let mut moves: Vec<&SavingsMove> = moves
+        .iter()
+        .filter(|m| m.date <= today && closing.is_none_or(|c| m.date < c))
+        .collect();
     // No mesmo dia: depósitos, depois resgates, depois o saldo do fim do dia.
     moves.sort_by_key(|m| {
         (
@@ -512,6 +543,33 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
             _ => report.units_history.push((m.date, held)),
         }
     }
+    if let Some(c) = closing {
+        while c.year() > last_year {
+            year_end.insert(last_year, snapshot(&lots, last_year));
+            last_year += 1;
+        }
+        let held = units(&lots);
+        if !held.is_zero() {
+            report.operations.push(Operation {
+                id: format!("{ticker}:encerrada"),
+                account: savings.account.clone(),
+                asset: ticker.clone(),
+                date: c,
+                side: Side::Ajuste,
+                quantity: -held,
+                price: Decimal::ZERO,
+                manual_fees: Some(Decimal::ZERO),
+                note: Some(savings.title().to_string()),
+                currency: BRL.into(),
+                from_account: None,
+                residue: None,
+                ir: None,
+                iof: None,
+            });
+            lots.clear();
+            report.units_history.push((c, Decimal::ZERO));
+        }
+    }
     let u = unit_on(today);
     while today.year() > last_year {
         year_end.insert(last_year, snapshot(&lots, last_year));
@@ -526,6 +584,19 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
 }
 
 use chrono::Datelike;
+
+/// Último dia do mês de `d`.
+fn last_day(d: NaiveDate) -> NaiveDate {
+    let (y, m) = if d.month() == 12 {
+        (d.year() + 1, 1)
+    } else {
+        (d.year(), d.month() + 1)
+    };
+    NaiveDate::from_ymd_opt(y, m, 1)
+        .expect("dia 1 existe")
+        .pred_opt()
+        .expect("dia anterior existe")
+}
 
 #[cfg(test)]
 mod tests {
@@ -545,6 +616,8 @@ mod tests {
             rate_pct: dec!(100),
             tax_free: false,
             note: None,
+            since: None,
+            until: None,
         }
     }
 
@@ -559,6 +632,26 @@ mod tests {
             iof: None,
             note: None,
         }
+    }
+
+    #[test]
+    fn conta_encerrada_zera_depois_do_ate() {
+        let mut c = cofrinho();
+        c.since = Some(d(1, 1));
+        c.until = Some(d(3, 1));
+        let moves = vec![
+            mv("a", d(1, 10), MoveKind::Saldo, dec!(1000)),
+            mv("b", d(4, 10), MoveKind::Saldo, dec!(2000)),
+        ];
+        // Antes do fim de março, o saldo vale; o lançamento de abril é ignorado.
+        let r = build(&c, &moves, d(3, 31));
+        assert_eq!(r.balance, dec!(1000));
+        let r = build(&c, &moves, d(5, 1));
+        assert_eq!(r.balance, Decimal::ZERO);
+        assert_eq!(r.units_history.last(), Some(&(d(4, 1), Decimal::ZERO)));
+        assert!(c.active_between(d(3, 1), d(12, 31)));
+        assert!(!c.active_between(d(4, 1), d(12, 31)));
+        assert!(c.open_on(d(3, 31)) && !c.open_on(d(4, 1)));
     }
 
     #[test]

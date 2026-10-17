@@ -1,4 +1,4 @@
-//! Cofre local da Carteira Auditável.
+//! Cofre local do 4Nier Patrimônio Auditável.
 //!
 //! O banco é um arquivo SQLite criptografado com SQLCipher. A chave é derivada
 //! da senha do usuário com Argon2id e um sal aleatório; a senha nunca é

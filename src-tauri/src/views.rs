@@ -452,7 +452,8 @@ pub struct OtherBalance {
 fn other_balances(v: &Vault) -> Result<Vec<OtherBalance>, String> {
     Ok(savings_reports(v)?
         .into_iter()
-        .filter(|r| !r.savings.kind.is_investment())
+        // Conta encerrada não pede saldo novo nem soma no patrimônio.
+        .filter(|r| !r.savings.kind.is_investment() && r.savings.open_on(today()))
         .map(|r| OtherBalance {
             id: r.savings.id.clone(),
             name: r.savings.title().to_string(),
@@ -1565,6 +1566,8 @@ mod savings_tests {
             rate_pct: dec!(100),
             tax_free: false,
             note: None,
+            since: None,
+            until: None,
         };
         let c = v.create_savings(mk(SavingsKind::Cofrinho)).unwrap();
         let f = v.create_savings(mk(SavingsKind::Fgts)).unwrap();

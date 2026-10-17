@@ -570,6 +570,10 @@ export type Savings = {
   rate_pct: Dec;
   tax_free: boolean;
   note: string | null;
+  /** Mês de início ("AAAA-MM-01"). */
+  since: string | null;
+  /** Mês de encerramento ("AAAA-MM-01"), se a conta foi fechada. */
+  until: string | null;
 };
 
 export type SavingsMove = {

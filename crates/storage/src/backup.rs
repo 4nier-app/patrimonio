@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub const BACKUP_EXTENSION: &str = "cabackup";
-const APP_NAME: &str = "Carteira Auditável";
+const APP_NAME: &str = "4Nier Patrimônio Auditável";
 const AUTO_DIR: &str = "backups";
 const PREVIOUS_DIR: &str = "anteriores";
 
