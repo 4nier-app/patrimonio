@@ -55,9 +55,10 @@ fn prepare(s: &mut Savings) -> Result<()> {
     s.account = s.account.trim().to_string();
     s.name = s.name.trim().to_string();
     s.note = clean(s.note.take());
-    // FGTS não tem banco a informar.
+    // FGTS não tem banco nem nome a informar.
     if s.kind == SavingsKind::Fgts {
         s.account.clear();
+        s.name.clear();
     }
     if s.kind != SavingsKind::Cofrinho {
         s.rate_pct = rust_decimal::Decimal::ONE_HUNDRED;

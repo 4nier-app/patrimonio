@@ -537,6 +537,8 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .evo-group th:first-child { background: var(--bg); font-weight: 600; white-space: normal; }
 .evo-group:hover th, .evo-group:hover td { filter: brightness(0.97); }
 .evo-row th:first-child { padding-left: 20px; }
+.evo-row.evo-group th:first-child { padding-left: 24px; }
+.evo-row.evo-group .evo-val { font-weight: 600; }
 .evo-asset { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .evo-detail { display: block; font-size: 0.7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .evo-total th, .evo-total td { border-top: 2px solid var(--border); }

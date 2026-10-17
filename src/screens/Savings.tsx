@@ -34,7 +34,7 @@ const ISSUERS: Record<SavingsKind, string[]> = {
 
 const NAME_HINT: Record<SavingsKind, string> = {
   COFRINHO: "Ex.: Reserva de emergência",
-  FGTS: "Ex.: nome da empresa (opcional)",
+  FGTS: "",
   CONTA: "Ex.: Conta conjunta (em branco: mostra só o banco)",
   BENEFICIO: "Ex.: Refeição",
 };
@@ -50,7 +50,7 @@ const cash = (v: string) => toCashMask(v, 2, "BRL").text;
 
 /** Nome para mensagens: o próprio, ou o tipo e o banco. */
 const titleOf = (it: SavingsItem) =>
-  it.savings.name && it.savings.name !== it.kind_label ? it.savings.name : `${it.kind_label} ${it.savings.kind === "FGTS" ? "" : it.savings.account}`.trim();
+  it.savings.kind !== "FGTS" && it.savings.name && it.savings.name !== it.kind_label ? it.savings.name : `${it.kind_label} ${it.savings.kind === "FGTS" ? "" : it.savings.account}`.trim();
 
 export default function Savings({ onChanged }: { onChanged: () => void }) {
   const [view, setView] = useState<SavingsView | null>(null);
@@ -90,7 +90,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       kind: form.kind,
       // FGTS não tem banco.
       account: form.kind === "FGTS" ? "" : form.account.trim(),
-      name: form.name.trim(),
+      name: form.kind === "FGTS" ? "" : form.name.trim(),
       rate_pct: parseDecimalInput(form.rate) ?? "100",
       tax_free: form.taxFree,
       note: null,
@@ -338,10 +338,13 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   </datalist>
                 </label>
                 )}
-                <label>
-                  Nome (opcional)
-                  <input value={form.name} placeholder={NAME_HINT[form.kind]} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                </label>
+                {form.kind !== "FGTS" && (
+                  <label>
+                    Nome (opcional)
+                    <input value={form.name} placeholder={NAME_HINT[form.kind]} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  </label>
+                )}
+                {form.kind === "FGTS" && <p className="muted small">Nada a preencher: o FGTS é um só, com o saldo total que o app do FGTS mostra.</p>}
               </div>
             </>
           )}
@@ -391,13 +394,13 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   <div>
                     <span className="tag">{it.kind_label}</span>
                     <h3>
-                      {s.name && s.name !== it.kind_label ? (
+                      {s.kind === "FGTS" ? (
+                        it.kind_label
+                      ) : s.name && s.name !== it.kind_label ? (
                         <>
                           {s.name}
-                          {s.kind !== "FGTS" && s.account && <span className="muted"> · {s.account}</span>}
+                          {s.account && <span className="muted"> · {s.account}</span>}
                         </>
-                      ) : s.kind === "FGTS" ? (
-                        it.kind_label
                       ) : (
                         s.account || it.kind_label
                       )}

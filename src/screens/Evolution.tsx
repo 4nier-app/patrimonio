@@ -244,23 +244,27 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
             <tbody>
               {view.groups.map((g) => {
                 const key = `${g.id}:${g.label}`;
-                const open = !collapsed.includes(key);
+                // FGTS é um saldo só: a própria linha faz as vezes do grupo.
+                const single = g.id === "fgts" && g.rows.length === 1;
+                const open = single || !collapsed.includes(key);
                 return (
                   <Fragment key={key}>
-                    <tr className="evo-group clickable" onClick={() => toggle(key)}>
-                      <th scope="row">
-                        <span className="ret-caret">{open ? "▾" : "▸"}</span>
-                        {g.label}
-                      </th>
-                      {cols.map((c, i) => (
-                        <Cell key={c.date} values={g.total} i={i} strong />
-                      ))}
-                      <Gain gain={g.gain} strong />
-                      <Gain gain={g.since} strong plain />
-                    </tr>
+                    {!single && (
+                      <tr className="evo-group clickable" onClick={() => toggle(key)}>
+                        <th scope="row">
+                          <span className="ret-caret">{open ? "▾" : "▸"}</span>
+                          {g.label}
+                        </th>
+                        {cols.map((c, i) => (
+                          <Cell key={c.date} values={g.total} i={i} strong />
+                        ))}
+                        <Gain gain={g.gain} strong />
+                        <Gain gain={g.since} strong plain />
+                      </tr>
+                    )}
                     {open &&
                       g.rows.map((r) => (
-                        <tr key={`${key}:${r.asset ?? r.name}:${r.detail ?? ""}`} className="evo-row">
+                        <tr key={`${key}:${r.asset ?? r.name}:${r.detail ?? ""}`} className={single ? "evo-row evo-group" : "evo-row"}>
                           <th scope="row" title={r.detail ? `${r.name}\n${r.detail}` : r.name}>
                             <span className="evo-asset">{r.name}</span>
                             {r.detail && <span className="evo-detail">{r.detail}</span>}
