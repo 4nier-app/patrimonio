@@ -107,7 +107,7 @@ export default function Login({ status, onUnlocked }: { status: VaultStatus; onU
             <h3>Esqueci minha senha</h3>
             {status.has_recovery_key ? (
               <p className="muted">
-                Digite a chave de recuperação (procure no seu e-mail por "Carteira Auditável: chave de recuperação") e
+                Digite a chave de recuperação (procure no seu e-mail por "chave de recuperação") e
                 escolha uma senha nova.
               </p>
             ) : (

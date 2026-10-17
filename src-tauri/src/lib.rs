@@ -184,7 +184,7 @@ async fn export_backup(app: tauri::AppHandle) -> Result<Option<BackupInfo>, Stri
         .file()
         .set_title("Salvar backup da carteira")
         .set_file_name(&name)
-        .add_filter("Backup da Carteira Auditável", &[BACKUP_EXTENSION]);
+        .add_filter("Backup do 4Nier", &[BACKUP_EXTENSION]);
     if let Ok(docs) = app.path().document_dir() {
         dialog = dialog.set_directory(docs);
     }
@@ -203,7 +203,7 @@ async fn pick_backup(app: tauri::AppHandle) -> Result<Option<BackupSummary>, Str
         .dialog()
         .file()
         .set_title("Escolha o backup da carteira")
-        .add_filter("Backup da Carteira Auditável", &[BACKUP_EXTENSION]);
+        .add_filter("Backup do 4Nier", &[BACKUP_EXTENSION]);
     if let Ok(docs) = app.path().document_dir() {
         dialog = dialog.set_directory(docs);
     }

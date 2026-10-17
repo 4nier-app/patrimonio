@@ -102,6 +102,13 @@ rendimento é a variação dos investimentos menos esse dinheiro novo.
 Investimento é toda linha com código no motor (ativos, fundos e
 cofrinhos); FGTS, conta corrente e cartões benefício entram só no total
 geral.
+
+O Painel (`src/screens/Panel.tsx`, desde a 0.12.0) usa a mesma visão da
+Evolução: total da última coluna, variação no mês contra o último fim de mês,
+variação no ano pelo `total_gain`, rendimento pelo `investments_gain` e
+dinheiro novo pela soma de `new_money`. Os fundos de cada banco viram uma fatia
+só. A rentabilidade detalhada fica em Carteira › Rentabilidade.
+
 ### 4.4 Cotações e câmbio (imutáveis)
 - **quote**: `id, asset_id, data, fechamento, moeda, fonte, oficial (bool), obtida_em, hash_payload`
 - **fx_rate**: `id, data, par (USD/BRL), compra, venda, tipo_boletim, fonte (PTAX-BCB), obtida_em, hash_payload`

@@ -28,7 +28,7 @@ export default function Logo({ size = 32, subtitle = true }: { size?: number; su
         <span className="logo-name">
           <span className="logo-4">4</span>Nier
         </span>
-        {subtitle && <span className="logo-sub">Carteira Auditável</span>}
+        {subtitle && <span className="logo-sub">Patrimônio Auditável</span>}
       </span>
     </span>
   );

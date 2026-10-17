@@ -1,11 +1,11 @@
 //! E-mail com a chave de recuperação, aberto no programa de e-mail do próprio
 //! usuário (link `mailto:`). O aplicativo não envia nada pela internet.
 
-const SUBJECT: &str = "Carteira Auditável: chave de recuperação";
+const SUBJECT: &str = "4Nier Patrimônio Auditável: chave de recuperação";
 
 pub fn body(key: &str, generated_at: &str) -> String {
     format!(
-        "Esta é a chave de recuperação da sua Carteira Auditável:\n\
+        "Esta é a chave de recuperação do seu 4Nier Patrimônio Auditável:\n\
          \n\
          {key}\n\
          \n\
@@ -51,7 +51,7 @@ mod tests {
     #[test]
     fn link_mailto_codificado() {
         let url = mailto("eu+teste@exemplo.com", "ABCD-EFGH", "15/10/2026 às 10:00");
-        assert!(url.starts_with("mailto:eu%2Bteste@exemplo.com?subject=Carteira%20Audit%C3%A1vel"));
+        assert!(url.starts_with("mailto:eu%2Bteste@exemplo.com?subject=4Nier%20Patrim%C3%B4nio%20Audit%C3%A1vel"));
         assert!(url.contains("ABCD-EFGH"));
         assert!(url.contains("%0D%0A"));
         assert!(!url.contains(' '));

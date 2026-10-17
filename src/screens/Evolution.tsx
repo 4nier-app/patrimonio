@@ -26,7 +26,7 @@ function saveCollapsed(ids: string[]) {
   }
 }
 
-function columnLabel(c: EvolutionColumn): { top: string; sub?: string } {
+export function columnLabel(c: EvolutionColumn): { top: string; sub?: string } {
   const [y, m, d] = c.date.split("-");
   switch (c.kind) {
     case "BASE":
@@ -171,7 +171,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
               vendido no meio do ano mostra o que rendeu até a venda. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
               alta e um saque como queda. Por isso, embaixo, a variação dos investimentos é separada em dinheiro novo (aportes menos resgates) e
               rendimento. Investimentos são ações, ETFs, criptomoedas, fundos e cofrinhos; FGTS, conta corrente e cartões benefício entram só no total
-              geral. A rentabilidade, que desconta os aportes, continua na aba Rentabilidade.
+              geral. A rentabilidade, que desconta os aportes, fica em Carteira › Rentabilidade.
             </>
           }
         >

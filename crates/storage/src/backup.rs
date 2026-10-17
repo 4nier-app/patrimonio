@@ -61,7 +61,7 @@ pub struct BackupSummary {
 fn read_file(path: &Path) -> Result<BackupFile> {
     let text = fs::read_to_string(path)?;
     let file: BackupFile = serde_json::from_str(&text).map_err(|_| {
-        VaultError::Invalid("este arquivo não é um backup da Carteira Auditável".into())
+        VaultError::Invalid("este arquivo não é um backup do 4Nier".into())
     })?;
     if file.formato != 1 {
         return Err(VaultError::Invalid(format!(

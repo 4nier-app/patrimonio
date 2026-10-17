@@ -26,7 +26,7 @@ const pct = (n: number | null) => (n == null ? "—" : percent(String(n)));
 export type Go = (tab: "lancamentos" | "carteira" | "seguranca", section?: "manual" | "importar" | "seguranca") => void;
 
 /** Primeiros passos, enquanto o cofre ainda não tem lançamentos. */
-function FirstSteps({ go, hasRecovery }: { go: Go; hasRecovery: boolean }) {
+export function FirstSteps({ go, hasRecovery }: { go: Go; hasRecovery: boolean }) {
   return (
     <section className="first-steps">
       <h2>Bem-vindo ao 4Nier</h2>
@@ -55,7 +55,7 @@ function FirstSteps({ go, hasRecovery }: { go: Go; hasRecovery: boolean }) {
         </li>
         <li className="card">
           <strong>Acompanhe aqui no Painel</strong>
-          <span className="muted">Com as operações lançadas, esta tela mostra a rentabilidade comparada com CDI, IPCA e Ibovespa.</span>
+          <span className="muted">Com as operações lançadas, esta tela mostra seu patrimônio mês a mês e a rentabilidade comparada com o CDI.</span>
         </li>
       </ol>
       {!hasRecovery && (
@@ -71,7 +71,8 @@ function FirstSteps({ go, hasRecovery }: { go: Go; hasRecovery: boolean }) {
   );
 }
 
-export default function Dashboard({ refresh, go, hasRecovery }: { refresh: number; go: Go; hasRecovery: boolean }) {
+/** Análises da carteira (índices, lucro, quedas), em Carteira › Rentabilidade. */
+export default function Dashboard({ refresh }: { refresh: number }) {
   const [view, setView] = useState<DashboardView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>("inicio");
@@ -113,7 +114,7 @@ export default function Dashboard({ refresh, go, hasRecovery }: { refresh: numbe
 
   if (error) return <p className="error">{error}</p>;
   if (!view) return <p className="muted">Calculando…</p>;
-  if (view.months.length === 0) return <FirstSteps go={go} hasRecovery={hasRecovery} />;
+  if (view.months.length === 0) return null;
 
   const years = [...new Set(view.months.map((m) => m.year))];
 
@@ -121,9 +122,10 @@ export default function Dashboard({ refresh, go, hasRecovery }: { refresh: numbe
     <section className="dashboard">
       <div className="dash-head">
         <div>
-          <h2>Painel</h2>
+          <h2>Análises da carteira</h2>
           <p className="muted">
-            {memos ? "Clique num cartão para ver a memória de cálculo. " : ""}Valores em reais; exterior pela PTAX.
+            {memos ? "Clique num cartão para ver a memória de cálculo. " : ""}Comparação com índices, lucro e quedas dos investimentos. Valores
+            em reais; exterior pela PTAX.
           </p>
         </div>
         <div className="period-pick">
@@ -194,7 +196,6 @@ export default function Dashboard({ refresh, go, hasRecovery }: { refresh: numbe
       </div>
 
       <Cards view={view} onMemo={memos ? setMemo : undefined} />
-      <Wealth view={view} />
 
       {!frame ? (
         <p className="muted">Calculando os dias do mês…</p>
@@ -221,7 +222,7 @@ export default function Dashboard({ refresh, go, hasRecovery }: { refresh: numbe
             </p>
             {inMoney ? <SameFlows frame={frame} p={p} /> : <Comparison frame={frame} p={p} />}
           </Block>
-          <Block title="Evolução do patrimônio">
+          <Block title="Valor aplicado e ganho">
             <Patrimony frame={frame} p={p} />
           </Block>
           <Block
@@ -290,7 +291,7 @@ function Block({ title, wide, extra, children }: { title: string; wide?: boolean
   );
 }
 
-function Cards({ view, onMemo }: { view: DashboardView; onMemo?: (m: Memo) => void }) {
+export function Cards({ view, onMemo }: { view: DashboardView; onMemo?: (m: Memo) => void }) {
   return (
     <div className="dash-cards">
       {view.cards.map((c) => {
@@ -697,48 +698,9 @@ function Timeline({ view }: { view: DashboardView }) {
 }
 
 /** "R$ 12,3 mil" para eixos. */
-function compact(v: number): string {
+export function compact(v: number): string {
   const abs = Math.abs(v);
   if (abs >= 1e6) return `R$ ${(v / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
   if (abs >= 1e3) return `R$ ${(v / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
   return `R$ ${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
-}
-
-
-/** Patrimônio total: investimentos mais FGTS, conta corrente e benefícios. */
-function Wealth({ view }: { view: DashboardView }) {
-  const others = view.other_balances ?? [];
-  if (others.length === 0) return null;
-  const open = view.positions.filter((x) => Number(x.quantity) !== 0);
-  const invested = open.every((x) => x.market_value_brl != null) ? open.reduce((t, x) => t + Number(x.market_value_brl), 0) : null;
-  const rest = others.reduce((t, x) => t + Number(x.balance), 0);
-  return (
-    <div className="card wealth">
-      <div className="wealth-sum">
-        <div>
-          <span className="muted small">Investimentos</span>
-          <strong>{invested == null ? "—" : money(invested.toFixed(2))}</strong>
-        </div>
-        <span className="muted">+</span>
-        <div>
-          <span className="muted small">Outros saldos</span>
-          <strong>{money(rest.toFixed(2))}</strong>
-        </div>
-        <span className="muted">=</span>
-        <div>
-          <span className="muted small">Patrimônio total</span>
-          <strong>{invested == null ? "—" : money((invested + rest).toFixed(2))}</strong>
-        </div>
-      </div>
-      <ul className="wealth-list muted small">
-        {others.map((o) => (
-          <li key={o.id}>
-            {o.kind}: {o.name} · {o.account} <strong>{money(o.balance)}</strong>
-            {o.last_informed && <> (saldo de {date(o.last_informed)})</>}
-          </li>
-        ))}
-      </ul>
-      <p className="muted small">Outros saldos não entram na rentabilidade nem na comparação com índices.</p>
-    </div>
-  );
 }

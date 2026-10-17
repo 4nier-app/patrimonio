@@ -6,7 +6,25 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.11.0] - Não lançada
+## [0.12.0] - Não lançada
+
+### Alterado
+- **Painel novo, centrado no patrimônio**: o total de hoje com a variação no
+  mês e no ano; a divisão entre investimentos, FGTS e dinheiro; o gráfico da
+  evolução mês a mês por grupo (ou ano a ano, em "Todos os anos"); o dinheiro
+  novo e o rendimento do ano; onde está o patrimônio, grupo a grupo; e um
+  resumo da rentabilidade com link para os detalhes.
+- Pendências no topo do Painel: DARF a pagar e saldos (FGTS, conta, cartões)
+  ainda não informados no mês, com link para a Evolução.
+- **Rentabilidade saiu do menu principal**: agora fica em
+  Carteira › Rentabilidade, junto com as análises (índices, lucro mês a mês,
+  quedas, o que puxou o resultado).
+- O subtítulo do aplicativo passou a ser **Patrimônio Auditável** (a marca
+  4Nier continua). O nome da instalação no Windows não mudou, então o app
+  atualiza por cima da versão anterior.
+- Ao trocar de aba, a tela volta para o topo.
+
+## [0.11.0] - 2026-10-17
 
 ### Adicionado
 - Nova aba **Evolução**: o patrimônio no fim de cada mês, em reais (o que
