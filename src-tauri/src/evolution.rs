@@ -345,15 +345,19 @@ fn build(
             savings_id: Some(r.savings.id.clone()),
             // Com nome próprio: nome em cima e banco embaixo. Sem nome: o
             // banco em cima e o tipo embaixo ("Itaú" / "Conta corrente").
-            name: r
-                .savings
-                .own_name()
-                .unwrap_or(&r.savings.account)
-                .to_string(),
-            detail: Some(match r.savings.own_name() {
-                Some(_) => r.savings.account.clone(),
-                None => r.savings.kind.label().to_string(),
-            }),
+            // FGTS é sempre na Caixa: "FGTS", ou o nome dado (a empresa) com
+            // "FGTS" embaixo.
+            name: match (r.savings.kind, r.savings.own_name()) {
+                (_, Some(n)) => n.to_string(),
+                (SavingsKind::Fgts, None) => r.savings.kind.label().to_string(),
+                (_, None) => r.savings.account.clone(),
+            },
+            detail: match (r.savings.kind, r.savings.own_name()) {
+                (SavingsKind::Fgts, Some(_)) => Some(r.savings.kind.label().to_string()),
+                (SavingsKind::Fgts, None) => None,
+                (_, Some(_)) => Some(r.savings.account.clone()),
+                (_, None) => Some(r.savings.kind.label().to_string()),
+            },
             values,
             missing: vec![false; n],
             gain: None,

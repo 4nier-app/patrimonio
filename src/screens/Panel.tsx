@@ -177,7 +177,8 @@ export default function Panel({
             ))}
             {stale.map((o) => (
               <li key={o.id}>
-                Saldo de {o.name} ({o.account}) ainda não informado em {monthLabel(monthStart.getMonth() + 1)}.{" "}
+                Saldo de {o.name}
+                {o.account && ` (${o.account})`} ainda não informado em {monthLabel(monthStart.getMonth() + 1)}.{" "}
                 <button type="button" className="link" onClick={() => go("evolucao", "patrimonio")}>
                   Informar na Evolução ›
                 </button>

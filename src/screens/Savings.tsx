@@ -20,7 +20,7 @@ const today = () => new Date().toLocaleDateString("sv-SE");
 
 const KINDS: { id: SavingsKind; title: string; text: string; example: string }[] = [
   { id: "COFRINHO", title: "Cofrinho", text: "Caixinha ou conta que rende, com resgate a qualquer hora.", example: "Ex.: Nubank, Mercado Pago, 99Pay" },
-  { id: "FGTS", title: "FGTS", text: "Saldo do FGTS, como aparece no app do FGTS.", example: "Rende 3% ao ano + TR + lucros" },
+  { id: "FGTS", title: "FGTS", text: "Saldo total do FGTS, como aparece no app do FGTS.", example: "Um só, com o total de todas as contas" },
   { id: "CONTA", title: "Conta corrente", text: "Dinheiro parado na conta, sem rendimento.", example: "Ex.: Itaú, Bradesco" },
   { id: "BENEFICIO", title: "Cartão benefício", text: "Saldo de vale-refeição ou alimentação.", example: "Ex.: Swile, Alelo, VR" },
 ];
@@ -34,7 +34,7 @@ const ISSUERS: Record<SavingsKind, string[]> = {
 
 const NAME_HINT: Record<SavingsKind, string> = {
   COFRINHO: "Ex.: Reserva de emergência",
-  FGTS: "Em branco: mostra só o banco",
+  FGTS: "Ex.: nome da empresa (opcional)",
   CONTA: "Ex.: Conta conjunta (em branco: mostra só o banco)",
   BENEFICIO: "Ex.: Refeição",
 };
@@ -50,7 +50,7 @@ const cash = (v: string) => toCashMask(v, 2, "BRL").text;
 
 /** Nome para mensagens: o próprio, ou o tipo e o banco. */
 const titleOf = (it: SavingsItem) =>
-  it.savings.name && it.savings.name !== it.kind_label ? it.savings.name : `${it.kind_label} ${it.savings.account}`;
+  it.savings.name && it.savings.name !== it.kind_label ? it.savings.name : `${it.kind_label} ${it.savings.kind === "FGTS" ? "" : it.savings.account}`.trim();
 
 export default function Savings({ onChanged }: { onChanged: () => void }) {
   const [view, setView] = useState<SavingsView | null>(null);
@@ -88,7 +88,8 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     const item: SavingsT = {
       id: form.id,
       kind: form.kind,
-      account: form.account.trim(),
+      // FGTS não tem banco.
+      account: form.kind === "FGTS" ? "" : form.account.trim(),
       name: form.name.trim(),
       rate_pct: parseDecimalInput(form.rate) ?? "100",
       tax_free: form.taxFree,
@@ -303,24 +304,30 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           <h3>{form.id ? "Alterar saldo" : "1. O que você quer acompanhar?"}</h3>
           {!form.id && (
             <div className="event-kinds">
-              {KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  type="button"
-                  className={`event-kind${form.kind === k.id ? " active" : ""}`}
-                  onClick={() => setForm({ ...form, kind: k.id })}
-                >
-                  <strong>{k.title}</strong>
-                  <span>{k.text}</span>
-                  <span className="muted small">{k.example}</span>
-                </button>
-              ))}
+              {KINDS.map((k) => {
+                // FGTS é um só: o saldo total que o app do FGTS mostra.
+                const taken = k.id === "FGTS" && view?.items.some((it) => it.savings.kind === "FGTS");
+                return (
+                  <button
+                    key={k.id}
+                    type="button"
+                    className={`event-kind${form.kind === k.id ? " active" : ""}`}
+                    disabled={taken}
+                    onClick={() => setForm({ ...form, kind: k.id })}
+                  >
+                    <strong>{k.title}</strong>
+                    <span>{k.text}</span>
+                    <span className="muted small">{taken ? "Já cadastrado" : k.example}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
           {form.kind && (
             <>
               {!form.id && <h3 className="spaced">2. Dados</h3>}
               <div className="grid">
+                {form.kind !== "FGTS" && (
                 <label>
                   {form.kind === "BENEFICIO" ? "Empresa do cartão" : "Banco"}
                   <input list="saldos-bancos" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} required />
@@ -330,6 +337,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     ))}
                   </datalist>
                 </label>
+                )}
                 <label>
                   Nome (opcional)
                   <input value={form.name} placeholder={NAME_HINT[form.kind]} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -385,10 +393,13 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     <h3>
                       {s.name && s.name !== it.kind_label ? (
                         <>
-                          {s.name} <span className="muted">· {s.account}</span>
+                          {s.name}
+                          {s.kind !== "FGTS" && s.account && <span className="muted"> · {s.account}</span>}
                         </>
+                      ) : s.kind === "FGTS" ? (
+                        it.kind_label
                       ) : (
-                        s.account
+                        s.account || it.kind_label
                       )}
                     </h3>
                     <p className="muted small">

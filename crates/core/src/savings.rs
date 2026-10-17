@@ -110,13 +110,23 @@ impl Savings {
         (!n.is_empty() && n != self.kind.label()).then_some(n)
     }
 
+    /// Banco ou empresa; o FGTS não tem (cadastros antigos podem ter guardado
+    /// um).
+    pub fn bank(&self) -> &str {
+        if self.kind == SavingsKind::Fgts {
+            ""
+        } else {
+            &self.account
+        }
+    }
+
     /// Nome para listas: o próprio ou o tipo ("Conta corrente").
     pub fn title(&self) -> &str {
         self.own_name().unwrap_or(self.kind.label())
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        if self.account.trim().is_empty() {
+        if self.account.trim().is_empty() && self.kind != SavingsKind::Fgts {
             return Err("informe o banco (conta)".into());
         }
         if self.kind == SavingsKind::Cofrinho
@@ -657,6 +667,14 @@ mod tests {
         assert_eq!(conta("Conta corrente").own_name(), None);
         assert_eq!(conta("Conta corrente").title(), "Conta corrente");
         assert_eq!(conta("Conjunta").own_name(), Some("Conjunta"));
+        let fgts = Savings {
+            kind: SavingsKind::Fgts,
+            account: String::new(),
+            ..conta("")
+        };
+        assert!(fgts.validate().is_ok(), "FGTS não tem banco");
+        assert_eq!(fgts.bank(), "");
+        assert!(conta("").validate().is_ok());
     }
 
     #[test]
