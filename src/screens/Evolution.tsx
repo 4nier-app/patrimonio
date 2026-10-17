@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
-import { errorMessage, evolutionApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
+import { errorMessage, evolutionApi, savingsApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
+import CashInput from "../components/CashInput";
 import Intro from "../components/Intro";
-import { date, money, monthLabel, percent, tone } from "../format";
+import { date, money, monthLabel, parseDecimalInput, percent, toCashMask, tone } from "../format";
 
 // Na tabela, reais sem centavos para caber o ano inteiro; o valor exato fica na dica.
 const intFmt = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -49,13 +50,33 @@ function change(values: (Dec | null)[], i: number): string | null {
   return String(Number(cur) / Number(prev) - 1);
 }
 
-function Cell({ values, i, missing, strong }: { values: (Dec | null)[]; i: number; missing?: boolean; strong?: boolean }) {
+function Cell({
+  values,
+  i,
+  missing,
+  strong,
+  onEdit,
+}: {
+  values: (Dec | null)[];
+  i: number;
+  missing?: boolean;
+  strong?: boolean;
+  /** Saldo: clicar abre o campo para informar o valor nessa data. */
+  onEdit?: () => void;
+}) {
   const v = values[i];
+  const edit = onEdit ? { className: "num evo-cell editable", onClick: onEdit, title: `${v == null ? "" : `${money(v)} · `}clique para informar o saldo` } : null;
   if (v == null)
-    return <td className="num evo-cell">{missing && <span className="ret-missing">sem cotação</span>}</td>;
+    return edit ? (
+      <td {...edit}>
+        <span className="evo-add">+</span>
+      </td>
+    ) : (
+      <td className="num evo-cell">{missing && <span className="ret-missing">sem cotação</span>}</td>
+    );
   const pct = change(values, i);
   return (
-    <td className="num evo-cell" title={money(v)}>
+    <td className={edit?.className ?? "num evo-cell"} title={edit?.title ?? money(v)} onClick={onEdit}>
       <span className={strong ? "evo-val strong" : "evo-val"}>{short(v)}</span>
       {pct != null && <span className={`evo-pct ${tone(pct)}`}>{percent(pct)}</span>}
     </td>
@@ -107,11 +128,13 @@ const diffs = (values: (Dec | null)[]): (string | null)[] =>
     return (Number(v ?? 0) - Number(prev ?? 0)).toFixed(2);
   });
 
-export default function Evolution() {
+export default function Evolution({ onSavings }: { onSavings?: () => void }) {
   const [year, setYear] = useState<number | null | undefined>(undefined);
   const [view, setView] = useState<EvolutionView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<string[]>(loadCollapsed);
+  const [edit, setEdit] = useState<Editing | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     // Primeira carga: ano atual. Depois, o ano escolhido (null = todos).
@@ -124,7 +147,7 @@ export default function Evolution() {
         if (year === undefined) setYear(v.year ?? v.years[0] ?? null);
       })
       .catch((e) => setError(errorMessage(e)));
-  }, [year]);
+  }, [year, reload]);
 
   function toggle(key: string) {
     const next = collapsed.includes(key) ? collapsed.filter((k) => k !== key) : [...collapsed, key];
@@ -152,7 +175,16 @@ export default function Evolution() {
             </>
           }
         >
-          Quanto você tinha no fim de cada mês, agrupado por tipo, com o total dos investimentos e o total geral.
+          Quanto você tinha no fim de cada mês, agrupado por tipo, com o total dos investimentos e o total geral. Para informar o saldo da
+          conta, do FGTS, de um cofrinho ou cartão benefício num mês, clique na célula.
+          {onSavings && (
+            <>
+              {" "}
+              <button type="button" className="link" onClick={onSavings}>
+                Cadastrar conta, FGTS ou cofrinho ›
+              </button>
+            </>
+          )}
         </Intro>
       </div>
       {view.years.length > 0 && (
@@ -237,7 +269,23 @@ export default function Evolution() {
                             {r.detail && <span className="evo-detail">{r.detail}</span>}
                           </th>
                           {cols.map((c, i) => (
-                            <Cell key={c.date} values={r.values} i={i} missing={r.missing[i]} />
+                            <Cell
+                              key={c.date}
+                              values={r.values}
+                              i={i}
+                              missing={r.missing[i]}
+                              onEdit={
+                                r.savings_id
+                                  ? () =>
+                                      setEdit({
+                                        savingsId: r.savings_id!,
+                                        name: r.name,
+                                        date: c.date,
+                                        amount: r.values[i] == null ? "" : toCashMask(r.values[i]!, 2).text,
+                                      })
+                                  : undefined
+                              }
+                            />
                           ))}
                           <Gain gain={r.gain} />
                         </tr>
@@ -272,6 +320,75 @@ export default function Evolution() {
           </table>
         </div>
       </div>
+      {edit && (
+        <BalanceDialog
+          edit={edit}
+          onClose={() => setEdit(null)}
+          onSaved={() => {
+            setEdit(null);
+            setReload((n) => n + 1);
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+type Editing = { savingsId: string; name: string; date: string; amount: string };
+
+/** Saldo informado numa data: grava como "Saldo informado" em Saldos e cofrinhos. */
+function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () => void; onSaved: () => void }) {
+  const [amount, setAmount] = useState(edit.amount);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    const value = parseDecimalInput(amount);
+    if (value == null) return setError("Informe o saldo.");
+    setBusy(true);
+    setError(null);
+    try {
+      // Já havia saldo informado nesse dia: corrige em vez de duplicar.
+      const view = await savingsApi.load();
+      const item = view.items.find((x) => x.savings.id === edit.savingsId);
+      const same = item?.moves.find((m) => m.kind === "SALDO" && m.date === edit.date);
+      const move = { savings_id: edit.savingsId, date: edit.date, kind: "SALDO" as const, amount: value, ir: null, iof: null, note: null };
+      if (same) await savingsApi.updateMove({ ...move, id: same.id });
+      else await savingsApi.createMove({ ...move, id: "" });
+      onSaved();
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <aside className="memo-panel evo-edit" role="dialog" aria-label="Informar saldo">
+      <div className="memo-head">
+        <h3>
+          {edit.name} · {date(edit.date)}
+        </h3>
+        <button className="link" onClick={onClose} aria-label="Fechar">
+          ✕
+        </button>
+      </div>
+      <form onSubmit={save}>
+        <label>
+          Saldo que o app do banco mostrava nesse dia
+          <CashInput value={amount} decimals={2} currency="BRL" onChange={setAmount} required />
+        </label>
+        <p className="muted small">Fica gravado em Lançamentos › Saldos e cofrinhos, onde dá para ver e corrigir o histórico.</p>
+        {error && <p className="error">{error}</p>}
+        <div className="actions">
+          <button type="submit" disabled={busy}>
+            {busy ? "Salvando…" : "Salvar"}
+          </button>
+          <button type="button" className="secondary" onClick={onClose}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </aside>
   );
 }

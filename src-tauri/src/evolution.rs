@@ -40,6 +40,9 @@ pub struct Column {
 pub struct Row {
     /// Código do ativo (vazio para saldos que não são investimento).
     pub asset: Option<String>,
+    /// Saldo (conta, FGTS, benefício, cofrinho): dá para informar o saldo
+    /// direto na tabela.
+    pub savings_id: Option<String>,
     pub name: String,
     pub detail: Option<String>,
     /// Valor em reais em cada coluna; `None` quando não havia o ativo.
@@ -241,6 +244,7 @@ fn build(
             }
             let row = by_asset.entry(p.asset.clone()).or_insert_with(|| Row {
                 asset: Some(p.asset.clone()),
+                savings_id: None,
                 name: p.asset.clone(),
                 detail: None,
                 values: vec![None; n],
@@ -261,6 +265,7 @@ fn build(
         if p.operation.date > start && p.operation.date <= end && !savings::is_savings(a) {
             by_asset.entry(a.clone()).or_insert_with(|| Row {
                 asset: Some(a.clone()),
+                savings_id: None,
                 name: a.clone(),
                 detail: None,
                 values: vec![None; n],
@@ -297,7 +302,10 @@ fn build(
                 started.then(|| r.balance_on(c.date))
             })
             .collect();
-        if values.iter().all(|x| x.is_none_or(|v| v.is_zero())) {
+        // Saldo recém-cadastrado, ainda sem valor, aparece em branco para o
+        // usuário informar os meses direto na tabela.
+        let fresh = r.units_history.is_empty();
+        if !fresh && values.iter().all(|x| x.is_none_or(|v| v.is_zero())) {
             continue;
         }
         let key = match r.savings.kind {
@@ -307,6 +315,7 @@ fn build(
         };
         rows.entry(key).or_default().push(Row {
             asset: r.savings.kind.is_investment().then(|| r.ticker.clone()),
+            savings_id: Some(r.savings.id.clone()),
             name: r.savings.name.clone(),
             detail: Some(format!(
                 "{} · {}",

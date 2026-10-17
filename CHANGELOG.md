@@ -23,6 +23,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Última coluna, "No período": o resultado de cada ativo descontando
     compras e vendas, então um ativo vendido no meio do ano mostra o que
     rendeu até a venda, e não uma queda de 100%.
+  - Saldos (conta corrente, FGTS, cofrinhos e cartões benefício) podem ser
+    informados direto na tabela: clique no mês e digite o saldo, inclusive
+    de meses e anos passados. Se já havia saldo nesse dia, ele é corrigido.
   - Total dos investimentos e total geral. A variação dos investimentos é
     separada em dinheiro novo (aportes menos resgates) e rendimento, para
     um aporte não parecer lucro nem um saque parecer prejuízo.

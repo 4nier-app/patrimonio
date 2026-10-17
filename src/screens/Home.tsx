@@ -234,7 +234,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             />
           )}
           {!asset && tab === "painel" && <Dashboard refresh={refresh} go={setTab} hasRecovery={status.has_recovery_key} />}
-          {!asset && tab === "evolucao" && <Evolution key={refresh} />}
+          {!asset && tab === "evolucao" && <Evolution key={refresh} onSavings={() => setTab("lancamentos", "saldos")} />}
           {!asset && tab === "carteira" && <Portfolio refresh={refresh} onOpen={openAsset} />}
           {!asset && tab === "homebroker" && <Broker refresh={refresh} onOpen={openAsset} />}
           {!asset && sections && (

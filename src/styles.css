@@ -546,3 +546,9 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .evo-flow td { color: var(--muted); }
 .evo-table tbody th, .evo-table tfoot th { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 0.8rem; }
 .evo-table .evo-flow th:first-child, .evo-detail { color: var(--muted); }
+.evo-cell.editable { cursor: pointer; }
+.evo-cell.editable:hover { outline: 1px dashed var(--accent); outline-offset: -3px; }
+.evo-add { color: var(--muted); opacity: 0; }
+.evo-cell.editable:hover .evo-add { opacity: 1; }
+.evo-edit form { display: flex; flex-direction: column; gap: 10px; }
+.evo-edit label { display: flex; flex-direction: column; gap: 4px; }

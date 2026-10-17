@@ -292,6 +292,8 @@ export type EvolutionColumn = { date: string; kind: "BASE" | "MONTH" | "YEAR" | 
 export type EvolutionRow = {
   /** Código no motor; vazio para FGTS, conta e benefício (não são investimento). */
   asset: string | null;
+  /** Saldo de Saldos e cofrinhos: dá para informar o valor clicando na célula. */
+  savings_id: string | null;
   name: string;
   detail: string | null;
   values: (Dec | null)[];
