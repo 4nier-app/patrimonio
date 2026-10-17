@@ -84,10 +84,10 @@ function Cell({
 }
 
 /** Resultado no período, descontando compras e vendas. */
-function Gain({ gain, strong }: { gain: EvolutionGain | null; strong?: boolean }) {
+function Gain({ gain, strong, plain }: { gain: EvolutionGain | null; strong?: boolean; plain?: boolean }) {
   const rate = gain && Number(gain.base) > 0 ? String(Number(gain.value) / Number(gain.base)) : null;
   return (
-    <td className="num evo-cell evo-gain" title={gain ? money(gain.value) : undefined}>
+    <td className={`num evo-cell ${plain ? "" : "evo-gain"}`} title={gain ? money(gain.value) : undefined}>
       {gain && (
         <>
           <span className={`evo-val ${strong ? "strong" : ""} ${tone(gain.value)}`}>{short(gain.value)}</span>
@@ -115,6 +115,7 @@ function FlowRow({ label, hint, values }: { label: string; hint: string; values:
       <td className="num evo-cell evo-gain" title={sum == null ? undefined : money(sum)}>
         {sum != null && <span className={`evo-val ${tone(sum)}`}>{short(sum)}</span>}
       </td>
+      <td className="num evo-cell" />
     </tr>
   );
 }
@@ -168,7 +169,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
               Cada coluna é o patrimônio no fim do mês (ou do ano, em “Todos os anos”), em reais; o que está em dólar é convertido pela PTAX do dia.
               Abaixo de cada valor, a variação em relação à coluna anterior. Ativo vendido some das colunas seguintes, porque o dinheiro foi para
               outro lugar (outro ativo ou a conta corrente). A coluna “No período” mostra o resultado, descontando compras e vendas: um ativo
-              vendido no meio do ano mostra o que rendeu até a venda. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
+              vendido no meio do ano mostra o que rendeu até a venda. “Desde o início” faz a mesma conta desde a primeira compra de cada investimento. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
               alta e um saque como queda. Por isso, embaixo, a variação dos investimentos é separada em dinheiro novo (aportes menos resgates) e
               rendimento. Investimentos são ações, ETFs, criptomoedas, fundos e cofrinhos; FGTS, conta corrente e cartões benefício entram só no total
               geral. A rentabilidade, que desconta os aportes, fica em Carteira › Rentabilidade.
@@ -243,6 +244,10 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                   No período
                   <span className="evo-sub">resultado</span>
                 </th>
+                <th className="num evo-col" title="Resultado desde a primeira compra, com todas as compras e vendas">
+                  Desde o início
+                  <span className="evo-sub">resultado</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -260,6 +265,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                         <Cell key={c.date} values={g.total} i={i} strong />
                       ))}
                       <Gain gain={g.gain} strong />
+                      <Gain gain={g.since} strong plain />
                     </tr>
                     {open &&
                       g.rows.map((r) => (
@@ -290,6 +296,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                             />
                           ))}
                           <Gain gain={r.gain} />
+                          <Gain gain={r.since} plain />
                         </tr>
                       ))}
                   </Fragment>
@@ -303,6 +310,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                   <Cell key={c.date} values={view.investments} i={i} strong />
                 ))}
                 <Gain gain={view.investments_gain} strong />
+                <Gain gain={view.investments_since} strong plain />
               </tr>
               <FlowRow
                 label="Dinheiro novo"
@@ -316,6 +324,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                   <Cell key={c.date} values={view.total} i={i} strong />
                 ))}
                 <Gain gain={view.total_gain} strong />
+                <td className="num evo-cell" />
               </tr>
               <FlowRow label="Variação (R$)" hint="Diferença do total geral para a coluna anterior" values={diffs(view.total)} />
             </tfoot>

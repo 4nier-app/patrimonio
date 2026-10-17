@@ -51,6 +51,9 @@ pub struct Row {
     pub missing: Vec<bool>,
     /// Resultado da primeira à última coluna.
     pub gain: Option<Gain>,
+    /// Resultado desde a primeira compra até a última coluna (só
+    /// investimentos).
+    pub since: Option<Gain>,
 }
 
 /// Resultado no período, descontando compras e vendas: um ativo vendido no
@@ -75,13 +78,21 @@ impl std::ops::Add for Gain {
 
 /// Soma dos resultados; sem resultado se faltou cotação em alguma linha.
 fn sum_gains<'a>(rows: impl Iterator<Item = &'a Row>) -> Option<Gain> {
+    sum_by(rows, |r| r.gain)
+}
+
+fn sum_since<'a>(rows: impl Iterator<Item = &'a Row>) -> Option<Gain> {
+    sum_by(rows, |r| r.since)
+}
+
+fn sum_by<'a>(rows: impl Iterator<Item = &'a Row>, pick: fn(&Row) -> Option<Gain>) -> Option<Gain> {
     let mut acc = Gain::default();
     let mut any = false;
     for r in rows {
-        if r.values.iter().all(Option::is_none) && r.gain.is_none() {
+        if r.values.iter().all(Option::is_none) && pick(r).is_none() {
             continue;
         }
-        acc = acc + r.gain?;
+        acc = acc + pick(r)?;
         any = true;
     }
     any.then_some(acc)
@@ -96,6 +107,7 @@ pub struct Group {
     pub rows: Vec<Row>,
     pub total: Vec<Option<Decimal>>,
     pub gain: Option<Gain>,
+    pub since: Option<Gain>,
 }
 
 #[derive(Debug, Serialize)]
@@ -114,6 +126,8 @@ pub struct EvolutionView {
     pub total_gain: Option<Gain>,
     /// Resultado dos investimentos, descontando aportes e resgates.
     pub investments_gain: Option<Gain>,
+    /// Resultado dos investimentos desde a primeira compra.
+    pub investments_since: Option<Gain>,
     /// Alguma coluna ficou sem cotação ou PTAX de algum ativo.
     pub incomplete: bool,
 }
@@ -249,6 +263,7 @@ fn build(
                 values: vec![None; n],
                 missing: vec![false; n],
                 gain: None,
+                since: None,
             });
             match p.market_value_brl {
                 Some(val) => row.values[i] = Some(val),
@@ -270,6 +285,7 @@ fn build(
                 values: vec![None; n],
                 missing: vec![false; n],
                 gain: None,
+                since: None,
             });
         }
     }
@@ -336,6 +352,7 @@ fn build(
             values,
             missing: vec![false; n],
             gain: None,
+            since: None,
         });
     }
 
@@ -376,6 +393,34 @@ fn build(
             base: (first + buys).round_dp(2),
         });
     }
+    // Desde o início: valor final + todas as vendas − todas as compras até a
+    // última coluna; a base é o total comprado.
+    for row in rows.values_mut().flatten() {
+        let Some(a) = &row.asset else { continue };
+        if row.missing[n - 1] {
+            continue;
+        }
+        let (mut net, mut buys) = (Decimal::ZERO, Decimal::ZERO);
+        for p in inp
+            .ops
+            .iter()
+            .filter(|p| p.operation.date <= end && &p.operation.asset == a)
+        {
+            let Some(f) = flow_brl(p) else { continue };
+            net += f;
+            if f > Decimal::ZERO {
+                buys += f;
+            }
+        }
+        if buys.is_zero() {
+            continue;
+        }
+        let last = row.values[n - 1].unwrap_or_default();
+        row.since = Some(Gain {
+            value: (last - net).round_dp(2),
+            base: buys.round_dp(2),
+        });
+    }
 
     let mut groups: Vec<Group> = rows
         .into_iter()
@@ -394,6 +439,7 @@ fn build(
                 id,
                 investment: rows.iter().all(|r| r.asset.is_some()),
                 gain: sum_gains(rows.iter()),
+                since: sum_since(rows.iter()),
                 label,
                 rows,
                 total,
@@ -438,6 +484,7 @@ fn build(
         }
     };
     let investments_gain = sum_gains(all_rows().filter(|r| r.asset.is_some()));
+    let investments_since = sum_since(all_rows().filter(|r| r.asset.is_some()));
 
     // Dinheiro novo nos investimentos entre uma coluna e a anterior.
     let new_money = (0..n)
@@ -469,6 +516,7 @@ fn build(
         new_money,
         total_gain,
         investments_gain,
+        investments_since,
         incomplete,
     })
 }
@@ -500,6 +548,7 @@ fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
         values,
         missing: (0..n).map(|i| sold.iter().any(|r| r.missing[i])).collect(),
         gain: sum_gains(sold.iter()),
+        since: sum_since(sold.iter()),
     };
     held.into_iter().chain(std::iter::once(merged)).collect()
 }
@@ -533,6 +582,7 @@ pub fn evolution(v: &Vault, year: Option<i32>, today: NaiveDate) -> Result<Evolu
             new_money: Vec::new(),
             total_gain: None,
             investments_gain: None,
+            investments_since: None,
             incomplete: false,
         });
     };
@@ -728,6 +778,22 @@ mod tests {
         // não uma queda de 100%.
         let g = outr.gain.unwrap();
         assert_eq!((g.value, g.base), (dec!(20), dec!(110)));
+        // Desde o início: 130 recebidos − 100 pagos na compra.
+        let since = outr.since.unwrap();
+        assert_eq!((since.value, since.base), (dec!(30), dec!(100)));
+        // TEST3: valor de hoje − 1.500 comprados; a conta não tem.
+        let test = rv
+            .rows
+            .iter()
+            .find(|r| r.asset.as_deref() == Some("TEST3"))
+            .unwrap();
+        let today = test.values[view.columns.len() - 1].unwrap();
+        assert_eq!(test.since.unwrap().value, today - dec!(1500));
+        assert!(view.groups[1].since.is_none());
+        assert_eq!(
+            view.investments_since.unwrap().value,
+            today - dec!(1500) + dec!(30)
+        );
         // O resultado dos investimentos bate com a soma dos rendimentos.
         let inv = view.investments_gain.unwrap();
         let last = view.investments[view.columns.len() - 1].unwrap();
@@ -768,6 +834,7 @@ mod tests {
                 value: gain,
                 base: dec!(100),
             }),
+            since: None,
         };
         let rows = vec![
             row("AAAA3", vec![Some(dec!(100)), Some(dec!(120))], dec!(20)),

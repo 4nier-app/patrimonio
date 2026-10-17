@@ -22,6 +22,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - O subtítulo do aplicativo passou a ser **Patrimônio Auditável** (a marca
   4Nier continua). O nome da instalação no Windows não mudou, então o app
   atualiza por cima da versão anterior.
+- Evolução: nova coluna **Desde o início**, ao lado de "No período", com o
+  resultado de cada investimento desde a primeira compra (valor de hoje +
+  vendas − compras), por grupo e no total dos investimentos.
 - Ao trocar de aba, a tela volta para o topo.
 - **Cofrinhos não são mais estimados**: como a conta corrente e os cartões
   benefício, valem só os saldos que você informa na Evolução, mês a mês. O app

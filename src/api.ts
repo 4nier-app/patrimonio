@@ -299,6 +299,8 @@ export type EvolutionRow = {
   values: (Dec | null)[];
   missing: boolean[];
   gain: EvolutionGain | null;
+  /** Desde a primeira compra até a última coluna (só investimentos). */
+  since: EvolutionGain | null;
 };
 /** Resultado no período: valor final + vendas − compras − valor inicial; base = inicial + compras. */
 export type EvolutionGain = { value: Dec; base: Dec };
@@ -309,6 +311,7 @@ export type EvolutionGroup = {
   rows: EvolutionRow[];
   total: (Dec | null)[];
   gain: EvolutionGain | null;
+  since: EvolutionGain | null;
 };
 export type EvolutionView = {
   years: number[];
@@ -321,6 +324,7 @@ export type EvolutionView = {
   new_money: (Dec | null)[];
   total_gain: EvolutionGain | null;
   investments_gain: EvolutionGain | null;
+  investments_since: EvolutionGain | null;
   incomplete: boolean;
 };
 
