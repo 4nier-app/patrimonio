@@ -296,8 +296,18 @@ export type EvolutionRow = {
   detail: string | null;
   values: (Dec | null)[];
   missing: boolean[];
+  gain: EvolutionGain | null;
 };
-export type EvolutionGroup = { id: string; label: string; investment: boolean; rows: EvolutionRow[]; total: (Dec | null)[] };
+/** Resultado no período: valor final + vendas − compras − valor inicial; base = inicial + compras. */
+export type EvolutionGain = { value: Dec; base: Dec };
+export type EvolutionGroup = {
+  id: string;
+  label: string;
+  investment: boolean;
+  rows: EvolutionRow[];
+  total: (Dec | null)[];
+  gain: EvolutionGain | null;
+};
 export type EvolutionView = {
   years: number[];
   year: number | null;
@@ -307,6 +317,8 @@ export type EvolutionView = {
   investments: (Dec | null)[];
   /** Aportes − resgates dos investimentos desde a coluna anterior. */
   new_money: (Dec | null)[];
+  total_gain: EvolutionGain | null;
+  investments_gain: EvolutionGain | null;
   incomplete: boolean;
 };
 

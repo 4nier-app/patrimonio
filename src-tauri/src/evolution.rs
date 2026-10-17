@@ -46,6 +46,42 @@ pub struct Row {
     pub values: Vec<Option<Decimal>>,
     /// Coluna em que havia o ativo, mas faltou cotação ou PTAX.
     pub missing: Vec<bool>,
+    /// Resultado da primeira à última coluna.
+    pub gain: Option<Gain>,
+}
+
+/// Resultado no período, descontando compras e vendas: um ativo vendido no
+/// meio do ano mostra o que rendeu até a venda, não uma queda de 100%.
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct Gain {
+    /// Valor final + vendas − compras − valor inicial, em reais.
+    pub value: Decimal,
+    /// Valor inicial + compras: a base do percentual.
+    pub base: Decimal,
+}
+
+impl std::ops::Add for Gain {
+    type Output = Gain;
+    fn add(self, o: Gain) -> Gain {
+        Gain {
+            value: self.value + o.value,
+            base: self.base + o.base,
+        }
+    }
+}
+
+/// Soma dos resultados; sem resultado se faltou cotação em alguma linha.
+fn sum_gains<'a>(rows: impl Iterator<Item = &'a Row>) -> Option<Gain> {
+    let mut acc = Gain::default();
+    let mut any = false;
+    for r in rows {
+        if r.values.iter().all(Option::is_none) && r.gain.is_none() {
+            continue;
+        }
+        acc = acc + r.gain?;
+        any = true;
+    }
+    any.then_some(acc)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -56,6 +92,7 @@ pub struct Group {
     pub investment: bool,
     pub rows: Vec<Row>,
     pub total: Vec<Option<Decimal>>,
+    pub gain: Option<Gain>,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,6 +107,10 @@ pub struct EvolutionView {
     pub investments: Vec<Option<Decimal>>,
     /// Aportes − resgates dos investimentos entre a coluna anterior e esta.
     pub new_money: Vec<Option<Decimal>>,
+    /// Variação simples do patrimônio, da primeira à última coluna.
+    pub total_gain: Option<Gain>,
+    /// Resultado dos investimentos, descontando aportes e resgates.
+    pub investments_gain: Option<Gain>,
     /// Alguma coluna ficou sem cotação ou PTAX de algum ativo.
     pub incomplete: bool,
 }
@@ -204,11 +245,28 @@ fn build(
                 detail: None,
                 values: vec![None; n],
                 missing: vec![false; n],
+                gain: None,
             });
             match p.market_value_brl {
                 Some(val) => row.values[i] = Some(val),
                 None => row.missing[i] = true,
             }
+        }
+    }
+    // Ativo comprado e vendido entre duas colunas: não aparece em nenhuma,
+    // mas o resultado dele entra no período.
+    let (start, end) = (cols[0].date, cols[n - 1].date);
+    for p in inp.ops {
+        let a = &p.operation.asset;
+        if p.operation.date > start && p.operation.date <= end && !savings::is_savings(a) {
+            by_asset.entry(a.clone()).or_insert_with(|| Row {
+                asset: Some(a.clone()),
+                name: a.clone(),
+                detail: None,
+                values: vec![None; n],
+                missing: vec![false; n],
+                gain: None,
+            });
         }
     }
     for (asset, mut row) in by_asset {
@@ -257,6 +315,45 @@ fn build(
             )),
             values,
             missing: vec![false; n],
+            gain: None,
+        });
+    }
+
+    // Resultado de cada linha: valor final − inicial − (compras − vendas).
+    let flow_brl = |p: &PricedOperation| -> Option<Decimal> {
+        let t = p.trade()?;
+        let cash = t.cash_flow();
+        if t.currency == USD {
+            inp.fx.usd_brl_on_or_before(t.date).map(|f| cash * f.rate)
+        } else {
+            Some(cash)
+        }
+    };
+    let in_period = |p: &&PricedOperation| p.operation.date > start && p.operation.date <= end;
+    for row in rows.values_mut().flatten() {
+        if row.missing[0] || row.missing[n - 1] {
+            continue;
+        }
+        let first = row.values[0].unwrap_or_default();
+        let last = row.values[n - 1].unwrap_or_default();
+        let (mut net, mut buys) = (Decimal::ZERO, Decimal::ZERO);
+        if let Some(a) = &row.asset {
+            for f in inp
+                .ops
+                .iter()
+                .filter(in_period)
+                .filter(|p| &p.operation.asset == a)
+            {
+                let Some(f) = flow_brl(f) else { continue };
+                net += f;
+                if f > Decimal::ZERO {
+                    buys += f;
+                }
+            }
+        }
+        row.gain = Some(Gain {
+            value: (last - first - net).round_dp(2),
+            base: (first + buys).round_dp(2),
         });
     }
 
@@ -273,6 +370,7 @@ fn build(
             Group {
                 id,
                 investment: rows.iter().all(|r| r.asset.is_some()),
+                gain: sum_gains(rows.iter()),
                 label,
                 rows,
                 total,
@@ -302,17 +400,23 @@ fn build(
     // Investimento é tudo que tem código no motor: ativos e cofrinhos (e o
     // FMP-FGTS); FGTS, conta e benefício não têm.
     let investments = sum(&|_, r| r.asset.is_some());
-
-    // Dinheiro novo nos investimentos entre uma coluna e a anterior.
-    let flow_brl = |p: &PricedOperation| -> Option<Decimal> {
-        let t = p.trade()?;
-        let cash = t.cash_flow();
-        if t.currency == USD {
-            inp.fx.usd_brl_on_or_before(t.date).map(|f| cash * f.rate)
-        } else {
-            Some(cash)
+    let all_rows = || groups.iter().flat_map(|g| g.rows.iter());
+    // No total geral, o resultado é a variação simples do patrimônio: dinheiro
+    // que sai da conta e vira investimento se anula, e só o investimento
+    // registra compras e vendas.
+    let total_gain = match (total[0], total[n - 1]) {
+        (None, None) => None,
+        (a, b) => {
+            let a = a.unwrap_or_default();
+            Some(Gain {
+                value: b.unwrap_or_default() - a,
+                base: a,
+            })
         }
     };
+    let investments_gain = sum_gains(all_rows().filter(|r| r.asset.is_some()));
+
+    // Dinheiro novo nos investimentos entre uma coluna e a anterior.
     let new_money = (0..n)
         .map(|i| {
             let empty = |j: usize| investments[j].is_none();
@@ -340,6 +444,8 @@ fn build(
         total,
         investments,
         new_money,
+        total_gain,
+        investments_gain,
         incomplete,
     })
 }
@@ -371,6 +477,8 @@ pub fn evolution(v: &Vault, year: Option<i32>, today: NaiveDate) -> Result<Evolu
             total: Vec::new(),
             investments: Vec::new(),
             new_money: Vec::new(),
+            total_gain: None,
+            investments_gain: None,
             incomplete: false,
         });
     };
@@ -462,14 +570,14 @@ mod tests {
             KdfParams::fast_for_tests(),
         )
         .unwrap();
-        let buy = |date, q| Operation {
+        let trade = |asset: &str, date, side, q, price| Operation {
             id: String::new(),
             account: "Corretora X".into(),
-            asset: "TEST3".into(),
+            asset: asset.into(),
             date,
-            side: Side::Compra,
+            side,
             quantity: q,
-            price: dec!(10),
+            price,
             manual_fees: Some(Decimal::ZERO),
             note: None,
             currency: BRL.into(),
@@ -478,8 +586,33 @@ mod tests {
             ir: None,
             iof: None,
         };
+        let buy = |date, q| trade("TEST3", date, Side::Compra, q, dec!(10));
         v.create_operation(buy(d(2026, 1, 5), dec!(100))).unwrap();
         v.create_operation(buy(d(2026, 2, 10), dec!(50))).unwrap();
+        // OUTR3: comprada em janeiro e vendida toda em 15/02 por R$ 130.
+        v.create_operation(trade(
+            "OUTR3",
+            d(2026, 1, 5),
+            Side::Compra,
+            dec!(10),
+            dec!(10),
+        ))
+        .unwrap();
+        v.create_operation(trade(
+            "OUTR3",
+            d(2026, 2, 15),
+            Side::Venda,
+            dec!(10),
+            dec!(13),
+        ))
+        .unwrap();
+        v.save_quotes(&[NewQuote {
+            ticker: "OUTR3".into(),
+            date: d(2026, 1, 30),
+            close: dec!(11),
+            source: "YAHOO".into(),
+        }])
+        .unwrap();
         let q = |date, close| NewQuote {
             ticker: "TEST3".into(),
             date,
@@ -523,13 +656,35 @@ mod tests {
         assert_eq!(ids, vec!["rv", "dinheiro"]);
         assert!(view.groups[0].investment);
         assert!(!view.groups[1].investment);
-        // Janeiro: 100 × 11 + 500 na conta.
-        assert_eq!(view.investments[0], Some(dec!(1100)));
-        assert_eq!(view.total[0], Some(dec!(1600)));
-        // Fevereiro: 150 × 12; entraram R$ 500 novos.
+        // Janeiro: 100 × 11 + 10 × 11 + 500 na conta.
+        assert_eq!(view.investments[0], Some(dec!(1210)));
+        assert_eq!(view.total[0], Some(dec!(1710)));
+        // Fevereiro: 150 × 12; a OUTR3 vendida não aparece mais (o dinheiro
+        // foi para outro lugar). Entraram 500 e saíram 130.
+        let rv = &view.groups[0];
+        let outr = rv
+            .rows
+            .iter()
+            .find(|r| r.asset.as_deref() == Some("OUTR3"))
+            .unwrap();
+        assert_eq!(outr.values[1], None);
         assert_eq!(view.investments[1], Some(dec!(1800)));
-        assert_eq!(view.new_money[1], Some(dec!(500)));
+        assert_eq!(view.new_money[1], Some(dec!(370)));
         assert_eq!(view.new_money[0], None);
+        // No período, a venda conta: 130 recebidos − 110 de janeiro = +20,
+        // não uma queda de 100%.
+        let g = outr.gain.unwrap();
+        assert_eq!((g.value, g.base), (dec!(20), dec!(110)));
+        // O resultado dos investimentos bate com a soma dos rendimentos.
+        let inv = view.investments_gain.unwrap();
+        let last = view.investments[view.columns.len() - 1].unwrap();
+        let flows: Decimal = view.new_money.iter().flatten().sum();
+        assert_eq!(inv.value, last - dec!(1210) - flows);
+        let total = view.total_gain.unwrap();
+        assert_eq!(
+            total.value,
+            view.total[view.columns.len() - 1].unwrap() - dec!(1710)
+        );
         assert!(!view.incomplete);
 
         let all = evolution(&v, None, d(2026, 3, 4)).unwrap();

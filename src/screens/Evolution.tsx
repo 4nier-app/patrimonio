@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { errorMessage, evolutionApi, type Dec, type EvolutionColumn, type EvolutionView } from "../api";
+import { errorMessage, evolutionApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
 import Intro from "../components/Intro";
 import { date, money, monthLabel, percent, tone } from "../format";
 
@@ -49,16 +49,6 @@ function change(values: (Dec | null)[], i: number): string | null {
   return String(Number(cur) / Number(prev) - 1);
 }
 
-/** Do primeiro ao último ponto do período, em R$ e %. */
-function periodGain(values: (Dec | null)[], end: number): { gain: string; rate: string | null } | null {
-  const first = values[0];
-  const last = values[end];
-  if (first == null && last == null) return null;
-  const a = Number(first ?? 0);
-  const b = Number(last ?? 0);
-  return { gain: (b - a).toFixed(2), rate: first != null && a !== 0 && last != null ? String(b / a - 1) : null };
-}
-
 function Cell({ values, i, missing, strong }: { values: (Dec | null)[]; i: number; missing?: boolean; strong?: boolean }) {
   const v = values[i];
   if (v == null)
@@ -72,14 +62,15 @@ function Cell({ values, i, missing, strong }: { values: (Dec | null)[]; i: numbe
   );
 }
 
-function Gain({ values, end, strong }: { values: (Dec | null)[]; end: number; strong?: boolean }) {
-  const g = periodGain(values, end);
+/** Resultado no período, descontando compras e vendas. */
+function Gain({ gain, strong }: { gain: EvolutionGain | null; strong?: boolean }) {
+  const rate = gain && Number(gain.base) > 0 ? String(Number(gain.value) / Number(gain.base)) : null;
   return (
-    <td className="num evo-cell evo-gain" title={g ? money(g.gain) : undefined}>
-      {g && (
+    <td className="num evo-cell evo-gain" title={gain ? money(gain.value) : undefined}>
+      {gain && (
         <>
-          <span className={`evo-val ${strong ? "strong" : ""} ${tone(g.gain)}`}>{short(g.gain)}</span>
-          {g.rate != null && <span className={`evo-pct ${tone(g.rate)}`}>{percent(g.rate)}</span>}
+          <span className={`evo-val ${strong ? "strong" : ""} ${tone(gain.value)}`}>{short(gain.value)}</span>
+          {rate != null && <span className={`evo-pct ${tone(rate)}`}>{percent(rate)}</span>}
         </>
       )}
     </td>
@@ -107,10 +98,10 @@ function FlowRow({ label, hint, values }: { label: string; hint: string; values:
   );
 }
 
-/** Diferença para a coluna anterior, até a coluna `end` (hoje). */
-const diffs = (values: (Dec | null)[], end: number): (string | null)[] =>
+/** Diferença para a coluna anterior. */
+const diffs = (values: (Dec | null)[]): (string | null)[] =>
   values.map((v, i) => {
-    if (i === 0 || i > end) return null;
+    if (i === 0) return null;
     const prev = values[i - 1];
     if (v == null && prev == null) return null;
     return (Number(v ?? 0) - Number(prev ?? 0)).toFixed(2);
@@ -152,7 +143,9 @@ export default function Evolution() {
           more={
             <>
               Cada coluna é o patrimônio no fim do mês (ou do ano, em “Todos os anos”), em reais; o que está em dólar é convertido pela PTAX do dia.
-              Abaixo de cada valor, a variação em relação à coluna anterior. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
+              Abaixo de cada valor, a variação em relação à coluna anterior. Ativo vendido some das colunas seguintes, porque o dinheiro foi para
+              outro lugar (outro ativo ou a conta corrente). A coluna “No período” mostra o resultado, descontando compras e vendas: um ativo
+              vendido no meio do ano mostra o que rendeu até a venda. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
               alta e um saque como queda. Por isso, embaixo, a variação dos investimentos é separada em dinheiro novo (aportes menos resgates) e
               rendimento. Investimentos são ações, ETFs, criptomoedas, fundos e cofrinhos; FGTS, conta corrente e cartões benefício entram só no total
               geral. A rentabilidade, que desconta os aportes, continua na aba Rentabilidade.
@@ -187,8 +180,7 @@ export default function Evolution() {
     );
 
   const cols = view.columns;
-  const end = cols.length - 1;
-  const investDiffs = diffs(view.investments, end);
+  const investDiffs = diffs(view.investments);
   const income = investDiffs.map((d, i) => {
     const n = view.new_money[i];
     return d == null || n == null ? null : (Number(d) - Number(n)).toFixed(2);
@@ -217,7 +209,7 @@ export default function Evolution() {
                 })}
                 <th className="num evo-col evo-gain">
                   No período
-                  <span className="evo-sub">R$ e %</span>
+                  <span className="evo-sub">resultado</span>
                 </th>
               </tr>
             </thead>
@@ -235,7 +227,7 @@ export default function Evolution() {
                       {cols.map((c, i) => (
                         <Cell key={c.date} values={g.total} i={i} strong />
                       ))}
-                      <Gain values={g.total} end={end} strong />
+                      <Gain gain={g.gain} strong />
                     </tr>
                     {open &&
                       g.rows.map((r) => (
@@ -247,7 +239,7 @@ export default function Evolution() {
                           {cols.map((c, i) => (
                             <Cell key={c.date} values={r.values} i={i} missing={r.missing[i]} />
                           ))}
-                          <Gain values={r.values} end={end} />
+                          <Gain gain={r.gain} />
                         </tr>
                       ))}
                   </Fragment>
@@ -260,7 +252,7 @@ export default function Evolution() {
                 {cols.map((c, i) => (
                   <Cell key={c.date} values={view.investments} i={i} strong />
                 ))}
-                <Gain values={view.investments} end={end} strong />
+                <Gain gain={view.investments_gain} strong />
               </tr>
               <FlowRow
                 label="Dinheiro novo"
@@ -273,9 +265,9 @@ export default function Evolution() {
                 {cols.map((c, i) => (
                   <Cell key={c.date} values={view.total} i={i} strong />
                 ))}
-                <Gain values={view.total} end={end} strong />
+                <Gain gain={view.total_gain} strong />
               </tr>
-              <FlowRow label="Variação (R$)" hint="Diferença do total geral para a coluna anterior" values={diffs(view.total, end)} />
+              <FlowRow label="Variação (R$)" hint="Diferença do total geral para a coluna anterior" values={diffs(view.total)} />
             </tfoot>
           </table>
         </div>

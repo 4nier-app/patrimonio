@@ -18,8 +18,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   - Colunas: 31/12 do ano anterior e os 12 meses do ano. No ano atual, vai
     até o mês corrente, que aparece como ontem e hoje. "Todos os anos"
     mostra o 31/12 de cada ano.
-  - Embaixo de cada valor, a variação em relação à coluna anterior; na
-    última coluna, o ganho no período em R$ e %.
+  - Embaixo de cada valor, a variação em relação à coluna anterior. Ativo
+    vendido some das colunas seguintes (o dinheiro está onde foi parar).
+  - Última coluna, "No período": o resultado de cada ativo descontando
+    compras e vendas, então um ativo vendido no meio do ano mostra o que
+    rendeu até a venda, e não uma queda de 100%.
   - Total dos investimentos e total geral. A variação dos investimentos é
     separada em dinheiro novo (aportes menos resgates) e rendimento, para
     um aporte não parecer lucro nem um saque parecer prejuízo.
