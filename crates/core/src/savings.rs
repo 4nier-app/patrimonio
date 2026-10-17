@@ -2,17 +2,15 @@
 //! percentual do CDI que o banco muda quando quer.
 //!
 //! O que vale é o saldo que o banco mostra. O usuário lança depósitos e
-//! resgates e, de tempos em tempos, informa o saldo do dia. Entre dois saldos
-//! informados, o app só estima o crescimento pelo CDI (à taxa cadastrada,
-//! 100% se não houver), e cada saldo novo corrige a estimativa. Assim o
-//! rendimento de um período é sempre `saldo final − saldo inicial − depósitos
-//! + resgates`, qualquer que tenha sido a taxa.
+//! resgates e informa o saldo na Evolução, mês a mês. O app não estima nada
+//! entre dois saldos (nem CDI, nem IR): o rendimento aparece quando o saldo
+//! novo é informado. Assim o rendimento de um período é sempre `saldo final −
+//! saldo inicial − depósitos + resgates`, qualquer que tenha sido a taxa.
 //!
 //! Para entrar na carteira, na rentabilidade e no Painel como qualquer outro
-//! ativo, o cofrinho vira uma "cota" que vale R$ 1 no primeiro depósito e
-//! cresce pelo CDI: depósito é compra de cotas, resgate é venda (com o IR e o
-//! IOF retidos como desconto, como nos fundos) e o saldo informado ajusta a
-//! quantidade de cotas sem dinheiro entrar ([`Side::Ajuste`]).
+//! ativo, o cofrinho vira uma "cota" de R$ 1: depósito é compra de cotas,
+//! resgate é venda e o saldo informado ajusta a quantidade de cotas sem
+//! dinheiro entrar ([`Side::Ajuste`]).
 
 use std::collections::BTreeMap;
 
@@ -102,15 +100,57 @@ pub struct Savings {
     #[serde(default)]
     pub tax_free: bool,
     pub note: Option<String>,
+    /// Desde quando existe (dia 1 do mês): a Evolução mostra a linha a partir
+    /// daí.
+    #[serde(default)]
+    pub since: Option<NaiveDate>,
+    /// Mês de encerramento (dia 1), para conta fechada: depois dele o saldo
+    /// some e não conta mais no total.
+    #[serde(default)]
+    pub until: Option<NaiveDate>,
 }
 
 impl Savings {
-    pub fn validate(&self) -> Result<(), String> {
-        if self.account.trim().is_empty() {
-            return Err("informe o banco (conta)".into());
+    /// Existia em algum momento entre `from` e `to`.
+    pub fn active_between(&self, from: NaiveDate, to: NaiveDate) -> bool {
+        self.since.is_none_or(|s| s <= to) && self.until.is_none_or(|u| last_day(u) >= from)
+    }
+
+    /// Ainda aberto em `date` (não passou do mês de encerramento).
+    pub fn open_on(&self, date: NaiveDate) -> bool {
+        self.until.is_none_or(|u| date <= last_day(u))
+    }
+
+    /// Nome dado pelo usuário. Em branco (ou igual ao tipo, como os cadastros
+    /// antigos ficavam) não há nome próprio: o tipo e o banco já dizem tudo.
+    pub fn own_name(&self) -> Option<&str> {
+        let n = self.name.trim();
+        (!n.is_empty() && n != self.kind.label()).then_some(n)
+    }
+
+    /// Banco ou empresa; o FGTS não tem (cadastros antigos podem ter guardado
+    /// um).
+    pub fn bank(&self) -> &str {
+        if self.kind == SavingsKind::Fgts {
+            ""
+        } else {
+            &self.account
         }
-        if self.name.trim().is_empty() {
-            return Err("dê um nome".into());
+    }
+
+    /// Nome para listas: o próprio ou o tipo ("Conta corrente").
+    pub fn title(&self) -> &str {
+        self.own_name().unwrap_or(self.kind.label())
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if let (Some(s), Some(u)) = (self.since, self.until) {
+            if u < s {
+                return Err("o mês de encerramento é antes do início".into());
+            }
+        }
+        if self.account.trim().is_empty() && self.kind != SavingsKind::Fgts {
+            return Err("informe o banco (conta)".into());
         }
         if self.kind == SavingsKind::Cofrinho
             && (self.rate_pct <= Decimal::ZERO || self.rate_pct > Decimal::from(300))
@@ -214,45 +254,8 @@ pub fn iof_rate(days: i64) -> Decimal {
 /// Lote de um depósito: cotas que ainda estão no cofrinho e o custo delas.
 #[derive(Debug, Clone)]
 struct Lot {
-    date: NaiveDate,
     units: Decimal,
     cost: Decimal,
-}
-
-/// Imposto (IR, IOF) de resgatar `units` cotas valendo `unit` cada, tirando
-/// dos lotes mais antigos primeiro. Não altera os lotes.
-fn tax_of(
-    lots: &[Lot],
-    units: Decimal,
-    unit: Decimal,
-    date: NaiveDate,
-    tax_free: bool,
-) -> (Decimal, Decimal) {
-    if tax_free {
-        return (Decimal::ZERO, Decimal::ZERO);
-    }
-    let mut left = units;
-    let (mut ir, mut iof) = (Decimal::ZERO, Decimal::ZERO);
-    for lot in lots {
-        if left <= Decimal::ZERO {
-            break;
-        }
-        let take = left.min(lot.units);
-        if lot.units.is_zero() {
-            continue;
-        }
-        let cost = lot.cost * take / lot.units;
-        let gain = take * unit - cost;
-        left -= take;
-        if gain <= Decimal::ZERO {
-            continue;
-        }
-        let days = (date - lot.date).num_days();
-        let iof_lot = gain * iof_rate(days);
-        iof += iof_lot;
-        ir += (gain - iof_lot) * ir_rate(days);
-    }
-    (cents(ir), cents(iof))
 }
 
 fn take(lots: &mut Vec<Lot>, units: Decimal) {
@@ -318,7 +321,8 @@ pub struct SavingsReport {
     pub unit_values: Vec<(NaiveDate, Decimal)>,
     /// Operações equivalentes, para a carteira e a rentabilidade.
     pub operations: Vec<Operation>,
-    /// Saldo bruto estimado hoje e o que sobraria depois do IR e do IOF.
+    /// Saldo hoje (o último informado, mais depósitos e menos resgates
+    /// depois dele); `balance_net` é igual, sem IR estimado.
     pub balance: Decimal,
     pub balance_net: Decimal,
     /// Quanto do saldo é dinheiro depositado (custo das cotas).
@@ -349,16 +353,18 @@ impl SavingsReport {
     }
 }
 
-/// Monta o cofrinho a partir dos movimentos e do CDI diário (% ao dia, série
-/// 12 do Banco Central). Um dia sem CDI (fim de semana, feriado) não rende.
-pub fn build(
-    savings: &Savings,
-    moves: &[SavingsMove],
-    cdi: &BTreeMap<NaiveDate, Decimal>,
-    today: NaiveDate,
-) -> SavingsReport {
+/// Monta o saldo a partir dos movimentos e dos saldos informados.
+pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> SavingsReport {
     let ticker = ticker(&savings.id);
-    let mut moves: Vec<&SavingsMove> = moves.iter().filter(|m| m.date <= today).collect();
+    // Conta encerrada: o saldo some no dia seguinte ao fim do mês do "até".
+    let closing = savings
+        .until
+        .and_then(|u| last_day(u).succ_opt())
+        .filter(|c| *c <= today);
+    let mut moves: Vec<&SavingsMove> = moves
+        .iter()
+        .filter(|m| m.date <= today && closing.is_none_or(|c| m.date < c))
+        .collect();
     // No mesmo dia: depósitos, depois resgates, depois o saldo do fim do dia.
     moves.sort_by_key(|m| {
         (
@@ -389,37 +395,9 @@ pub fn build(
         return report;
     };
 
-    // Valor da cota: R$ 1 no primeiro dia; cada dia útil seguinte soma o CDI
-    // do dia útil anterior (o dinheiro rende de um dia para o outro).
-    let rate = savings.rate_pct / Decimal::ONE_HUNDRED;
-    let mut unit = Decimal::ONE;
+    // Valor da cota: R$ 1, sempre; nada é estimado entre um saldo e outro.
+    let unit = Decimal::ONE;
     let mut values = vec![(first, unit)];
-    match savings.kind {
-        SavingsKind::Cofrinho => {
-            let mut prev_cdi: Option<Decimal> = cdi.get(&first).copied();
-            for (d, v) in cdi.range(first.succ_opt().unwrap_or(first)..=today) {
-                if let Some(p) = prev_cdi {
-                    unit = (unit * (Decimal::ONE + p / Decimal::ONE_HUNDRED * rate)).round_dp(12);
-                }
-                values.push((*d, unit));
-                prev_cdi = Some(*v);
-            }
-        }
-        SavingsKind::Fgts => {
-            // 3% ao ano, capitalizados por mês como a Caixa faz (dia 10),
-            // aqui espalhados dia a dia: 1,03^(1/365) por dia corrido.
-            let daily = Decimal::new(10_000_809_868, 10);
-            let mut d = first;
-            while let Some(next) = d.succ_opt().filter(|n| *n <= today) {
-                unit = (unit * daily).round_dp(12);
-                if next.day() == 1 || next == today {
-                    values.push((next, unit));
-                }
-                d = next;
-            }
-        }
-        SavingsKind::Conta | SavingsKind::Beneficio => {}
-    }
     if values.last().map(|(d, _)| *d) != Some(today) {
         values.push((today, unit));
     }
@@ -455,7 +433,7 @@ pub fn build(
             quantity: Decimal::ZERO,
             price: u,
             manual_fees: Some(Decimal::ZERO),
-            note: Some(savings.name.clone()),
+            note: Some(savings.title().to_string()),
             currency: BRL.into(),
             from_account: None,
             residue: None,
@@ -466,7 +444,6 @@ pub fn build(
             MoveKind::Deposito => {
                 let q = m.amount / u;
                 lots.push(Lot {
-                    date: m.date,
                     units: q,
                     cost: m.amount,
                 });
@@ -476,23 +453,9 @@ pub fn build(
                 });
             }
             MoveKind::Resgate => {
-                let informed = m.ir.is_some() || m.iof.is_some();
-                let (mut ir, mut iof) = (m.ir.unwrap_or_default(), m.iof.unwrap_or_default());
-                let mut gross = m.amount + ir + iof;
-                if !informed {
-                    // O imposto depende do bruto, que depende do imposto:
-                    // poucas voltas bastam para fechar no centavo.
-                    for _ in 0..5 {
-                        (ir, iof) = tax_of(
-                            &lots,
-                            gross / u,
-                            u,
-                            m.date,
-                            savings.tax_free || !savings.kind.is_investment(),
-                        );
-                        gross = m.amount + ir + iof;
-                    }
-                }
+                // IR e IOF só entram se o banco mostrou; o app não estima.
+                let (ir, iof) = (m.ir.unwrap_or_default(), m.iof.unwrap_or_default());
+                let gross = m.amount + ir + iof;
                 let q = (gross / u).min(units(&lots));
                 let cost: Decimal = {
                     let mut left = q;
@@ -515,7 +478,7 @@ pub fn build(
                     gross: cents(gross),
                     ir,
                     iof,
-                    estimated: !informed,
+                    estimated: false,
                     gain: cents(gross - cost),
                 });
                 report.operations.push(Operation {
@@ -534,7 +497,6 @@ pub fn build(
                 if m.amount > Decimal::ZERO {
                     let q = m.amount / u;
                     lots.push(Lot {
-                        date: m.date,
                         units: q,
                         cost: m.amount,
                     });
@@ -581,6 +543,33 @@ pub fn build(
             _ => report.units_history.push((m.date, held)),
         }
     }
+    if let Some(c) = closing {
+        while c.year() > last_year {
+            year_end.insert(last_year, snapshot(&lots, last_year));
+            last_year += 1;
+        }
+        let held = units(&lots);
+        if !held.is_zero() {
+            report.operations.push(Operation {
+                id: format!("{ticker}:encerrada"),
+                account: savings.account.clone(),
+                asset: ticker.clone(),
+                date: c,
+                side: Side::Ajuste,
+                quantity: -held,
+                price: Decimal::ZERO,
+                manual_fees: Some(Decimal::ZERO),
+                note: Some(savings.title().to_string()),
+                currency: BRL.into(),
+                from_account: None,
+                residue: None,
+                ir: None,
+                iof: None,
+            });
+            lots.clear();
+            report.units_history.push((c, Decimal::ZERO));
+        }
+    }
     let u = unit_on(today);
     while today.year() > last_year {
         year_end.insert(last_year, snapshot(&lots, last_year));
@@ -588,20 +577,26 @@ pub fn build(
     }
     report.balance = cents(units(&lots) * u);
     report.invested = cents(lots.iter().map(|l| l.cost).sum());
-    let (ir, iof) = tax_of(
-        &lots,
-        units(&lots),
-        u,
-        today,
-        savings.tax_free || !savings.kind.is_investment(),
-    );
-    report.balance_net = report.balance - ir - iof;
+    report.balance_net = report.balance;
     report.year_end = year_end.into_iter().collect();
     report.unit_values = values;
     report
 }
 
 use chrono::Datelike;
+
+/// Último dia do mês de `d`.
+fn last_day(d: NaiveDate) -> NaiveDate {
+    let (y, m) = if d.month() == 12 {
+        (d.year() + 1, 1)
+    } else {
+        (d.year(), d.month() + 1)
+    };
+    NaiveDate::from_ymd_opt(y, m, 1)
+        .expect("dia 1 existe")
+        .pred_opt()
+        .expect("dia anterior existe")
+}
 
 #[cfg(test)]
 mod tests {
@@ -621,6 +616,8 @@ mod tests {
             rate_pct: dec!(100),
             tax_free: false,
             note: None,
+            since: None,
+            until: None,
         }
     }
 
@@ -637,17 +634,24 @@ mod tests {
         }
     }
 
-    /// CDI de 0,05% ao dia em todos os dias úteis de 2026.
-    fn cdi() -> BTreeMap<NaiveDate, Decimal> {
-        let mut m = BTreeMap::new();
-        let mut day = d(1, 2);
-        while day.year() == 2026 {
-            if day.weekday().num_days_from_monday() < 5 {
-                m.insert(day, dec!(0.05));
-            }
-            day = day.succ_opt().unwrap();
-        }
-        m
+    #[test]
+    fn conta_encerrada_zera_depois_do_ate() {
+        let mut c = cofrinho();
+        c.since = Some(d(1, 1));
+        c.until = Some(d(3, 1));
+        let moves = vec![
+            mv("a", d(1, 10), MoveKind::Saldo, dec!(1000)),
+            mv("b", d(4, 10), MoveKind::Saldo, dec!(2000)),
+        ];
+        // Antes do fim de março, o saldo vale; o lançamento de abril é ignorado.
+        let r = build(&c, &moves, d(3, 31));
+        assert_eq!(r.balance, dec!(1000));
+        let r = build(&c, &moves, d(5, 1));
+        assert_eq!(r.balance, Decimal::ZERO);
+        assert_eq!(r.units_history.last(), Some(&(d(4, 1), Decimal::ZERO)));
+        assert!(c.active_between(d(3, 1), d(12, 31)));
+        assert!(!c.active_between(d(4, 1), d(12, 31)));
+        assert!(c.open_on(d(3, 31)) && !c.open_on(d(4, 1)));
     }
 
     #[test]
@@ -660,14 +664,15 @@ mod tests {
             mv("c", d(9, 20), MoveKind::Deposito, dec!(200)),
             mv("s", d(9, 30), MoveKind::Saldo, dec!(912)),
         ];
-        let r = build(&cofrinho(), &moves, &cdi(), d(9, 30));
+        let r = build(&cofrinho(), &moves, d(9, 30));
         assert_eq!(r.balance, dec!(912));
-        // Resgate cedo: o IOF come quase todo o rendimento, e o bruto passa
-        // um pouco dos 300.
+        // Sem estimativa: o resgate é o valor que saiu, sem IR nem IOF.
         let red = &r.redemptions[0];
-        assert!(red.estimated);
-        assert!(red.gross > dec!(300) && red.gross < dec!(301));
-        assert!(red.iof > Decimal::ZERO);
+        assert!(!red.estimated);
+        assert_eq!(red.gross, dec!(300));
+        assert_eq!(red.iof, Decimal::ZERO);
+        // Esperado 900 (sem CDI); os 12 a mais são o rendimento do mês.
+        assert_eq!(r.checks[0].expected, dec!(900));
         assert!(!r.checks[0].suspicious);
         // Depósito + ajuste + resgate etc. viram operações da carteira.
         assert_eq!(r.operations.len(), 4);
@@ -680,29 +685,30 @@ mod tests {
             mv("a", d(3, 2), MoveKind::Deposito, dec!(1000)),
             mv("s", d(3, 31), MoveKind::Saldo, dec!(700)),
         ];
-        let r = build(&cofrinho(), &moves, &cdi(), d(4, 1));
+        let r = build(&cofrinho(), &moves, d(4, 1));
         assert!(r.checks[0].suspicious);
         assert_eq!(r.last_informed, Some(d(3, 31)));
     }
 
     #[test]
-    fn estimativa_pelo_cdi_e_saldo_de_fim_de_ano() {
-        let moves = vec![mv("a", d(1, 5), MoveKind::Deposito, dec!(10000))];
-        let r = build(&cofrinho(), &moves, &cdi(), d(12, 31));
-        // ~250 dias úteis a 0,05%: cerca de 13%.
-        assert!(r.balance > dec!(11200) && r.balance < dec!(11500));
+    fn sem_estimativa_entre_saldos_e_saldo_de_fim_de_ano() {
+        let moves = vec![
+            mv("a", d(1, 5), MoveKind::Deposito, dec!(10000)),
+            mv("s", d(6, 30), MoveKind::Saldo, dec!(10600)),
+        ];
+        let r = build(&cofrinho(), &moves, d(12, 31));
+        // Nada cresce depois do último saldo informado.
+        assert_eq!(r.balance, dec!(10600));
+        assert_eq!(r.balance_on(d(3, 31)), dec!(10000));
+        assert_eq!(r.balance_net, r.balance);
         assert_eq!(r.invested, dec!(10000));
-        // Mais de 360 dias? Não: 17,5% só depois de 360; aqui 20%.
-        let gain = r.balance - r.invested;
-        assert_eq!(r.balance_net, r.balance - (gain * dec!(0.20)).round_dp(2));
         assert_eq!(r.year_end, vec![]);
         let r2 = build(
             &cofrinho(),
             &moves,
-            &cdi(),
             NaiveDate::from_ymd_opt(2027, 1, 10).unwrap(),
         );
-        assert_eq!(r2.year_end[0].0, 2026);
+        assert_eq!(r2.year_end, vec![(2026, dec!(10600))]);
     }
 
     #[test]
@@ -716,18 +722,14 @@ mod tests {
             mv("s1", d(1, 10), MoveKind::Saldo, dec!(20000)),
             mv("s2", d(7, 10), MoveKind::Saldo, dec!(23000)),
         ];
-        let r = build(&fgts, &moves, &BTreeMap::new(), d(12, 31));
+        let r = build(&fgts, &moves, d(12, 31));
         assert!(
             !r.checks[0].suspicious,
             "depósitos do empregador não são lançados"
         );
         assert_eq!(r.invested, dec!(20000));
-        // De julho a dezembro, 3% ao ano: cerca de 1,4%.
-        assert!(
-            r.balance > dec!(23300) && r.balance < dec!(23360),
-            "{}",
-            r.balance
-        );
+        // Sem estimativa: vale o último saldo informado.
+        assert_eq!(r.balance, dec!(23000));
         assert_eq!(r.balance_net, r.balance, "FGTS não tem IR");
 
         let conta = Savings {
@@ -738,12 +740,34 @@ mod tests {
             mv("s1", d(3, 1), MoveKind::Saldo, dec!(1500)),
             mv("s2", d(4, 1), MoveKind::Saldo, dec!(400)),
         ];
-        let r = build(&conta, &moves, &cdi(), d(5, 1));
+        let r = build(&conta, &moves, d(5, 1));
         assert_eq!(r.balance, dec!(400));
         assert_eq!(r.balance_net, dec!(400));
         assert!(!r.checks[0].suspicious);
         assert_eq!(r.balance_on(d(3, 15)), dec!(1500));
         assert_eq!(r.balance_on(d(2, 1)), dec!(0));
+    }
+
+    #[test]
+    fn nome_em_branco_ou_igual_ao_tipo_nao_e_nome_proprio() {
+        let conta = |name: &str| Savings {
+            kind: SavingsKind::Conta,
+            name: name.into(),
+            ..cofrinho()
+        };
+        assert!(conta("").validate().is_ok());
+        assert_eq!(conta("").own_name(), None);
+        assert_eq!(conta("Conta corrente").own_name(), None);
+        assert_eq!(conta("Conta corrente").title(), "Conta corrente");
+        assert_eq!(conta("Conjunta").own_name(), Some("Conjunta"));
+        let fgts = Savings {
+            kind: SavingsKind::Fgts,
+            account: String::new(),
+            ..conta("")
+        };
+        assert!(fgts.validate().is_ok(), "FGTS não tem banco");
+        assert_eq!(fgts.bank(), "");
+        assert!(conta("").validate().is_ok());
     }
 
     #[test]

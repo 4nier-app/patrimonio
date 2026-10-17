@@ -298,7 +298,11 @@ export type EvolutionRow = {
   detail: string | null;
   values: (Dec | null)[];
   missing: boolean[];
+  /** Coluna fora do período do saldo (antes do "desde" ou depois do "até"). */
+  outside: boolean[];
   gain: EvolutionGain | null;
+  /** Desde a primeira compra até a última coluna (só investimentos). */
+  since: EvolutionGain | null;
 };
 /** Resultado no período: valor final + vendas − compras − valor inicial; base = inicial + compras. */
 export type EvolutionGain = { value: Dec; base: Dec };
@@ -309,6 +313,7 @@ export type EvolutionGroup = {
   rows: EvolutionRow[];
   total: (Dec | null)[];
   gain: EvolutionGain | null;
+  since: EvolutionGain | null;
 };
 export type EvolutionView = {
   years: number[];
@@ -321,6 +326,7 @@ export type EvolutionView = {
   new_money: (Dec | null)[];
   total_gain: EvolutionGain | null;
   investments_gain: EvolutionGain | null;
+  investments_since: EvolutionGain | null;
   incomplete: boolean;
 };
 
@@ -566,6 +572,10 @@ export type Savings = {
   rate_pct: Dec;
   tax_free: boolean;
   note: string | null;
+  /** Mês de início ("AAAA-MM-01"). */
+  since: string | null;
+  /** Mês de encerramento ("AAAA-MM-01"), se a conta foi fechada. */
+  until: string | null;
 };
 
 export type SavingsMove = {

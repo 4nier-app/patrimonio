@@ -49,8 +49,14 @@ pub struct Row {
     pub values: Vec<Option<Decimal>>,
     /// Coluna em que havia o ativo, mas faltou cotação ou PTAX.
     pub missing: Vec<bool>,
+    /// Coluna fora do período do saldo (antes do "desde" ou depois do
+    /// "até"): ali não se informa saldo.
+    pub outside: Vec<bool>,
     /// Resultado da primeira à última coluna.
     pub gain: Option<Gain>,
+    /// Resultado desde a primeira compra até a última coluna (só
+    /// investimentos).
+    pub since: Option<Gain>,
 }
 
 /// Resultado no período, descontando compras e vendas: um ativo vendido no
@@ -75,13 +81,21 @@ impl std::ops::Add for Gain {
 
 /// Soma dos resultados; sem resultado se faltou cotação em alguma linha.
 fn sum_gains<'a>(rows: impl Iterator<Item = &'a Row>) -> Option<Gain> {
+    sum_by(rows, |r| r.gain)
+}
+
+fn sum_since<'a>(rows: impl Iterator<Item = &'a Row>) -> Option<Gain> {
+    sum_by(rows, |r| r.since)
+}
+
+fn sum_by<'a>(rows: impl Iterator<Item = &'a Row>, pick: fn(&Row) -> Option<Gain>) -> Option<Gain> {
     let mut acc = Gain::default();
     let mut any = false;
     for r in rows {
-        if r.values.iter().all(Option::is_none) && r.gain.is_none() {
+        if r.values.iter().all(Option::is_none) && pick(r).is_none() {
             continue;
         }
-        acc = acc + r.gain?;
+        acc = acc + pick(r)?;
         any = true;
     }
     any.then_some(acc)
@@ -96,6 +110,7 @@ pub struct Group {
     pub rows: Vec<Row>,
     pub total: Vec<Option<Decimal>>,
     pub gain: Option<Gain>,
+    pub since: Option<Gain>,
 }
 
 #[derive(Debug, Serialize)]
@@ -114,6 +129,8 @@ pub struct EvolutionView {
     pub total_gain: Option<Gain>,
     /// Resultado dos investimentos, descontando aportes e resgates.
     pub investments_gain: Option<Gain>,
+    /// Resultado dos investimentos desde a primeira compra.
+    pub investments_since: Option<Gain>,
     /// Alguma coluna ficou sem cotação ou PTAX de algum ativo.
     pub incomplete: bool,
 }
@@ -248,7 +265,9 @@ fn build(
                 detail: None,
                 values: vec![None; n],
                 missing: vec![false; n],
+                outside: vec![false; n],
                 gain: None,
+                since: None,
             });
             match p.market_value_brl {
                 Some(val) => row.values[i] = Some(val),
@@ -269,7 +288,9 @@ fn build(
                 detail: None,
                 values: vec![None; n],
                 missing: vec![false; n],
+                outside: vec![false; n],
                 gain: None,
+                since: None,
             });
         }
     }
@@ -293,17 +314,24 @@ fn build(
     }
 
     // Saldos: cofrinhos em renda fixa; FGTS; conta e benefício em dinheiro.
+    // Nenhum é estimado: vale o que o usuário informa na tabela.
+    // Meses mostrados (sem o 31/12 do ano anterior), para saber se o saldo
+    // existia nesse período.
+    let shown_from = cols
+        .iter()
+        .find(|c| c.kind != ColumnKind::Base)
+        .map_or(start, |c| c.date.with_day(1).expect("dia 1 existe"));
     for r in inp.reports {
         let values: Vec<Option<Decimal>> = cols
             .iter()
             .map(|c| {
-                if r.savings.kind.is_investment() {
-                    let started = r.units_history.first().is_some_and(|(d, _)| *d <= c.date);
-                    return started.then(|| r.balance_on(c.date));
+                // Conta encerrada: depois do mês de encerramento não há saldo.
+                if !r.savings.open_on(c.date) {
+                    return None;
                 }
-                // FGTS, conta e benefício: só o saldo informado no próprio mês,
-                // sem estimar nem repetir nos meses seguintes. Ontem e hoje
-                // mostram o último saldo informado.
+                // Só o saldo informado (ou movimentado) no próprio mês, sem
+                // estimar nem repetir nos meses seguintes. Ontem e hoje
+                // mostram o último saldo.
                 let from = match c.kind {
                     ColumnKind::Yesterday | ColumnKind::Today => NaiveDate::MIN,
                     _ => c.date.with_day(1).expect("dia 1 existe"),
@@ -316,12 +344,32 @@ fn build(
                 Some(r.balance_on(last.0))
             })
             .collect();
-        // Saldo recém-cadastrado, ainda sem valor, aparece em branco para o
-        // usuário informar os meses direto na tabela.
-        let fresh = r.units_history.is_empty();
-        if !fresh && values.iter().all(|x| x.is_none_or(|v| v.is_zero())) {
+        // Entre o "desde" e o "até" a linha aparece sempre, mesmo vazia, para
+        // o usuário informar os meses direto na tabela.
+        let active = r.savings.active_between(shown_from, end);
+        if !active && values.iter().all(|x| x.is_none_or(|v| v.is_zero())) {
             continue;
         }
+        // FGTS, conta e benefício não têm compras: o resultado é a variação
+        // simples do saldo (no período, e desde o primeiro saldo informado).
+        let (gain, since) = if r.savings.kind.is_investment() {
+            (None, None)
+        } else {
+            let known: Vec<Decimal> = values.iter().flatten().copied().collect();
+            let gain = (known.len() >= 2).then(|| Gain {
+                value: known[known.len() - 1] - known[0],
+                base: known[0],
+            });
+            let first = r.units_history.first().map(|(d, _)| r.balance_on(*d));
+            let since = match (first, known.last()) {
+                (Some(f), Some(l)) => Some(Gain {
+                    value: *l - f,
+                    base: f,
+                }),
+                _ => None,
+            };
+            (gain, since)
+        };
         let key = match r.savings.kind {
             SavingsKind::Cofrinho => ("rf", "Renda fixa (cofrinhos)".to_string()),
             SavingsKind::Fgts => ("fgts", "FGTS".to_string()),
@@ -330,15 +378,29 @@ fn build(
         rows.entry(key).or_default().push(Row {
             asset: r.savings.kind.is_investment().then(|| r.ticker.clone()),
             savings_id: Some(r.savings.id.clone()),
-            name: r.savings.name.clone(),
-            detail: Some(format!(
-                "{} · {}",
-                r.savings.kind.label(),
-                r.savings.account
-            )),
+            // Com nome próprio: nome em cima e banco embaixo. Sem nome: o
+            // banco em cima e o tipo embaixo ("Itaú" / "Conta corrente").
+            // FGTS não tem banco: "FGTS", ou o nome (de quem é) com "FGTS"
+            // embaixo.
+            name: match (r.savings.kind, r.savings.own_name()) {
+                (_, Some(n)) => n.to_string(),
+                (SavingsKind::Fgts, None) => r.savings.kind.label().to_string(),
+                (_, None) => r.savings.account.clone(),
+            },
+            detail: match (r.savings.kind, r.savings.own_name()) {
+                (SavingsKind::Fgts, Some(_)) => Some(r.savings.kind.label().to_string()),
+                (SavingsKind::Fgts, None) => None,
+                (_, Some(_)) => Some(r.savings.account.clone()),
+                (_, None) => Some(r.savings.kind.label().to_string()),
+            },
             values,
             missing: vec![false; n],
-            gain: None,
+            outside: cols
+                .iter()
+                .map(|c| r.savings.since.is_some_and(|s| c.date < s) || !r.savings.open_on(c.date))
+                .collect(),
+            gain,
+            since,
         });
     }
 
@@ -354,7 +416,8 @@ fn build(
     };
     let in_period = |p: &&PricedOperation| p.operation.date > start && p.operation.date <= end;
     for row in rows.values_mut().flatten() {
-        if row.missing[0] || row.missing[n - 1] {
+        // Saldos sem código (FGTS, conta, benefício) já têm a variação simples.
+        if row.asset.is_none() || row.missing[0] || row.missing[n - 1] {
             continue;
         }
         let first = row.values[0].unwrap_or_default();
@@ -379,6 +442,34 @@ fn build(
             base: (first + buys).round_dp(2),
         });
     }
+    // Desde o início: valor final + todas as vendas − todas as compras até a
+    // última coluna; a base é o total comprado.
+    for row in rows.values_mut().flatten() {
+        let Some(a) = &row.asset else { continue };
+        if row.missing[n - 1] {
+            continue;
+        }
+        let (mut net, mut buys) = (Decimal::ZERO, Decimal::ZERO);
+        for p in inp
+            .ops
+            .iter()
+            .filter(|p| p.operation.date <= end && &p.operation.asset == a)
+        {
+            let Some(f) = flow_brl(p) else { continue };
+            net += f;
+            if f > Decimal::ZERO {
+                buys += f;
+            }
+        }
+        if buys.is_zero() {
+            continue;
+        }
+        let last = row.values[n - 1].unwrap_or_default();
+        row.since = Some(Gain {
+            value: (last - net).round_dp(2),
+            base: buys.round_dp(2),
+        });
+    }
 
     let mut groups: Vec<Group> = rows
         .into_iter()
@@ -397,6 +488,7 @@ fn build(
                 id,
                 investment: rows.iter().all(|r| r.asset.is_some()),
                 gain: sum_gains(rows.iter()),
+                since: sum_since(rows.iter()),
                 label,
                 rows,
                 total,
@@ -441,6 +533,7 @@ fn build(
         }
     };
     let investments_gain = sum_gains(all_rows().filter(|r| r.asset.is_some()));
+    let investments_since = sum_since(all_rows().filter(|r| r.asset.is_some()));
 
     // Dinheiro novo nos investimentos entre uma coluna e a anterior.
     let new_money = (0..n)
@@ -472,6 +565,7 @@ fn build(
         new_money,
         total_gain,
         investments_gain,
+        investments_since,
         incomplete,
     })
 }
@@ -502,7 +596,9 @@ fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
         }),
         values,
         missing: (0..n).map(|i| sold.iter().any(|r| r.missing[i])).collect(),
+        outside: vec![false; n],
         gain: sum_gains(sold.iter()),
+        since: sum_since(sold.iter()),
     };
     held.into_iter().chain(std::iter::once(merged)).collect()
 }
@@ -536,6 +632,7 @@ pub fn evolution(v: &Vault, year: Option<i32>, today: NaiveDate) -> Result<Evolu
             new_money: Vec::new(),
             total_gain: None,
             investments_gain: None,
+            investments_since: None,
             incomplete: false,
         });
     };
@@ -690,6 +787,8 @@ mod tests {
                 rate_pct: Decimal::ZERO,
                 tax_free: false,
                 note: None,
+                since: Some(d(2026, 2, 1)),
+                until: None,
             })
             .unwrap();
         v.create_savings_move(SavingsMove {
@@ -703,6 +802,34 @@ mod tests {
             note: None,
         })
         .unwrap();
+        v.create_savings_move(SavingsMove {
+            id: String::new(),
+            savings_id: conta.id.clone(),
+            date: d(2026, 3, 2),
+            kind: MoveKind::Saldo,
+            amount: dec!(650),
+            ir: None,
+            iof: None,
+            note: None,
+        })
+        .unwrap();
+        // Conta aberta desde 2025, ainda sem saldo: aparece vazia. Conta
+        // encerrada em 2025: some em 2026.
+        let outra = |name: &str, since, until| Savings {
+            id: String::new(),
+            kind: SavingsKind::Conta,
+            account: "Banco Y".into(),
+            name: name.into(),
+            rate_pct: Decimal::ZERO,
+            tax_free: false,
+            note: None,
+            since: Some(since),
+            until,
+        };
+        v.create_savings(outra("Reserva", d(2025, 6, 1), None))
+            .unwrap();
+        v.create_savings(outra("Velha", d(2025, 1, 1), Some(d(2025, 12, 1))))
+            .unwrap();
 
         let view = evolution(&v, Some(2026), d(2026, 3, 4)).unwrap();
         assert_eq!(view.years, vec![2026]);
@@ -731,6 +858,40 @@ mod tests {
         // não uma queda de 100%.
         let g = outr.gain.unwrap();
         assert_eq!((g.value, g.base), (dec!(20), dec!(110)));
+        // Desde o início: 130 recebidos − 100 pagos na compra.
+        let since = outr.since.unwrap();
+        assert_eq!((since.value, since.base), (dec!(30), dec!(100)));
+        // TEST3: valor de hoje − 1.500 comprados; a conta não tem.
+        let test = rv
+            .rows
+            .iter()
+            .find(|r| r.asset.as_deref() == Some("TEST3"))
+            .unwrap();
+        let today = test.values[view.columns.len() - 1].unwrap();
+        assert_eq!(test.since.unwrap().value, today - dec!(1500));
+        // Conta: variação simples, 650 hoje − 500 em janeiro.
+        let conta = &view.groups[1].rows[0];
+        let g = conta.gain.unwrap();
+        assert_eq!((g.value, g.base), (dec!(150), dec!(500)));
+        assert_eq!(conta.since.unwrap().value, dec!(150));
+        // A "Reserva" aparece vazia; a "Velha", encerrada, não aparece.
+        let names: Vec<_> = view.groups[1]
+            .rows
+            .iter()
+            .map(|r| r.name.as_str())
+            .collect();
+        assert_eq!(names, vec!["Conta", "Reserva"]);
+        assert!(view.groups[1].rows[1].values.iter().all(Option::is_none));
+        // Antes do "desde" não se informa saldo.
+        assert!(view.groups[1].rows[1].outside.iter().all(|o| !o));
+        assert_eq!(
+            view.groups[1].rows[0].outside,
+            vec![true, false, false, false]
+        );
+        assert_eq!(
+            view.investments_since.unwrap().value,
+            today - dec!(1500) + dec!(30)
+        );
         // O resultado dos investimentos bate com a soma dos rendimentos.
         let inv = view.investments_gain.unwrap();
         let last = view.investments[view.columns.len() - 1].unwrap();
@@ -746,7 +907,7 @@ mod tests {
         let conta = &view.groups[1].rows[0];
         assert_eq!(conta.values[0], Some(dec!(500)));
         assert_eq!(conta.values[1], None);
-        assert_eq!(conta.values[3], Some(dec!(500)));
+        assert_eq!(conta.values[3], Some(dec!(650)));
         assert!(!view.incomplete);
 
         let all = evolution(&v, None, d(2026, 3, 4)).unwrap();
@@ -766,11 +927,13 @@ mod tests {
             name: name.into(),
             detail: None,
             missing: vec![false; values.len()],
+            outside: vec![false; values.len()],
             values,
             gain: Some(Gain {
                 value: gain,
                 base: dec!(100),
             }),
+            since: None,
         };
         let rows = vec![
             row("AAAA3", vec![Some(dec!(100)), Some(dec!(120))], dec!(20)),

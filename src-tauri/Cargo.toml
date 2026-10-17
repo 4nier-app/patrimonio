@@ -1,6 +1,6 @@
 [package]
 name = "carteira-app"
-description = "Carteira Auditável: aplicativo desktop."
+description = "4Nier Patrimônio Auditável: aplicativo desktop."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

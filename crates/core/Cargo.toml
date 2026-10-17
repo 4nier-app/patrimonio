@@ -1,6 +1,6 @@
 [package]
 name = "carteira-core"
-description = "Domínio e regras de cálculo da Carteira Auditável (sem IO)."
+description = "Domínio e regras de cálculo do 4Nier Patrimônio Auditável (sem IO)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

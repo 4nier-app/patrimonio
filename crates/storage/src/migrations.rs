@@ -14,6 +14,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (9, include_str!("migrations/0009_proventos.sql")),
     (10, include_str!("migrations/0010_eventos.sql")),
     (11, include_str!("migrations/0011_saldos.sql")),
+    (12, include_str!("migrations/0012_saldos_periodo.sql")),
 ];
 
 /// Versão mais nova do esquema que este aplicativo conhece.

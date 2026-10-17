@@ -1,4 +1,4 @@
-import { cashMask, type Currency } from "../format";
+import { cashTyping, cashZero, type Currency } from "../format";
 
 /** Campo de dinheiro com máscara de caixa: só números, da direita para a esquerda. */
 export default function CashInput({
@@ -18,9 +18,9 @@ export default function CashInput({
     <input
       inputMode="numeric"
       value={value}
-      placeholder={`${currency === "USD" ? "US$" : "R$"} 0,${"0".repeat(decimals)}`}
+      placeholder={cashZero(decimals, currency)}
       required={required}
-      onChange={(e) => onChange(cashMask(e.target.value, decimals, currency))}
+      onChange={(e) => onChange(cashTyping(e.target.value, value, decimals, currency))}
     />
   );
 }

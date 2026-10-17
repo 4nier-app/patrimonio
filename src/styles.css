@@ -537,6 +537,8 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .evo-group th:first-child { background: var(--bg); font-weight: 600; white-space: normal; }
 .evo-group:hover th, .evo-group:hover td { filter: brightness(0.97); }
 .evo-row th:first-child { padding-left: 20px; }
+.evo-row.evo-group th:first-child { padding-left: 24px; }
+.evo-row.evo-group .evo-val { font-weight: 600; }
 .evo-asset { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .evo-detail { display: block; font-size: 0.7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .evo-total th, .evo-total td { border-top: 2px solid var(--border); }
@@ -552,3 +554,37 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .evo-cell.editable:hover .evo-add { opacity: 1; }
 .evo-edit form { display: flex; flex-direction: column; gap: 10px; }
 .evo-edit label { display: flex; flex-direction: column; gap: 4px; }
+
+/* Painel: patrimônio primeiro. */
+.panel { display: flex; flex-direction: column; gap: 16px; }
+.panel .dash-cards { margin-bottom: 0; }
+.panel-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.panel-total { display: flex; flex-direction: column; gap: 4px; }
+.panel-total strong { font-size: 2.2rem; letter-spacing: -0.02em; }
+.panel-changes { display: flex; gap: 24px; flex-wrap: wrap; }
+.panel-change { display: flex; flex-direction: column; font-weight: 600; }
+.panel-change .pos { color: var(--ok); }
+.panel-change .neg { color: var(--error); }
+.panel-split { display: flex; gap: 28px; flex-wrap: wrap; }
+.panel-split > div { display: flex; flex-direction: column; gap: 2px; }
+.panel-split strong { font-size: 1.15rem; }
+.panel-alerts { border-left: 4px solid var(--warning, #eda100); padding: 14px 18px; }
+.panel-alerts h3 { margin: 0 0 6px; font-size: 1rem; }
+.panel-alerts ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.panel-returns .dash-cards { grid-template-columns: 1fr; gap: 10px; }
+.panel-returns .card.stat { padding: 10px 14px; box-shadow: none; }
+.panel-returns .stat-value { font-size: 1.3rem; }
+.division { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.division-head { display: flex; justify-content: space-between; gap: 12px; font-size: 0.9rem; }
+.division-bar { height: 6px; background: var(--bg); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+.division-bar span { display: block; height: 100%; border-radius: 999px; }
+
+/* Ano entre setas (Evolução e Painel) */
+.year-pager { align-self: flex-start; align-items: stretch; }
+.year-pager .seg.year { display: inline-flex; align-items: center; padding: 6px 14px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 4.5em; justify-content: center; }
+.year-pager .seg.arrow { font-size: 1.15rem; line-height: 1; padding: 6px 12px; }
+.year-pager .seg.arrow:disabled { opacity: 0.35; cursor: default; }
+.segmented.small.year-pager .seg.year { padding: 3px 10px; }
+.segmented.small.year-pager .seg.arrow { padding: 3px 9px; }
+.chart-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.event-kind:disabled { opacity: 0.5; cursor: default; border-color: var(--border); }

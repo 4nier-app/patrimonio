@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useState } from "react";
+import YearPager from "../components/YearPager";
 import { errorMessage, evolutionApi, savingsApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
 import CashInput from "../components/CashInput";
 import Intro from "../components/Intro";
-import { date, money, monthLabel, parseDecimalInput, percent, toCashMask, tone } from "../format";
+import { cashZero, date, money, monthLabel, parseDecimalInput, percent, toCashMask, tone } from "../format";
 
 // Na tabela, valores sem "R$" (o cabeçalho já diz) para caber o ano inteiro.
 const numFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -26,7 +27,7 @@ function saveCollapsed(ids: string[]) {
   }
 }
 
-function columnLabel(c: EvolutionColumn): { top: string; sub?: string } {
+export function columnLabel(c: EvolutionColumn): { top: string; sub?: string } {
   const [y, m, d] = c.date.split("-");
   switch (c.kind) {
     case "BASE":
@@ -84,10 +85,10 @@ function Cell({
 }
 
 /** Resultado no período, descontando compras e vendas. */
-function Gain({ gain, strong }: { gain: EvolutionGain | null; strong?: boolean }) {
+function Gain({ gain, strong, plain }: { gain: EvolutionGain | null; strong?: boolean; plain?: boolean }) {
   const rate = gain && Number(gain.base) > 0 ? String(Number(gain.value) / Number(gain.base)) : null;
   return (
-    <td className="num evo-cell evo-gain" title={gain ? money(gain.value) : undefined}>
+    <td className={`num evo-cell ${plain ? "" : "evo-gain"}`} title={gain ? money(gain.value) : undefined}>
       {gain && (
         <>
           <span className={`evo-val ${strong ? "strong" : ""} ${tone(gain.value)}`}>{short(gain.value)}</span>
@@ -115,6 +116,7 @@ function FlowRow({ label, hint, values }: { label: string; hint: string; values:
       <td className="num evo-cell evo-gain" title={sum == null ? undefined : money(sum)}>
         {sum != null && <span className={`evo-val ${tone(sum)}`}>{short(sum)}</span>}
       </td>
+      <td className="num evo-cell" />
     </tr>
   );
 }
@@ -165,13 +167,13 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
         <Intro
           more={
             <>
-              Cada coluna é o patrimônio no fim do mês (ou do ano, em “Todos os anos”), em reais; o que está em dólar é convertido pela PTAX do dia.
+              Cada coluna é o patrimônio no fim do mês, em reais; o que está em dólar é convertido pela PTAX do dia.
               Abaixo de cada valor, a variação em relação à coluna anterior. Ativo vendido some das colunas seguintes, porque o dinheiro foi para
               outro lugar (outro ativo ou a conta corrente). A coluna “No período” mostra o resultado, descontando compras e vendas: um ativo
-              vendido no meio do ano mostra o que rendeu até a venda. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
+              vendido no meio do ano mostra o que rendeu até a venda. “Desde o início” faz a mesma conta desde a primeira compra de cada investimento. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
               alta e um saque como queda. Por isso, embaixo, a variação dos investimentos é separada em dinheiro novo (aportes menos resgates) e
               rendimento. Investimentos são ações, ETFs, criptomoedas, fundos e cofrinhos; FGTS, conta corrente e cartões benefício entram só no total
-              geral. A rentabilidade, que desconta os aportes, continua na aba Rentabilidade.
+              geral. A rentabilidade, que desconta os aportes, fica em Carteira › Rentabilidade.
             </>
           }
         >
@@ -187,18 +189,8 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
           )}
         </Intro>
       </div>
-      {view.years.length > 0 && (
-        <label className="ret-pick">
-          Período
-          <select value={year == null ? "todos" : String(year)} onChange={(e) => setYear(e.target.value === "todos" ? null : Number(e.target.value))}>
-            {view.years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-            <option value="todos">Todos os anos</option>
-          </select>
-        </label>
+      {view.years.length > 0 && year != null && (
+        <YearPager years={view.years} year={year} onChange={setYear} />
       )}
     </div>
   );
@@ -243,27 +235,36 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                   No período
                   <span className="evo-sub">resultado</span>
                 </th>
+                <th className="num evo-col" title="Resultado desde a primeira compra, com todas as compras e vendas">
+                  Desde o início
+                  <span className="evo-sub">resultado</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {view.groups.map((g) => {
                 const key = `${g.id}:${g.label}`;
-                const open = !collapsed.includes(key);
+                // FGTS é um saldo só: a própria linha faz as vezes do grupo.
+                const single = g.id === "fgts" && g.rows.length === 1;
+                const open = single || !collapsed.includes(key);
                 return (
                   <Fragment key={key}>
-                    <tr className="evo-group clickable" onClick={() => toggle(key)}>
-                      <th scope="row">
-                        <span className="ret-caret">{open ? "▾" : "▸"}</span>
-                        {g.label}
-                      </th>
-                      {cols.map((c, i) => (
-                        <Cell key={c.date} values={g.total} i={i} strong />
-                      ))}
-                      <Gain gain={g.gain} strong />
-                    </tr>
+                    {!single && (
+                      <tr className="evo-group clickable" onClick={() => toggle(key)}>
+                        <th scope="row">
+                          <span className="ret-caret">{open ? "▾" : "▸"}</span>
+                          {g.label}
+                        </th>
+                        {cols.map((c, i) => (
+                          <Cell key={c.date} values={g.total} i={i} strong />
+                        ))}
+                        <Gain gain={g.gain} strong />
+                        <Gain gain={g.since} strong plain />
+                      </tr>
+                    )}
                     {open &&
                       g.rows.map((r) => (
-                        <tr key={`${key}:${r.asset ?? r.name}:${r.detail ?? ""}`} className="evo-row">
+                        <tr key={`${key}:${r.asset ?? r.name}:${r.detail ?? ""}`} className={single ? "evo-row evo-group" : "evo-row"}>
                           <th scope="row" title={r.detail ? `${r.name}\n${r.detail}` : r.name}>
                             <span className="evo-asset">{r.name}</span>
                             {r.detail && <span className="evo-detail">{r.detail}</span>}
@@ -276,20 +277,27 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                               missing={r.missing[i]}
                               onEdit={
                                 // 31/12 do ano anterior e "todos os anos" só mostram;
-                                // o saldo se informa no mês dele.
-                                r.savings_id && (c.kind === "MONTH" || c.kind === "TODAY")
+                                // o saldo se informa no mês dele, dentro do período do saldo.
+                                r.savings_id && !r.outside?.[i] && (c.kind === "MONTH" || c.kind === "TODAY")
                                   ? () =>
                                       setEdit({
                                         savingsId: r.savings_id!,
                                         name: r.name,
                                         date: c.date,
-                                        amount: r.values[i] == null ? "" : toCashMask(r.values[i]!, 2).text,
+                                        amount:
+                                          r.values[i] == null
+                                            ? ""
+                                            : Number(r.values[i]) === 0
+                                              ? cashZero(2)
+                                              : toCashMask(r.values[i]!, 2).text,
+                                        month: c.kind === "MONTH",
                                       })
                                   : undefined
                               }
                             />
                           ))}
                           <Gain gain={r.gain} />
+                          <Gain gain={r.since} plain />
                         </tr>
                       ))}
                   </Fragment>
@@ -303,6 +311,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                   <Cell key={c.date} values={view.investments} i={i} strong />
                 ))}
                 <Gain gain={view.investments_gain} strong />
+                <Gain gain={view.investments_since} strong plain />
               </tr>
               <FlowRow
                 label="Dinheiro novo"
@@ -316,6 +325,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                   <Cell key={c.date} values={view.total} i={i} strong />
                 ))}
                 <Gain gain={view.total_gain} strong />
+                <td className="num evo-cell" />
               </tr>
               <FlowRow label="Variação (R$)" hint="Diferença do total geral para a coluna anterior" values={diffs(view.total)} />
             </tfoot>
@@ -336,13 +346,38 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
   );
 }
 
-type Editing = { savingsId: string; name: string; date: string; amount: string };
+type Editing = { savingsId: string; name: string; date: string; amount: string; month: boolean };
 
 /** Saldo informado numa data: grava como "Saldo informado" em Saldos e cofrinhos. */
 function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () => void; onSaved: () => void }) {
   const [amount, setAmount] = useState(edit.amount);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
+
+  // Apaga o saldo informado no mês (FGTS, conta e benefício não têm outra
+  // lista de movimentos). Depósitos e resgates de cofrinho ficam.
+  async function erase() {
+    if (!confirm) return setConfirm(true);
+    setBusy(true);
+    setError(null);
+    try {
+      const view = await savingsApi.load();
+      const item = view.items.find((x) => x.savings.id === edit.savingsId);
+      const month = edit.date.slice(0, 7);
+      const saldos = item?.moves.filter((m) => m.kind === "SALDO" && m.date.startsWith(month) && m.date <= edit.date) ?? [];
+      if (saldos.length === 0) {
+        setBusy(false);
+        setConfirm(false);
+        return setError("Não há saldo informado neste mês; o valor vem de um depósito ou resgate do cofrinho.");
+      }
+      for (const m of saldos) await savingsApi.removeMove(m.id);
+      onSaved();
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -380,7 +415,6 @@ function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () 
           Saldo que o app do banco mostrava nesse dia
           <CashInput value={amount} decimals={2} currency="BRL" onChange={setAmount} required />
         </label>
-        <p className="muted small">Fica gravado em Evolução › Saldos e cofrinhos, onde dá para ver e corrigir o histórico.</p>
         {error && <p className="error">{error}</p>}
         <div className="actions">
           <button type="submit" disabled={busy}>
@@ -389,6 +423,14 @@ function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () 
           <button type="button" className="secondary" onClick={onClose}>
             Cancelar
           </button>
+          {edit.month && edit.amount !== "" && (
+            <>
+              <span className="spacer" />
+              <button type="button" className={confirm ? "danger" : "link subtle"} disabled={busy} onClick={() => void erase()}>
+                {confirm ? "Confirmar: apagar" : "Apagar este saldo"}
+              </button>
+            </>
+          )}
         </div>
       </form>
     </aside>

@@ -6,7 +6,68 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.11.0] - Não lançada
+## [0.12.0] - Não lançada
+
+### Alterado
+- **Painel novo, centrado no patrimônio**: o total de hoje com a variação no
+  mês e no ano; a divisão entre investimentos, FGTS e dinheiro; o gráfico da
+  evolução mês a mês por grupo (ou ano a ano, em "Todos os anos"); o dinheiro
+  novo e o rendimento do ano; onde está o patrimônio, grupo a grupo; e um
+  resumo da rentabilidade com link para os detalhes.
+- Pendências no topo do Painel: DARF a pagar e saldos (FGTS, conta, cartões)
+  ainda não informados no mês, com link para a Evolução.
+- **Rentabilidade saiu do menu principal**: agora fica em
+  Carteira › Rentabilidade, junto com as análises (índices, lucro mês a mês,
+  quedas, o que puxou o resultado).
+- O subtítulo do aplicativo passou a ser **Patrimônio Auditável** (a marca
+  4Nier continua).
+- **O programa passou a se chamar "4Nier Patrimônio Auditável"** (atalho,
+  executável e instalação). Os dados continuam os mesmos, porque o
+  identificador interno não mudou. No Windows, a nova versão é instalada ao
+  lado da antiga "Carteira Auditável", que pode ser desinstalada depois (sem
+  marcar a opção de apagar os dados do aplicativo).
+- Saldos (cofrinhos, FGTS, conta e cartão benefício): novos campos **Desde**
+  (mês e ano, obrigatório) e **Até** (só para conta encerrada). Entre esses
+  meses, a linha aparece na Evolução mesmo vazia, para informar os saldos
+  direto na tabela; depois do "até", o saldo some e não conta mais no
+  patrimônio nem nas pendências do Painel. Os cadastros existentes recebem
+  como "desde" o mês do primeiro saldo lançado. Na Evolução, os meses antes
+  do "desde" e depois do "até" não ficam editáveis.
+- Campos de dinheiro aceitam **valor zero**: digitar 0 mostra "R$ 0,00" (por
+  exemplo, para zerar o saldo de um cartão benefício encerrado).
+- Evolução: FGTS, conta e cartão benefício mostram a **variação simples** em
+  "No período" (último saldo − primeiro saldo do período) e em "Desde o
+  início" (último saldo − primeiro saldo informado).
+- Evolução: nova coluna **Desde o início**, ao lado de "No período", com o
+  resultado de cada investimento desde a primeira compra (valor de hoje +
+  vendas − compras), por grupo e no total dos investimentos.
+- Evolução: a lista de período virou o ano entre setas (‹ 2026 ›) e saiu a
+  opção "Todos os anos", que a coluna "Desde o início" substitui.
+- Painel: o gráfico da evolução também tem o ano entre setas, para ver
+  qualquer ano mês a mês, e o botão "Todos os anos".
+- FGTS, conta corrente e cartão benefício: sem lista de movimentos e sem
+  estimativa (o FGTS não soma mais 3% ao ano); o cartão mostra o último saldo
+  informado. Para apagar um saldo digitado errado, clique no mês na Evolução e
+  use "Apagar este saldo".
+- O nome no cadastro de saldos é opcional e fica em branco de verdade. Sem
+  nome, a Evolução mostra o banco em cima e o tipo embaixo ("Itaú" / "Conta
+  corrente"); com nome, o nome em cima e o banco embaixo. Cadastros antigos
+  com o nome igual ao tipo passam a aparecer assim também.
+- FGTS: sem banco e sem nome, com o saldo total que o app do FGTS mostra. Na
+  Evolução, é uma linha só, sem grupo com total em cima. Para acompanhar o
+  FGTS de outra pessoa (como o do cônjuge), dá para cadastrar outro, e só esse
+  pede um nome; aí a Evolução volta a mostrar o grupo com o total.
+- A mesma regra vale para os outros saldos: do mesmo tipo e no mesmo banco, só
+  um fica sem nome. O primeiro Itaú não pede nome; um segundo Itaú pede. Na
+  conta corrente, o campo Nome só aparece quando é preciso.
+- Ao trocar de aba, a tela volta para o topo.
+- **Cofrinhos não são mais estimados**: como a conta corrente e os cartões
+  benefício, valem só os saldos que você informa na Evolução, mês a mês. O app
+  não calcula mais o rendimento pelo CDI nem desconta IR e IOF; o rendimento
+  aparece quando o saldo novo é informado. Saiu do cadastro a opção "Isento
+  de IR". No resgate, IR e IOF continuam opcionais, se o banco mostrar.
+
+## [0.11.0] - 2026-10-17
 
 ### Adicionado
 - Nova aba **Evolução**: o patrimônio no fim de cada mês, em reais (o que

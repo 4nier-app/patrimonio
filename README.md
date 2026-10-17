@@ -1,4 +1,4 @@
-# Carteira Auditável
+# 4Nier · Patrimônio Auditável
 
 Controle de investimentos B3 + exterior com rentabilidade auditável, 100% local e gratuito.
 

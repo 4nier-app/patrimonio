@@ -19,8 +19,8 @@ import { date, money, parseDecimalInput, toCashMask, tone } from "../format";
 const today = () => new Date().toLocaleDateString("sv-SE");
 
 const KINDS: { id: SavingsKind; title: string; text: string; example: string }[] = [
-  { id: "COFRINHO", title: "Cofrinho", text: "Caixinha ou conta que rende um percentual do CDI.", example: "Ex.: Nubank, Mercado Pago, 99Pay" },
-  { id: "FGTS", title: "FGTS", text: "Saldo do FGTS, como aparece no app do FGTS.", example: "Rende 3% ao ano + TR + lucros" },
+  { id: "COFRINHO", title: "Cofrinho", text: "Caixinha ou conta que rende, com resgate a qualquer hora.", example: "Ex.: Nubank, Mercado Pago, 99Pay" },
+  { id: "FGTS", title: "FGTS", text: "Saldo total do FGTS, como aparece no app do FGTS.", example: "Um só, com o total de todas as contas" },
   { id: "CONTA", title: "Conta corrente", text: "Dinheiro parado na conta, sem rendimento.", example: "Ex.: Itaú, Bradesco" },
   { id: "BENEFICIO", title: "Cartão benefício", text: "Saldo de vale-refeição ou alimentação.", example: "Ex.: Swile, Alelo, VR" },
 ];
@@ -34,19 +34,50 @@ const ISSUERS: Record<SavingsKind, string[]> = {
 
 const NAME_HINT: Record<SavingsKind, string> = {
   COFRINHO: "Ex.: Reserva de emergência",
-  FGTS: "Ex.: FGTS",
-  CONTA: "Ex.: Conta corrente",
+  FGTS: "",
+  CONTA: "Ex.: Conta conjunta (em branco: mostra só o banco)",
   BENEFICIO: "Ex.: Refeição",
 };
 
 const MOVE_LABEL: Record<SavingsMoveKind, string> = { DEPOSITO: "Depósito", RESGATE: "Resgate", SALDO: "Saldo informado" };
 
-type NewForm = { id: string; kind: SavingsKind | null; account: string; name: string; rate: string; taxFree: boolean };
-const EMPTY_NEW: NewForm = { id: "", kind: null, account: "", name: "", rate: "100", taxFree: false };
+type NewForm = {
+  id: string;
+  kind: SavingsKind | null;
+  account: string;
+  name: string;
+  rate: string;
+  taxFree: boolean;
+  /** "AAAA-MM", como no campo de mês. */
+  since: string;
+  until: string;
+};
+const thisMonth = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+const EMPTY_NEW = (): NewForm => ({
+  id: "",
+  kind: null,
+  account: "",
+  name: "",
+  rate: "100",
+  taxFree: false,
+  since: thisMonth(),
+  until: "",
+});
+/** "2024-09-01" → "09/2024". */
+const monthLabel = (d: string) => `${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
 type MoveForm = { id: string; savingsId: string; kind: SavingsMoveKind; date: string; amount: string; ir: string; iof: string };
 
 const cash = (v: string) => toCashMask(v, 2, "BRL").text;
+
+/** Nome para mensagens: o próprio, ou o tipo e o banco. */
+const titleOf = (it: SavingsItem) =>
+  it.savings.name && it.savings.name !== it.kind_label
+    ? it.savings.name
+    : `${it.kind_label} ${it.savings.kind === "FGTS" ? "" : it.savings.account}`.trim();
 
 export default function Savings({ onChanged }: { onChanged: () => void }) {
   const [view, setView] = useState<SavingsView | null>(null);
@@ -77,6 +108,23 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     onChanged();
   }
 
+  // Do mesmo tipo e no mesmo banco, só um fica sem nome: o segundo Itaú, ou o
+  // FGTS de outra pessoa, precisa de um.
+  const unnamed = (view?.items ?? []).filter((it) => !it.savings.name || it.savings.name === it.kind_label);
+  const bankOf = (kind: SavingsKind, account: string) => (kind === "FGTS" ? "" : account.trim().toLowerCase());
+  const fgtsTaken = unnamed.some((it) => it.savings.kind === "FGTS");
+  const needsName =
+    !!form?.kind &&
+    unnamed.some(
+      (it) =>
+        it.savings.id !== form.id &&
+        it.savings.kind === form.kind &&
+        bankOf(it.savings.kind, it.savings.account) === bankOf(form.kind!, form.account),
+    );
+  // Conta e FGTS só mostram o nome quando ele é preciso (ou quando já tinham um).
+  const hadName = !!form?.id && !unnamed.some((it) => it.savings.id === form.id);
+  const showName = needsName || hadName || (form?.kind !== "FGTS" && form?.kind !== "CONTA");
+
   async function saveSavings(e: React.FormEvent) {
     e.preventDefault();
     if (!form?.kind) return;
@@ -84,11 +132,14 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     const item: SavingsT = {
       id: form.id,
       kind: form.kind,
-      account: form.account.trim(),
-      name: form.name.trim() || KINDS.find((k) => k.id === form.kind)!.title,
+      // FGTS não tem banco.
+      account: form.kind === "FGTS" ? "" : form.account.trim(),
+      name: showName ? form.name.trim() : "",
       rate_pct: parseDecimalInput(form.rate) ?? "100",
       tax_free: form.taxFree,
       note: null,
+      since: form.since ? `${form.since}-01` : null,
+      until: form.until ? `${form.until}-01` : null,
     };
     setBusy(true);
     try {
@@ -143,7 +194,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       await savingsApi.remove(it.savings.id);
       changed("");
       setSaved(null);
-      offerUndo(`${it.savings.name} removido.`, async () => {
+      offerUndo(`${titleOf(it)} removido.`, async () => {
         await savingsApi.restore(it.savings.id);
         load();
         onChanged();
@@ -189,7 +240,18 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   }
 
   function editSavings(s: SavingsT) {
-    setForm({ id: s.id, kind: s.kind, account: s.account, name: s.name, rate: s.rate_pct, taxFree: s.tax_free });
+    // Cadastros antigos guardavam o tipo como nome; aqui ele aparece em branco.
+    const own = s.name === KINDS.find((k) => k.id === s.kind)?.title ? "" : s.name;
+    setForm({
+      id: s.id,
+      kind: s.kind,
+      account: s.account,
+      name: own,
+      rate: s.rate_pct,
+      taxFree: s.tax_free,
+      since: s.since?.slice(0, 7) ?? thisMonth(),
+      until: s.until?.slice(0, 7) ?? "",
+    });
     setSaved(null);
     window.scrollTo({ top: 0 });
   }
@@ -223,7 +285,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
             {move.kind === "SALDO" ? "Saldo que o app do banco mostra" : move.kind === "DEPOSITO" ? "Valor depositado" : "Valor que caiu na conta"}
             <CashInput value={move.amount} decimals={2} currency="BRL" onChange={(v) => setMove({ ...move, amount: v })} required />
           </label>
-          {move.kind === "RESGATE" && !it.savings.tax_free && (
+          {move.kind === "RESGATE" && it.savings.kind === "COFRINHO" && (
             <>
               <label>
                 IR retido (opcional)
@@ -236,8 +298,8 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
             </>
           )}
         </div>
-        {move.kind === "RESGATE" && !it.savings.tax_free && (
-          <p className="muted small">Se o banco não mostrar o IR e o IOF, deixe em branco: o app estima pela tabela regressiva.</p>
+        {move.kind === "RESGATE" && it.savings.kind === "COFRINHO" && (
+          <p className="muted small">Se o banco não mostrar o IR e o IOF, deixe em branco.</p>
         )}
         <div className="actions">
           <button type="submit" disabled={busy}>
@@ -261,8 +323,8 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     }
     if (m.kind === "RESGATE") {
       const r = it.redemptions.find((x) => x.move_id === m.id);
-      if (!r || it.savings.tax_free) return "";
-      return `bruto ${money(r.gross)} · IR ${money(r.ir)} · IOF ${money(r.iof)}${r.estimated ? " (estimados)" : ""}`;
+      if (!r || (Number(r.ir) === 0 && Number(r.iof) === 0)) return "";
+      return `bruto ${money(r.gross)} · IR ${money(r.ir)} · IOF ${money(r.iof)}`;
     }
     return "";
   }
@@ -275,10 +337,10 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           <Intro
             more={
               <>
-                O que vale é o saldo que o banco mostra. De vez em quando, informe o saldo do dia: entre um saldo e outro, o app só estima o rendimento
-                (cofrinho pelo CDI, FGTS a 3% ao ano), e cada saldo novo corrige a estimativa. Se o saldo informado ficar muito longe do esperado, o app avisa,
-                porque provavelmente faltou lançar um depósito ou resgate. Cofrinhos entram na carteira e na rentabilidade; FGTS, conta corrente e cartões
-                benefício aparecem só no patrimônio do Painel, em "Outros saldos". O saldo de 31/12 de cada um aparece em Impostos, para Bens e Direitos.
+                O que vale é o saldo que o banco mostra: informe o saldo de cada mês clicando no mês, em Evolução › Patrimônio. O app não estima nada
+                entre um saldo e outro. No cofrinho, lance também os depósitos e resgates, para o rendimento não contar dinheiro novo; se o saldo informado
+                ficar muito longe do esperado, o app avisa, porque provavelmente faltou lançar um deles. Cofrinhos entram na carteira e na rentabilidade;
+                FGTS, conta corrente e cartões benefício entram só no patrimônio. O saldo de 31/12 de cada um aparece em Impostos, para Bens e Direitos.
               </>
             }
           >
@@ -286,7 +348,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           </Intro>
         </div>
         {!form && (
-          <button onClick={() => setForm({ ...EMPTY_NEW })} type="button">
+          <button onClick={() => setForm(EMPTY_NEW())} type="button">
             + Novo saldo
           </button>
         )}
@@ -297,24 +359,28 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           <h3>{form.id ? "Alterar saldo" : "1. O que você quer acompanhar?"}</h3>
           {!form.id && (
             <div className="event-kinds">
-              {KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  type="button"
-                  className={`event-kind${form.kind === k.id ? " active" : ""}`}
-                  onClick={() => setForm({ ...form, kind: k.id, taxFree: false })}
-                >
-                  <strong>{k.title}</strong>
-                  <span>{k.text}</span>
-                  <span className="muted small">{k.example}</span>
-                </button>
-              ))}
+              {KINDS.map((k) => {
+                const second = k.id === "FGTS" && fgtsTaken;
+                return (
+                  <button
+                    key={k.id}
+                    type="button"
+                    className={`event-kind${form.kind === k.id ? " active" : ""}`}
+                    onClick={() => setForm({ ...form, kind: k.id })}
+                  >
+                    <strong>{k.title}</strong>
+                    <span>{k.text}</span>
+                    <span className="muted small">{second ? "Já há um FGTS: este será de outra pessoa" : k.example}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
           {form.kind && (
             <>
               {!form.id && <h3 className="spaced">2. Dados</h3>}
               <div className="grid">
+                {form.kind !== "FGTS" && (
                 <label>
                   {form.kind === "BENEFICIO" ? "Empresa do cartão" : "Banco"}
                   <input list="saldos-bancos" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} required />
@@ -324,18 +390,41 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     ))}
                   </datalist>
                 </label>
-                <label>
-                  Nome
-                  <input value={form.name} placeholder={NAME_HINT[form.kind]} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                </label>
-                {form.kind === "COFRINHO" && (
-                  <>
-                    <label className="check">
-                      <input type="checkbox" checked={form.taxFree} onChange={(e) => setForm({ ...form, taxFree: e.target.checked })} />
-                      Isento de IR (LCI, LCA)
-                    </label>
-                  </>
                 )}
+                {showName && (
+                  <label>
+                    {needsName ? (form.kind === "FGTS" ? "De quem é este FGTS" : "Nome (para diferenciar da outra)") : "Nome (opcional)"}
+                    <input
+                      value={form.name}
+                      placeholder={needsName ? (form.kind === "FGTS" ? "Ex.: Esposa" : "Ex.: Conta conjunta") : NAME_HINT[form.kind]}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      required={needsName}
+                    />
+                  </label>
+                )}
+                <label>
+                  Desde (mês e ano)
+                  <input
+                    type="month"
+                    value={form.since}
+                    max={form.until || undefined}
+                    onChange={(e) => setForm({ ...form, since: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
+                  Até (só se encerrada)
+                  <input
+                    type="month"
+                    value={form.until}
+                    min={form.since || undefined}
+                    onChange={(e) => setForm({ ...form, until: e.target.value })}
+                  />
+                </label>
+                <p className="muted small">
+                  Entre esses meses, a linha aparece em Evolução mesmo vazia, para você informar os saldos. Depois do
+                  "até", o saldo some e não conta mais no patrimônio.
+                </p>
               </div>
             </>
           )}
@@ -385,20 +474,30 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   <div>
                     <span className="tag">{it.kind_label}</span>
                     <h3>
-                      {s.name} <span className="muted">· {s.account}</span>
+                      {s.name && s.name !== it.kind_label ? (
+                        <>
+                          {s.name}
+                          {s.kind !== "FGTS" && s.account && <span className="muted"> · {s.account}</span>}
+                        </>
+                      ) : s.kind === "FGTS" ? (
+                        it.kind_label
+                      ) : (
+                        s.account || it.kind_label
+                      )}
                     </h3>
                     <p className="muted small">
+                      {s.since && `Desde ${monthLabel(s.since)}`}
+                      {s.until && ` · encerrada em ${monthLabel(s.until)}`}
+                      {s.since && " · "}
                       {it.last_informed ? `Último saldo informado em ${date(it.last_informed)}` : "Nenhum saldo informado ainda"}
-                      {isCofrinho && s.tax_free && " · isento de IR"}
                     </p>
                   </div>
                   <div className="savings-balance">
-                    <span className="muted small">{s.kind === "CONTA" || s.kind === "BENEFICIO" ? "Saldo" : "Saldo estimado hoje"}</span>
+                    <span className="muted small">{isCofrinho ? "Saldo" : "Último saldo informado"}</span>
                     <strong>{money(it.balance)}</strong>
                     {isCofrinho && Number(it.earned) !== 0 && (
                       <span className={`small ${tone(it.earned)}`}>
                         rendimento {money(it.earned)}
-                        {!s.tax_free && ` · líquido ${money(it.balance_net)}`}
                       </span>
                     )}
                   </div>
@@ -410,9 +509,6 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     {Number(lastCheck.difference) > 0 ? "acima" : "abaixo"} do esperado. Faltou lançar algum{" "}
                     {Number(lastCheck.difference) > 0 ? "depósito" : "resgate"}? Se não, pode ignorar: o app já usa o saldo informado.
                   </p>
-                )}
-                {isCofrinho && !view.cdi_until && it.moves.length > 0 && (
-                  <p className="muted small">O CDI ainda não foi baixado; o rendimento aparece depois de atualizar as cotações.</p>
                 )}
 
                 {!move || move.savingsId !== s.id ? (
@@ -431,7 +527,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                       </>
                     )}
                     <span className="spacer" />
-                    {it.moves.length > 0 && (
+                    {isCofrinho && it.moves.length > 0 && (
                       <button type="button" className="link" onClick={() => setOpen((o) => ({ ...o, [s.id]: !o[s.id] }))}>
                         {open[s.id] ? "Esconder movimentos" : `Ver movimentos (${it.moves.length})`}
                       </button>
@@ -447,7 +543,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   moveForm(it)
                 )}
 
-                {open[s.id] && it.moves.length > 0 && (
+                {isCofrinho && open[s.id] && it.moves.length > 0 && (
                   <div className="scroll">
                     <table>
                       <thead>

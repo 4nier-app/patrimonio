@@ -131,6 +131,22 @@ export function cashMask(raw: string, decimals: number, currency: Currency = "BR
   return `${SYMBOL[currency]} ${intPart},${padded.slice(padded.length - decimals)}`;
 }
 
+/** Zero na máscara de caixa ("R$ 0,00"). */
+export function cashZero(decimals: number, currency: Currency = "BRL"): string {
+  return `${SYMBOL[currency]} 0,${"0".repeat(decimals)}`;
+}
+
+/**
+ * Máscara de caixa ao digitar: como `cashMask`, mas digitar 0 num campo vazio
+ * (ou mais zeros) dá "R$ 0,00", para informar saldo zero. Apagar volta a
+ * deixar o campo vazio.
+ */
+export function cashTyping(raw: string, previous: string, decimals: number, currency: Currency = "BRL"): string {
+  const next = cashMask(raw, decimals, currency);
+  const zeros = /0/.test(raw.replace(/\D/g, ""));
+  return !next && zeros && raw.length > previous.length ? cashZero(decimals, currency) : next;
+}
+
 /**
  * Valor exato ("12.5") na máscara de caixa, para alterar um lançamento.
  * Usa mais casas se o valor gravado tiver mais que o padrão.

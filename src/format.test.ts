@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cashMask, date, decimalMask, maskDecimal, money, parseDecimalInput, passwordStrength, percent, shortHash, toCashMask } from "./format";
+import { cashMask, cashTyping, date, decimalMask, maskDecimal, money, parseDecimalInput, passwordStrength, percent, shortHash, toCashMask } from "./format";
 
 describe("shortHash", () => {
   it("encurta hashes longos", () => {
@@ -78,6 +78,13 @@ describe("cashMask", () => {
     expect(cashMask("R$ 0,00", 2)).toBe("");
     expect(parseDecimalInput(cashMask("1234", 2))).toBe("12.34");
     expect(parseDecimalInput(cashMask("1501234", 4, "USD"))).toBe("150.1234");
+  });
+  it("aceita digitar zero e apagar depois", () => {
+    expect(cashTyping("0", "", 2)).toBe("R$ 0,00");
+    expect(cashTyping("R$ 0,000", "R$ 0,00", 2)).toBe("R$ 0,00");
+    expect(cashTyping("R$ 0,005", "R$ 0,00", 2)).toBe("R$ 0,05");
+    expect(cashTyping("R$ 0,0", "R$ 0,00", 2)).toBe("");
+    expect(cashTyping("R$ 0,0", "R$ 0,01", 2)).toBe("");
   });
   it("carrega um valor gravado", () => {
     expect(toCashMask("12.5", 2)).toEqual({ text: "R$ 12,50", decimals: 2 });

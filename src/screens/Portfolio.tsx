@@ -150,7 +150,7 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
                     <td className="num muted">—</td>
                     <td className="num muted">—</td>
                     <td className="num">{money(p.cost)}</td>
-                    <td className="num muted small">pelo CDI e pelo saldo informado</td>
+                    <td className="num muted small">pelo último saldo informado</td>
                     <td className="num">{money(p.market_value)}</td>
                     <td className={`num ${tone(p.unrealized)}`}>
                       {money(p.unrealized)}

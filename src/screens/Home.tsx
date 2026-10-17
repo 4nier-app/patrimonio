@@ -9,6 +9,7 @@ import Audit from "./Audit";
 import Incomes from "./Incomes";
 import Broker, { rememberAsset } from "./Broker";
 import Dashboard from "./Dashboard";
+import Panel from "./Panel";
 import Events from "./Events";
 import Evolution from "./Evolution";
 import Operations from "./Operations";
@@ -30,7 +31,6 @@ const TABS = [
   { id: "homebroker", label: "Home broker" },
   { id: "lancamentos", label: "Lançamentos" },
   { id: "proventos", label: "Proventos" },
-  { id: "rentabilidade", label: "Rentabilidade" },
   { id: "impostos", label: "Impostos" },
   { id: "seguranca", label: "Segurança" },
 ] as const;
@@ -39,6 +39,10 @@ type Tab = (typeof TABS)[number]["id"];
 
 // Abas com seções internas, para o menu principal ficar enxuto.
 const SECTIONS = {
+  carteira: [
+    { id: "posicoes", label: "Posições" },
+    { id: "rentabilidade", label: "Rentabilidade" },
+  ],
   evolucao: [
     { id: "patrimonio", label: "Patrimônio" },
     { id: "saldos", label: "Saldos e cofrinhos" },
@@ -86,12 +90,14 @@ export default function Home({ status, onLocked, onChanged }: Props) {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  const [section, setSection] = useState<Record<string, Section>>({ evolucao: "patrimonio", lancamentos: "manual", seguranca: "seguranca" });
+  const [section, setSection] = useState<Record<string, Section>>({ carteira: "posicoes", evolucao: "patrimonio", lancamentos: "manual", seguranca: "seguranca" });
   function setTab(t: Tab, s?: Section) {
     if (assetRef.current && window.history.state?.asset) window.history.back();
     setAsset(null);
     setTabState(t);
     if (s) setSection((m) => ({ ...m, [t]: s }));
+    // Entre chaves: no Windows, window.scrollTo devolve uma Promise.
+    window.scrollTo({ top: 0 });
   }
   const sections = tab in SECTIONS ? SECTIONS[tab as keyof typeof SECTIONS] : null;
   const current = section[tab];
@@ -213,7 +219,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         </div>
       )}
 
-      {darfs.length > 0 && tab !== "impostos" && (
+      {darfs.length > 0 && tab !== "impostos" && tab !== "painel" && (
         <div className={`banner warning${darfs.some((m) => m.status === "ATRASADO") ? " overdue" : ""}`} role="status">
           {darfs.length === 1
             ? `DARF de ${money(darfs[0].darf)} ${darfs[0].status === "ATRASADO" ? "venceu" : "vence"} em ${date(darfs[0].due_date)}.`
@@ -236,8 +242,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               onLoaded={(d) => rememberAsset(d.ticker, d.name)}
             />
           )}
-          {!asset && tab === "painel" && <Dashboard refresh={refresh} go={setTab} hasRecovery={status.has_recovery_key} />}
-          {!asset && tab === "carteira" && <Portfolio refresh={refresh} onOpen={openAsset} />}
+          {!asset && tab === "painel" && <Panel refresh={refresh} go={setTab} hasRecovery={status.has_recovery_key} darfs={darfs} />}
           {!asset && tab === "homebroker" && <Broker refresh={refresh} onOpen={openAsset} />}
           {!asset && sections && (
             <div className="subtabs" role="tablist">
@@ -266,7 +271,13 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           )}
           {!asset && tab === "evolucao" && current === "saldos" && <Savings onChanged={() => void updateQuotes()} />}
           {!asset && tab === "lancamentos" && current === "eventos" && <Events onChanged={() => void updateQuotes()} />}
-          {!asset && tab === "rentabilidade" && <Returns key={refresh} onToday={() => setTab("homebroker")} />}
+          {!asset && tab === "carteira" && current === "posicoes" && <Portfolio refresh={refresh} onOpen={openAsset} />}
+          {!asset && tab === "carteira" && current === "rentabilidade" && (
+            <>
+              <Returns key={refresh} onToday={() => setTab("homebroker")} />
+              <Dashboard refresh={refresh} />
+            </>
+          )}
           {!asset && tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
           {!asset && tab === "seguranca" && current === "auditoria" && <Audit status={status} />}
           {!asset && tab === "seguranca" && current === "seguranca" && (

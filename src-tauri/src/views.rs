@@ -41,14 +41,13 @@ fn today() -> NaiveDate {
     chrono::Local::now().date_naive()
 }
 
-/// Cada saldo cadastrado, calculado pelos movimentos e pelo CDI baixado.
+/// Cada saldo cadastrado, pelos movimentos e saldos informados.
 pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
     let list = v.list_savings().map_err(s)?;
     if list.is_empty() {
         return Ok(Vec::new());
     }
     let moves = v.list_savings_moves().map_err(s)?;
-    let (cdi, _) = v.index_points("CDI").map_err(s)?;
     let today = today();
     Ok(list
         .iter()
@@ -58,7 +57,7 @@ pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
                 .filter(|m| m.savings_id == sv.id)
                 .cloned()
                 .collect();
-            carteira_core::savings::build(sv, &mine, &cdi, today)
+            carteira_core::savings::build(sv, &mine, today)
         })
         .collect())
 }
@@ -453,11 +452,12 @@ pub struct OtherBalance {
 fn other_balances(v: &Vault) -> Result<Vec<OtherBalance>, String> {
     Ok(savings_reports(v)?
         .into_iter()
-        .filter(|r| !r.savings.kind.is_investment())
+        // Conta encerrada não pede saldo novo nem soma no patrimônio.
+        .filter(|r| !r.savings.kind.is_investment() && r.savings.open_on(today()))
         .map(|r| OtherBalance {
             id: r.savings.id.clone(),
-            name: r.savings.name.clone(),
-            account: r.savings.account.clone(),
+            name: r.savings.title().to_string(),
+            account: r.savings.bank().to_string(),
             kind: r.savings.kind.label(),
             balance: r.balance,
             last_informed: r.last_informed,
@@ -944,8 +944,8 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                 .iter()
                 .map(|(year, value)| SavingsYearEnd {
                     year: *year,
-                    name: r.savings.name.clone(),
-                    account: r.savings.account.clone(),
+                    name: r.savings.title().to_string(),
+                    account: r.savings.bank().to_string(),
                     kind: r.savings.kind.label(),
                     value: *value,
                 })
@@ -1566,6 +1566,8 @@ mod savings_tests {
             rate_pct: dec!(100),
             tax_free: false,
             note: None,
+            since: None,
+            until: None,
         };
         let c = v.create_savings(mk(SavingsKind::Cofrinho)).unwrap();
         let f = v.create_savings(mk(SavingsKind::Fgts)).unwrap();
@@ -1597,11 +1599,7 @@ mod savings_tests {
         let p = portfolio(&v, today()).unwrap();
         assert_eq!(p.positions.len(), 1, "só o cofrinho é investimento");
         assert_eq!(p.positions[0].asset, carteira_core::savings::ticker(&c.id));
-        assert_eq!(
-            p.market_value,
-            Some(dec!(900)),
-            "sem CDI baixado, não rende"
-        );
+        assert_eq!(p.market_value, Some(dec!(900)), "cofrinho sem estimativa");
         assert_eq!(
             p.kinds.get(&p.positions[0].asset).map(String::as_str),
             Some("RENDA_FIXA")
@@ -1616,6 +1614,6 @@ mod savings_tests {
         assert_eq!(dash.allocation[0].label, "Renda fixa (cofrinhos)");
         let sv = savings_view(&v).unwrap();
         assert_eq!(sv.total_investments, dec!(900));
-        assert!(sv.total_others > dec!(5000), "FGTS rende 3% ao ano");
+        assert_eq!(sv.total_others, dec!(5000), "FGTS sem estimativa");
     }
 }
