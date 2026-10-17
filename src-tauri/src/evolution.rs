@@ -192,23 +192,22 @@ pub fn columns(year: Option<i32>, first: NaiveDate, today: NaiveDate) -> Vec<Col
     cols
 }
 
-/// Grupo de cada linha, como na planilha.
-fn group_of(
-    kind: Option<&str>,
-    currency: &str,
-    name: &str,
-    account: &str,
-) -> (&'static str, String) {
+/// Grupo de cada linha: fundos por banco (o FMP-FGTS também é fundo), B3
+/// separada em ações/ETFs e FIIs, exterior, cripto, renda fixa, FGTS e
+/// dinheiro.
+fn group_of(kind: Option<&str>, currency: &str, account: &str) -> (&'static str, String) {
     match kind {
-        Some("FUNDO") if name.to_uppercase().contains("FGTS") => ("fgts", "FGTS".into()),
         Some("FUNDO") => ("fundos", format!("Fundos · {account}")),
-        Some("CRIPTO") => ("rv", "Renda variável".into()),
-        _ if currency == USD => ("exterior", "ETFs e ações no exterior".into()),
-        _ => ("rv", "Renda variável".into()),
+        Some("CRIPTO") => ("cripto", "Criptomoedas".into()),
+        _ if currency == USD => ("exterior", "Ações e ETFs no exterior".into()),
+        Some("FII") => ("fii", "Fundos imobiliários (FIIs)".into()),
+        _ => ("b3", "Ações e ETFs na B3".into()),
     }
 }
 
-const ORDER: [&str; 6] = ["fundos", "exterior", "rv", "rf", "fgts", "dinheiro"];
+const ORDER: [&str; 8] = [
+    "fundos", "b3", "fii", "exterior", "cripto", "rf", "fgts", "dinheiro",
+];
 
 struct Inputs<'a> {
     ops: &'a [PricedOperation],
@@ -289,7 +288,7 @@ fn build(
         } else if !name.is_empty() {
             row.detail = Some(name.clone());
         }
-        let key = group_of(kind.as_deref(), &currency, &name, acc);
+        let key = group_of(kind.as_deref(), &currency, acc);
         rows.entry(key).or_default().push(row);
     }
 
@@ -324,7 +323,7 @@ fn build(
             continue;
         }
         let key = match r.savings.kind {
-            SavingsKind::Cofrinho => ("rf", "Renda fixa".to_string()),
+            SavingsKind::Cofrinho => ("rf", "Renda fixa (cofrinhos)".to_string()),
             SavingsKind::Fgts => ("fgts", "FGTS".to_string()),
             SavingsKind::Conta | SavingsKind::Beneficio => ("dinheiro", "Dinheiro".to_string()),
         };
@@ -598,18 +597,17 @@ mod tests {
     }
 
     #[test]
-    fn grupos_como_na_planilha() {
+    fn grupos_dos_ativos() {
+        // O FMP-FGTS é fundo de investimento, no banco onde foi aplicado.
         assert_eq!(
-            group_of(Some("FUNDO"), BRL, "FMP - FGTS EMPRESA X", "Banco A").0,
-            "fgts"
-        );
-        assert_eq!(
-            group_of(Some("FUNDO"), BRL, "FUNDO TESTE", "Banco A").1,
+            group_of(Some("FUNDO"), BRL, "Banco A").1,
             "Fundos · Banco A"
         );
-        assert_eq!(group_of(Some("ETF"), USD, "", "").0, "exterior");
-        assert_eq!(group_of(Some("CRIPTO"), USD, "", "").0, "rv");
-        assert_eq!(group_of(Some("ACAO"), BRL, "", "").0, "rv");
+        assert_eq!(group_of(Some("ETF"), USD, "").0, "exterior");
+        assert_eq!(group_of(Some("CRIPTO"), USD, "").0, "cripto");
+        assert_eq!(group_of(Some("FII"), BRL, "").0, "fii");
+        assert_eq!(group_of(Some("ACAO"), BRL, "").0, "b3");
+        assert_eq!(group_of(None, BRL, "").0, "b3");
     }
 
     #[test]
@@ -711,7 +709,7 @@ mod tests {
         // Primeiro ano, ano atual: jan, fev, ontem (03/03) e hoje.
         assert_eq!(view.columns.len(), 4);
         let ids: Vec<_> = view.groups.iter().map(|g| g.id).collect();
-        assert_eq!(ids, vec!["rv", "dinheiro"]);
+        assert_eq!(ids, vec!["b3", "dinheiro"]);
         assert!(view.groups[0].investment);
         assert!(!view.groups[1].investment);
         // Janeiro: 100 × 11 + 10 × 11 + 500 na conta.

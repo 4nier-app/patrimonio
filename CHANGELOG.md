@@ -11,10 +11,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ### Adicionado
 - Nova aba **Evolução**: o patrimônio no fim de cada mês, em reais (o que
   está em dólar vai pela PTAX do dia), como uma planilha de controle.
-  - Linhas agrupadas: fundos (por banco), ETFs e ações no exterior, renda
-    variável, renda fixa (cofrinhos), FGTS (saldo e fundos FMP-FGTS) e
-    dinheiro (conta corrente e cartões benefício). Cada grupo recolhe com
-    um clique e o app lembra.
+  - Linhas agrupadas: fundos de investimento (por banco, incluindo os
+    FMP-FGTS), ações e ETFs na B3, fundos imobiliários, ações e ETFs no
+    exterior, criptomoedas, renda fixa (cofrinhos), FGTS e dinheiro (conta
+    corrente e cartões benefício). Cada grupo recolhe com um clique e o app
+    lembra.
   - Colunas: 31/12 do ano anterior e os 12 meses do ano. No ano atual, vai
     até o mês corrente, que aparece como ontem e hoje. "Todos os anos"
     mostra o 31/12 de cada ano e lista só o que você ainda tem; o que já
