@@ -76,8 +76,14 @@ export function isFund(ticker: string): boolean {
 }
 
 /** Nome curto para listas e gráficos: fundo pelo nome, o resto pelo código. */
+/** Cofrinho: código interno "RF:…", sempre mostrado pelo nome. */
+export function isSavings(ticker: string): boolean {
+  return ticker.startsWith("RF:");
+}
+
 export function assetLabel(asset: string, names?: Record<string, string>): string {
   const name = names?.[asset];
+  if (isSavings(asset)) return name ?? "Cofrinho";
   if (!isFund(asset) || !name) return asset;
   return name.length > 32 ? `${name.slice(0, 31)}…` : name;
 }

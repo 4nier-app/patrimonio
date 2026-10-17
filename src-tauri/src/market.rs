@@ -300,7 +300,13 @@ pub fn update_all(
     };
     let (catalog_age, catalog_info) = catalog_state(CATALOG_SOURCE, "B3")?;
     let ops = with(vault, |v| v.list_operations().map_err(|e| e.to_string()))?;
-    let ops_dates: Vec<NaiveDate> = ops.iter().map(|o| o.date).collect();
+    let mut ops_dates: Vec<NaiveDate> = ops.iter().map(|o| o.date).collect();
+    // Cofrinhos precisam do CDI mesmo sem nenhuma outra operação.
+    ops_dates.extend(with(vault, |v| {
+        v.list_savings_moves()
+            .map(|m| m.into_iter().map(|x| x.date).collect::<Vec<_>>())
+            .map_err(|e| e.to_string())
+    })?);
     let (crypto_ops, ops): (Vec<Operation>, Vec<Operation>) =
         ops.into_iter().partition(|o| crypto::is_crypto(&o.asset));
     let (fund_ops, ops): (Vec<Operation>, Vec<Operation>) =

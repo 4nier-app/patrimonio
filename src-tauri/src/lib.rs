@@ -13,6 +13,7 @@ use std::sync::Mutex;
 use carteira_core::corporate::CorporateEvent;
 use carteira_core::income::Income;
 use carteira_core::operations::{Operation, PricedOperation};
+use carteira_core::savings::{Savings, SavingsMove};
 use carteira_ledger::Event;
 use carteira_storage::{
     backup_summary, looks_like_email, Account, Asset, BackupInfo, BackupSummary, IntegrityReport,
@@ -333,6 +334,27 @@ fn asset_detail(ticker: String, state: State<AppState>) -> Result<asset::AssetDe
     with_vault_str(&state, |v| asset::detail(v, &ticker, today()))
 }
 
+/// Variação de hoje de cada ativo da carteira (Home broker), buscada na hora.
+#[tauri::command]
+async fn day_moves(app: tauri::AppHandle) -> Result<asset::DayView, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let inputs = {
+            let guard = state
+                .vault
+                .lock()
+                .map_err(|_| "estado interno indisponível".to_string())?;
+            let v = guard
+                .as_ref()
+                .ok_or_else(|| "o cofre está bloqueado".to_string())?;
+            asset::day_inputs(v, today())?
+        };
+        Ok(asset::day_moves(inputs, &asset::Internet))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Gráfico do ativo, buscado na hora (sem segurar o cofre durante a rede).
 #[tauri::command]
 async fn asset_chart(
@@ -425,6 +447,51 @@ fn restore_income(id: String, state: State<AppState>) -> Result<Income, String> 
 #[tauri::command]
 fn restore_event(id: String, state: State<AppState>) -> Result<CorporateEvent, String> {
     with_vault(&state, |v| v.restore_event(&id))
+}
+
+#[tauri::command]
+fn savings(state: State<AppState>) -> Result<views::SavingsView, String> {
+    with_vault_str(&state, |v| views::savings_view(v))
+}
+
+#[tauri::command]
+fn create_savings(item: Savings, state: State<AppState>) -> Result<Savings, String> {
+    with_vault(&state, |v| v.create_savings(item))
+}
+
+#[tauri::command]
+fn update_savings(item: Savings, state: State<AppState>) -> Result<Savings, String> {
+    with_vault(&state, |v| v.update_savings(item))
+}
+
+#[tauri::command]
+fn remove_savings(id: String, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_savings(&id))
+}
+
+#[tauri::command]
+fn restore_savings(id: String, state: State<AppState>) -> Result<Savings, String> {
+    with_vault(&state, |v| v.restore_savings(&id))
+}
+
+#[tauri::command]
+fn create_savings_move(item: SavingsMove, state: State<AppState>) -> Result<SavingsMove, String> {
+    with_vault(&state, |v| v.create_savings_move(item))
+}
+
+#[tauri::command]
+fn update_savings_move(item: SavingsMove, state: State<AppState>) -> Result<SavingsMove, String> {
+    with_vault(&state, |v| v.update_savings_move(item))
+}
+
+#[tauri::command]
+fn remove_savings_move(id: String, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_savings_move(&id))
+}
+
+#[tauri::command]
+fn restore_savings_move(id: String, state: State<AppState>) -> Result<SavingsMove, String> {
+    with_vault(&state, |v| v.restore_savings_move(&id))
 }
 
 #[tauri::command]
@@ -631,6 +698,7 @@ pub fn run() {
             search_funds,
             asset_detail,
             asset_chart,
+            day_moves,
             name_fund,
             update_fund_catalog,
             list_accounts,
@@ -644,6 +712,15 @@ pub fn run() {
             restore_income,
             restore_event,
             corporate_events,
+            savings,
+            create_savings,
+            update_savings,
+            remove_savings,
+            restore_savings,
+            create_savings_move,
+            update_savings_move,
+            remove_savings_move,
+            restore_savings_move,
             preview_event,
             create_event,
             update_event,

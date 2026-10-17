@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Intro from "../components/Intro";
 import { errorMessage, market, type PortfolioView } from "../api";
-import { isFund } from "../currency";
+import { isFund, isSavings } from "../currency";
+import { useSort } from "../components/useSort";
 import { averagePrice, date, formatDateTime, money, percent, price, quantity, tone } from "../format";
 
 /** Valor em reais embaixo do valor em dólar. */
@@ -11,6 +12,14 @@ function Brl({ v }: { v: string | null }) {
 
 /** Código e nome do ativo; fundo aparece pelo nome, com o CNPJ embaixo. */
 export function AssetName({ asset, name }: { asset: string; name?: string }) {
+  if (isSavings(asset)) {
+    return (
+      <>
+        <strong>{name ?? "Cofrinho"}</strong>
+        <div className="muted small">Cofrinho</div>
+      </>
+    );
+  }
   if (isFund(asset) && name) {
     return (
       <>
@@ -40,8 +49,24 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
     market.portfolio().then(setView).catch((e) => setError(errorMessage(e)));
   }, [refresh]);
 
-  const open = view?.positions.filter((p) => Number(p.quantity) !== 0) ?? [];
-  const closed = view?.positions.filter((p) => Number(p.quantity) === 0) ?? [];
+  const allOpen = useMemo(() => view?.positions.filter((p) => Number(p.quantity) !== 0) ?? [], [view]);
+  const allClosed = useMemo(() => view?.positions.filter((p) => Number(p.quantity) === 0) ?? [], [view]);
+  const num = (v: string | null | undefined) => (v == null ? null : Number(v));
+  const label = (a: string) => (view?.names[a] && (isSavings(a) || isFund(a)) ? view.names[a] : a);
+  const openSort = useSort(
+    allOpen,
+    {
+      ativo: (p) => label(p.asset),
+      custo: (p) => num(p.cost_brl),
+      valor: (p) => num(p.market_value_brl),
+      resultado: (p) => num(p.unrealized_brl),
+      pct: (p) => (p.unrealized_brl != null && Number(p.cost_brl) ? Number(p.unrealized_brl) / Number(p.cost_brl) : null),
+    },
+    "carteira",
+  );
+  const closedSort = useSort(allClosed, { ativo: (p) => label(p.asset), realizado: (p) => num(p.realized_brl) }, "encerradas");
+  const open = openSort.sorted;
+  const closed = closedSort.sorted;
 
   return (
     <section>
@@ -106,17 +131,33 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
           <table>
             <thead>
               <tr>
-                <th>Ativo</th>
+                {openSort.header("ativo", "Ativo")}
                 <th className="num">Quantidade</th>
                 <th className="num">Preço médio</th>
-                <th className="num">Custo</th>
+                {openSort.header("custo", "Custo", { numeric: true })}
                 <th className="num">Cotação</th>
-                <th className="num">Valor atual</th>
-                <th className="num">Resultado</th>
+                {openSort.header("valor", "Valor atual", { numeric: true })}
+                {openSort.header("resultado", "Resultado", { numeric: true, title: "Clique de novo para inverter; ordena pelo valor em reais" })}
               </tr>
             </thead>
             <tbody>
-              {open.map((p) => (
+              {open.map((p) =>
+                isSavings(p.asset) ? (
+                  <tr key={p.asset} title="Movimentos e saldos em Lançamentos › Saldos e cofrinhos">
+                    <td>
+                      <AssetName asset={p.asset} name={view?.names[p.asset]} />
+                    </td>
+                    <td className="num muted">—</td>
+                    <td className="num muted">—</td>
+                    <td className="num">{money(p.cost)}</td>
+                    <td className="num muted small">pelo CDI e pelo saldo informado</td>
+                    <td className="num">{money(p.market_value)}</td>
+                    <td className={`num ${tone(p.unrealized)}`}>
+                      {money(p.unrealized)}
+                      {p.unrealized != null && <div className="small">{percent(ratio(p.unrealized, p.cost))}</div>}
+                    </td>
+                  </tr>
+                ) : (
                 <tr key={p.asset} className="clickable go"
                   tabIndex={0}
                   onClick={() => onOpen(p.asset)}
@@ -161,7 +202,8 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
                     )}
                   </td>
                 </tr>
-              ))}
+                ),
+              )}
             </tbody>
           </table>
         </div>
@@ -174,8 +216,8 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
             <table>
               <thead>
                 <tr>
-                  <th>Ativo</th>
-                  <th className="num">Resultado realizado</th>
+                  {closedSort.header("ativo", "Ativo")}
+                  {closedSort.header("realizado", "Resultado realizado", { numeric: true })}
                 </tr>
               </thead>
               <tbody>

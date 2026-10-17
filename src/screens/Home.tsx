@@ -13,8 +13,10 @@ import Events from "./Events";
 import Operations from "./Operations";
 import Portfolio from "./Portfolio";
 import Returns from "./Returns";
+import Savings from "./Savings";
 import Security from "./Security";
 import Taxes, { pendingDarfs } from "./Taxes";
+import { isSavings } from "../currency";
 import { setThemePref, themePref, type ThemePref } from "../theme";
 
 // A leitura de PDF (pdf.js) só carrega quando a aba é aberta.
@@ -38,6 +40,7 @@ const SECTIONS = {
   lancamentos: [
     { id: "manual", label: "Incluir e editar" },
     { id: "importar", label: "Importar notas" },
+    { id: "saldos", label: "Saldos e cofrinhos" },
     { id: "eventos", label: "Eventos (bonificação, desdobramento)" },
   ],
   seguranca: [
@@ -62,6 +65,8 @@ export default function Home({ status, onLocked, onChanged }: Props) {
   // Abrir um ativo entra no histórico da janela: o botão "voltar" do mouse ou
   // do teclado fecha a página do ativo em vez de sair do aplicativo.
   function openAsset(a: string) {
+    // Cofrinho não tem gráfico de mercado: os detalhes ficam em Saldos.
+    if (isSavings(a)) return setTab("lancamentos", "saldos");
     if (!assetRef.current) window.history.pushState({ asset: a }, "");
     else window.history.replaceState({ asset: a }, "");
     setAsset(a);
@@ -251,8 +256,9 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               <ImportNotes onImported={() => void updateQuotes()} />
             </Suspense>
           )}
+          {!asset && tab === "lancamentos" && current === "saldos" && <Savings onChanged={() => void updateQuotes()} />}
           {!asset && tab === "lancamentos" && current === "eventos" && <Events onChanged={() => void updateQuotes()} />}
-          {!asset && tab === "rentabilidade" && <Returns key={refresh} />}
+          {!asset && tab === "rentabilidade" && <Returns key={refresh} onToday={() => setTab("homebroker")} />}
           {!asset && tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
           {!asset && tab === "seguranca" && current === "auditoria" && <Audit status={status} />}
           {!asset && tab === "seguranca" && current === "seguranca" && (

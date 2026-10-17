@@ -16,6 +16,7 @@ import {
 } from "../api";
 import Chart, { axisStyle, base, usePalette } from "../charts/Chart";
 import CashInput from "../components/CashInput";
+import { useSort } from "../components/useSort";
 import { assetLabel, isFund, normalizeTicker } from "../currency";
 import { date, money, monthLabel, parseDecimalInput, percent, price, quantity, toCashMask, type Currency } from "../format";
 import {
@@ -226,6 +227,20 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
     return pos?.cost_brl != null ? Number(pos.cost_brl) : null;
   };
   const net12 = (asset: string) => totals(last12(rows, today()).filter((r) => r.income.asset === asset)).net;
+  const assetSort = useSort(
+    assets,
+    {
+      ativo: (a) => (isFund(a.asset) && names[a.asset] ? names[a.asset] : a.asset),
+      liquido: (a) => a.net,
+      pagamentos: (a) => a.count,
+      ultimo: (a) => a.last,
+      yoc: (a) => {
+        const cost = costBrl(a.asset);
+        return cost ? net12(a.asset) / cost : null;
+      },
+    },
+    "proventos-ativos",
+  );
 
   const chart = useMemo<EChartsCoreOption | null>(() => {
     if (!rows.length) return null;
@@ -434,17 +449,18 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
             <table>
               <thead>
                 <tr>
-                  <th>Ativo</th>
-                  <th className="num">Líquido</th>
-                  <th className="num">Pagamentos</th>
-                  <th>Último</th>
-                  <th className="num" title="Proventos líquidos dos últimos 12 meses sobre o custo atual da posição">
-                    Rendimento sobre o custo (12 meses)
-                  </th>
+                  {assetSort.header("ativo", "Ativo")}
+                  {assetSort.header("liquido", "Líquido", { numeric: true })}
+                  {assetSort.header("pagamentos", "Pagamentos", { numeric: true })}
+                  {assetSort.header("ultimo", "Último", { desc: true })}
+                  {assetSort.header("yoc", "Rendimento sobre o custo (12 meses)", {
+                    numeric: true,
+                    title: "Proventos líquidos dos últimos 12 meses sobre o custo atual da posição",
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {assets.map((a) => {
+                {assetSort.sorted.map((a) => {
                   const cost = costBrl(a.asset);
                   return (
                     <tr key={a.asset}>

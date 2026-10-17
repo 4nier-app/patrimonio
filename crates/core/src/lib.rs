@@ -12,4 +12,5 @@ pub mod model;
 pub mod operations;
 pub mod portfolio;
 pub mod returns;
+pub mod savings;
 pub mod tax;

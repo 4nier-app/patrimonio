@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { errorMessage, market, type MonthResult, type ReturnsView, type ScopeReturns, type YearResult } from "../api";
 import { chained } from "../dashboard";
 import { date, money, monthLabel, percent, tone } from "../format";
+import { useShowMemos } from "../memos";
 
 type Selected = { scope: string; data: ScopeReturns; month?: MonthResult; year?: YearResult };
 
@@ -116,11 +117,13 @@ function Years({ label, data, onPick }: { label: string; data: ScopeReturns; onP
 /** Ano escolhido ou "desde o início". */
 type Pick = number | "inicio";
 
-export default function Returns() {
+export default function Returns({ onToday }: { onToday?: () => void }) {
   const [view, setView] = useState<ReturnsView | null>(null);
   const [year, setYear] = useState<Pick | null>(null);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Selected | null>(null);
+  const [chosen, setSelected] = useState<Selected | null>(null);
+  const memos = useShowMemos();
+  const selected = memos ? chosen : null;
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -169,7 +172,15 @@ export default function Returns() {
           <h2>Rentabilidade</h2>
           <p className="muted">
             O dinheiro conta do dia da compra ao dia da venda. Valores em reais; no exterior, também em dólar e o efeito do
-            câmbio. Clique num mês ou ano para ver a conta.
+            câmbio.{memos ? " Clique num mês ou ano para ver a conta." : ""}
+            {onToday && (
+              <>
+                {" "}
+                <button type="button" className="link" onClick={onToday}>
+                  Ver a variação de hoje ›
+                </button>
+              </>
+            )}
           </p>
         </div>
         <label className="ret-pick">

@@ -59,6 +59,12 @@ pub fn ticker_of(text: &str) -> Option<String> {
         .map(|d| format_cnpj(&d))
 }
 
+/// Fundos e cofrinhos: o banco retém IR e IOF no resgate, sem taxas da B3,
+/// sem DARF e fora da apuração do exterior.
+pub fn bank_withholds(ticker: &str) -> bool {
+    is_fund(ticker) || crate::savings::is_savings(ticker)
+}
+
 /// O código é de um fundo (CNPJ formatado)?
 pub fn is_fund(ticker: &str) -> bool {
     let b = ticker.as_bytes();

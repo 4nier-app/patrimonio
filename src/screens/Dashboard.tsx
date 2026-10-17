@@ -16,6 +16,7 @@ import {
   type Period,
 } from "../dashboard";
 import { date, money, percent } from "../format";
+import { useShowMemos } from "../memos";
 
 type Memo = { title: string; lines: string[] };
 
@@ -77,6 +78,7 @@ export default function Dashboard({ refresh, go, hasRecovery }: { refresh: numbe
   const [byYear, setByYear] = useState(false);
   const [inMoney, setInMoney] = useState(false);
   const [memo, setMemo] = useState<Memo | null>(null);
+  const memos = useShowMemos();
   const [open, setOpen] = useState<string | null>(null);
   const [days, setDays] = useState<{ key: string; view: DaysView } | null>(null);
   const p = usePalette();
@@ -121,7 +123,7 @@ export default function Dashboard({ refresh, go, hasRecovery }: { refresh: numbe
         <div>
           <h2>Painel</h2>
           <p className="muted">
-            Clique num cartão para ver a memória de cálculo. Valores em reais; exterior pela PTAX.
+            {memos ? "Clique num cartão para ver a memória de cálculo. " : ""}Valores em reais; exterior pela PTAX.
           </p>
         </div>
         <div className="period-pick">
@@ -191,7 +193,8 @@ export default function Dashboard({ refresh, go, hasRecovery }: { refresh: numbe
         </div>
       </div>
 
-      <Cards view={view} onMemo={setMemo} />
+      <Cards view={view} onMemo={memos ? setMemo : undefined} />
+      <Wealth view={view} />
 
       {!frame ? (
         <p className="muted">Calculando os dias do mês…</p>
@@ -256,7 +259,7 @@ export default function Dashboard({ refresh, go, hasRecovery }: { refresh: numbe
         </div>
       )}
 
-      {memo && (
+      {memo && memos && (
         <aside className="memo-panel" role="dialog" aria-label="Memória de cálculo">
           <div className="memo-head">
             <h3>{memo.title}</h3>
@@ -287,7 +290,7 @@ function Block({ title, wide, extra, children }: { title: string; wide?: boolean
   );
 }
 
-function Cards({ view, onMemo }: { view: DashboardView; onMemo: (m: Memo) => void }) {
+function Cards({ view, onMemo }: { view: DashboardView; onMemo?: (m: Memo) => void }) {
   return (
     <div className="dash-cards">
       {view.cards.map((c) => {
@@ -295,9 +298,9 @@ function Cards({ view, onMemo }: { view: DashboardView; onMemo: (m: Memo) => voi
         return (
           <button
             key={c.label}
-            className="card stat"
+            className={`card stat${onMemo ? "" : " static"}`}
             onClick={() =>
-              onMemo({ title: `${c.label} (${date(c.from)} a ${date(c.to)})`, lines: c.explanation })
+              onMemo?.({ title: `${c.label} (${date(c.from)} a ${date(c.to)})`, lines: c.explanation })
             }
           >
             <span className="stat-label">{c.label}</span>
@@ -701,3 +704,41 @@ function compact(v: number): string {
   return `R$ ${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 }
 
+
+/** Patrimônio total: investimentos mais FGTS, conta corrente e benefícios. */
+function Wealth({ view }: { view: DashboardView }) {
+  const others = view.other_balances ?? [];
+  if (others.length === 0) return null;
+  const open = view.positions.filter((x) => Number(x.quantity) !== 0);
+  const invested = open.every((x) => x.market_value_brl != null) ? open.reduce((t, x) => t + Number(x.market_value_brl), 0) : null;
+  const rest = others.reduce((t, x) => t + Number(x.balance), 0);
+  return (
+    <div className="card wealth">
+      <div className="wealth-sum">
+        <div>
+          <span className="muted small">Investimentos</span>
+          <strong>{invested == null ? "—" : money(invested.toFixed(2))}</strong>
+        </div>
+        <span className="muted">+</span>
+        <div>
+          <span className="muted small">Outros saldos</span>
+          <strong>{money(rest.toFixed(2))}</strong>
+        </div>
+        <span className="muted">=</span>
+        <div>
+          <span className="muted small">Patrimônio total</span>
+          <strong>{invested == null ? "—" : money((invested + rest).toFixed(2))}</strong>
+        </div>
+      </div>
+      <ul className="wealth-list muted small">
+        {others.map((o) => (
+          <li key={o.id}>
+            {o.kind}: {o.name} · {o.account} <strong>{money(o.balance)}</strong>
+            {o.last_informed && <> (saldo de {date(o.last_informed)})</>}
+          </li>
+        ))}
+      </ul>
+      <p className="muted small">Outros saldos não entram na rentabilidade nem na comparação com índices.</p>
+    </div>
+  );
+}

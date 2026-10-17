@@ -1,7 +1,136 @@
 import { useEffect, useState } from "react";
-import { errorMessage, market, type Asset, type PortfolioView } from "../api";
+import { assetApi, errorMessage, market, type Asset, type DayMove, type DayView, type PortfolioView } from "../api";
 import { isFund } from "../currency";
+import { useSort } from "../components/useSort";
+import { date, money, tone } from "../format";
 import { AssetName } from "./Portfolio";
+
+const pct = (v: number | null) =>
+  v == null ? "—" : `${v > 0 ? "+" : ""}${(v * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+const amount = (v: number | null, currency: "BRL" | "USD" = "BRL") => (v == null ? "—" : `${v > 0 ? "+" : ""}${money(v.toFixed(2), currency)}`);
+const sign = (v: number | null) => (v == null ? "" : tone(String(v)));
+
+function priceText(m: DayMove): string {
+  if (m.price == null) return "—";
+  const digits = m.price < 1 ? 6 : 2;
+  const sym = m.currency === "USD" ? "US$ " : "R$ ";
+  return sym + m.price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: digits });
+}
+
+function when(m: DayMove): string {
+  if (m.venue === "FUNDO") return m.quote_date ? `cota de ${date(m.quote_date)}` : "sem cota";
+  if (m.offline) return "sem conexão";
+  const t = m.price_time ? new Date(m.price_time * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+  if (m.venue === "B3") return `${t} · atraso ~15 min`;
+  return t;
+}
+
+/** Variação de hoje de cada ativo da carteira, atualizada a cada minuto. */
+function Today({ refresh, onOpen }: { refresh: number; onOpen: (asset: string) => void }) {
+  const [day, setDay] = useState<DayView | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [at, setAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      setLoading(true);
+      assetApi
+        .dayMoves()
+        .then((d) => {
+          if (!alive) return;
+          setDay(d);
+          setAt(new Date());
+        })
+        .catch(() => alive && setDay((d) => d))
+        .finally(() => alive && setLoading(false));
+    };
+    load();
+    const id = window.setInterval(() => {
+      if (!document.hidden) load();
+    }, 60_000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [refresh]);
+
+  const items = day?.items ?? [];
+  const { sorted, header } = useSort(
+    items,
+    {
+      ativo: (m) => (isFund(m.asset) && m.name ? m.name : m.asset),
+      variacao: (m) => m.change,
+      resultado: (m) => m.result_brl,
+      posicao: (m) => m.value_brl,
+    },
+    "carteira-hoje",
+  );
+
+  if (!day && loading) return <p className="muted">Buscando as cotações de agora…</p>;
+  if (!day || items.length === 0) return null;
+  return (
+    <>
+      <div className="today-head">
+        <h3 className="spaced">Sua carteira hoje</h3>
+        <span className="muted small">
+          {loading ? "atualizando…" : at ? `atualizado às ${at.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}; atualiza a cada minuto` : ""}
+        </span>
+      </div>
+      {day.total_brl != null && (
+        <p className="today-total">
+          No dia: <strong className={sign(day.total_brl)}>{amount(day.total_brl)}</strong>{" "}
+          <span className={sign(day.total_change)}>({pct(day.total_change)})</span>
+        </p>
+      )}
+      <div className="scroll">
+        <table className="today-table">
+          <thead>
+            <tr>
+              {header("ativo", "Ativo")}
+              <th className="num">Agora</th>
+              {header("variacao", "Variação do dia", { numeric: true })}
+              {header("resultado", "Ganho/perda no dia", { numeric: true })}
+              {header("posicao", "Posição", { numeric: true })}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((m) => (
+              <tr
+                key={m.asset}
+                className="clickable go"
+                tabIndex={0}
+                onClick={() => onOpen(m.asset)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onOpen(m.asset);
+                }}
+                title={m.offline ?? "Abrir o gráfico"}
+              >
+                <td className="asset-link">
+                  <AssetName asset={m.asset} name={m.name || undefined} />
+                </td>
+                <td className="num">
+                  {priceText(m)}
+                  <div className="muted small">{when(m)}</div>
+                </td>
+                <td className={`num ${sign(m.change)}`}>{pct(m.change)}</td>
+                <td className={`num ${sign(m.result_brl)}`}>
+                  {amount(m.result_brl)}
+                  {m.currency === "USD" && m.result != null && <div className="muted small">{amount(m.result, "USD")}</div>}
+                </td>
+                <td className="num">{m.value_brl == null ? "—" : money(m.value_brl.toFixed(2))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted small">
+        Ganho ou perda do dia = quantidade de hoje × (preço agora − fechamento de ontem). Ativos em dólar convertidos pela última PTAX
+        {day.fx ? ` (R$ ${day.fx.toLocaleString("pt-BR", { minimumFractionDigits: 4 })})` : ""}. Fundos mostram a última cota contra a anterior.
+      </p>
+    </>
+  );
+}
 
 const RECENT_KEY = "4nier.homebroker.recentes";
 const RECENT_MAX = 12;
@@ -80,7 +209,6 @@ export default function Broker({ refresh, onOpen }: { refresh: number; onOpen: (
   }, [query]);
 
   const held = view?.positions.filter((p) => Number(p.quantity) !== 0) ?? [];
-  const names = view?.names ?? {};
 
   return (
     <section className="broker">
@@ -129,18 +257,7 @@ export default function Broker({ refresh, onOpen }: { refresh: number; onOpen: (
         )}
       </div>
 
-      {held.length > 0 && (
-        <>
-          <h3 className="spaced">Na sua carteira</h3>
-          <div className="broker-chips">
-            {held.map((p) => (
-              <button key={p.asset} className="chip" onClick={() => onOpen(p.asset)} title={names[p.asset]}>
-                {isFund(p.asset) && names[p.asset] ? names[p.asset] : p.asset}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      {held.length > 0 && <Today refresh={refresh} onOpen={onOpen} />}
 
       {recent.length > 0 && (
         <>

@@ -277,7 +277,7 @@ impl Holding {
 fn is_b3(p: &PricedOperation) -> bool {
     p.operation.currency == BRL
         && !crate::crypto::is_crypto(&p.operation.asset)
-        && !crate::fund::is_fund(&p.operation.asset)
+        && !crate::fund::bank_withholds(&p.operation.asset)
 }
 
 /// Posição de cada ativo da B3 no fim de uma data, ao preço médio fiscal.
@@ -650,7 +650,9 @@ pub fn annual(
     let mut ops: Vec<&PricedOperation> = priced
         .iter()
         .filter(|p| {
-            !is_b3(p) && !crate::fund::is_fund(&p.operation.asset) && p.operation.date <= until
+            !is_b3(p)
+                && !crate::fund::bank_withholds(&p.operation.asset)
+                && p.operation.date <= until
         })
         .collect();
     ops.sort_by_key(|p| (p.operation.date, p.operation.side.day_order()));
