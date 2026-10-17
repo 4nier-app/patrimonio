@@ -272,8 +272,12 @@ impl Holding {
     }
 }
 
+/// Bolsa brasileira. Fundos de investimento ficam de fora: o banco retém o
+/// IR no resgate e no come-cotas, sem DARF.
 fn is_b3(p: &PricedOperation) -> bool {
-    p.operation.currency == BRL && !crate::crypto::is_crypto(&p.operation.asset)
+    p.operation.currency == BRL
+        && !crate::crypto::is_crypto(&p.operation.asset)
+        && !crate::fund::is_fund(&p.operation.asset)
 }
 
 /// Posição de cada ativo da B3 no fim de uma data, ao preço médio fiscal.
@@ -637,7 +641,9 @@ pub fn annual(
     let mut warnings = Vec::new();
     let mut ops: Vec<&PricedOperation> = priced
         .iter()
-        .filter(|p| !is_b3(p) && p.operation.date <= until)
+        .filter(|p| {
+            !is_b3(p) && !crate::fund::is_fund(&p.operation.asset) && p.operation.date <= until
+        })
         .collect();
     ops.sort_by(|a, b| {
         (a.operation.date, a.operation.side != Side::Compra)
@@ -834,6 +840,8 @@ mod tests {
             currency: BRL.into(),
             from_account: None,
             residue: None,
+            ir: None,
+            iof: None,
         };
         PricedOperation {
             gross: operation.gross(),

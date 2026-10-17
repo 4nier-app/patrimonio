@@ -1,11 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import * as echarts from "echarts/core";
-import { BarChart, LineChart, PieChart } from "echarts/charts";
-import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
+import { BarChart, CandlestickChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
+import {
+  DataZoomComponent,
+  GridComponent,
+  LegendComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  TooltipComponent,
+} from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import type { EChartsCoreOption } from "echarts/core";
 
-echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([
+  BarChart,
+  CandlestickChart,
+  LineChart,
+  PieChart,
+  ScatterChart,
+  DataZoomComponent,
+  GridComponent,
+  LegendComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  TooltipComponent,
+  CanvasRenderer,
+]);
 
 /**
  * Cores dos gráficos. Paleta categórica validada (daltonismo e contraste) nos
@@ -78,13 +98,19 @@ type Props = {
   /** Clique num elemento: índice no eixo e nome da série. */
   onSelect?: (index: number, series: string) => void;
   ariaLabel: string;
+  /** Instância do gráfico, para interações próprias (ex.: medir um trecho). */
+  onReady?: (chart: echarts.ECharts | null) => void;
+  /** Elementos sobrepostos ao gráfico (ex.: o resultado do trecho medido). */
+  children?: React.ReactNode;
 };
 
-export default function Chart({ option, height = 300, onSelect, ariaLabel }: Props) {
+export default function Chart({ option, height = 300, onSelect, ariaLabel, onReady, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
   const select = useRef(onSelect);
   select.current = onSelect;
+  const ready = useRef(onReady);
+  ready.current = onReady;
 
   useEffect(() => {
     if (!ref.current) return;
@@ -94,18 +120,33 @@ export default function Chart({ option, height = 300, onSelect, ariaLabel }: Pro
       const ev = e as { dataIndex?: number; seriesName?: string };
       if (ev.dataIndex != null) select.current?.(ev.dataIndex, ev.seriesName ?? "");
     });
-    const ro = new ResizeObserver(() => c.resize());
+    const ro = new ResizeObserver(() => {
+      if (!c.isDisposed()) c.resize();
+    });
     ro.observe(ref.current);
+    ready.current?.(c);
     return () => {
-      ro.disconnect();
-      c.dispose();
+      // Um erro ao desmontar derrubaria a janela inteira; o gráfico só some.
       chart.current = null;
+      try {
+        ready.current?.(null);
+        ro.disconnect();
+        if (!c.isDisposed()) c.dispose();
+      } catch (e) {
+        console.error("Falha ao fechar o gráfico:", e);
+      }
     };
   }, []);
 
   useEffect(() => {
-    chart.current?.setOption(option, true);
+    const c = chart.current;
+    if (c && !c.isDisposed()) c.setOption(option, true);
   }, [option]);
 
-  return <div ref={ref} className="chart" style={{ height }} role="img" aria-label={ariaLabel} />;
+  return (
+    <div className="chart-wrap">
+      <div ref={ref} className="chart" style={{ height }} role="img" aria-label={ariaLabel} />
+      {children}
+    </div>
+  );
 }

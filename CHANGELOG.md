@@ -6,7 +6,43 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.7.0] - Não lançada
+## [0.8.0] - Não lançada
+
+### Adicionado
+- **Fundos de investimento**: lançamento pelo extrato do banco, em cotas.
+  - O fundo é achado pelo nome (como aparece no extrato) ou pelo CNPJ, na
+    lista de fundos da CVM, baixada na primeira vez.
+  - Aplicação, resgate (com o IR e o IOF descontados) e come-cotas.
+  - Cota diária automática pelo informe que os fundos entregam à CVM.
+  - Fundos aparecem na Carteira, no Painel e na Rentabilidade pelo nome;
+    não pagam taxa da B3 e não entram no DARF (o banco já retém o imposto).
+- **Página do ativo**: clique num ativo da Carteira para ver o gráfico.
+  - Velas do dia de 1, 5 ou 15 minutos, atualizando sozinhas a cada minuto
+    (B3 com cerca de 15 minutos de atraso; cripto em tempo real), e
+    períodos de 5 dias, 1 mês, 6 meses, 1 ano, 5 anos e tudo.
+  - Compras e vendas marcadas no gráfico e a linha do seu preço médio.
+  - Resumo da posição e os lançamentos do ativo.
+  - Clique e arraste no gráfico para ver a variação entre dois pontos.
+  - Ao passar o mouse numa vela: abertura, máxima, mínima, fechamento,
+    variação, volume e o seu preço médio, em português.
+- Aba **Home broker**: busca qualquer ativo do catálogo (B3, EUA, cripto),
+  mesmo sem ter na carteira, com atalhos para os seus ativos e os vistos
+  recentemente.
+
+### Corrigido
+- O aplicativo abre uma vez só: abrir de novo traz para a frente a janela que
+  já está aberta, em vez de duas cópias mexendo no mesmo cofre.
+- Tela branca ao sair da página do ativo no Windows (o WebView2 mais novo
+  devolve uma Promise em `window.scrollTo`, e o React a tratava como função
+  de limpeza).
+- Se uma tela falhar ao desenhar, o app mostra o erro e um botão para voltar,
+  em vez de deixar a janela em branco. O botão "voltar" do mouse fecha a
+  página do ativo.
+- Qualquer falha que escape das telas aparece numa faixa no rodapé com a
+  mensagem e um botão para recarregar; fechar o gráfico não derruba mais a
+  janela.
+
+## [0.7.0] - 2026-10-16
 
 ### Adicionado
 - Aba **Impostos**, com o imposto de renda calculado a partir dos lançamentos:

@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "carteira-app"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "carteira-core",
  "carteira-ledger",
@@ -510,12 +510,13 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
  "tempfile",
 ]
 
 [[package]]
 name = "carteira-core"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "chrono",
  "rust_decimal",
@@ -525,7 +526,7 @@ dependencies = [
 
 [[package]]
 name = "carteira-ledger"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "hex",
  "serde",
@@ -536,7 +537,7 @@ dependencies = [
 
 [[package]]
 name = "carteira-providers"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "chrono",
  "rust_decimal",
@@ -550,7 +551,7 @@ dependencies = [
 
 [[package]]
 name = "carteira-storage"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -4061,6 +4062,22 @@ dependencies = [
  "thiserror 2.0.21",
  "url",
  "windows",
+ "zbus",
+]
+
+[[package]]
+name = "tauri-plugin-single-instance"
+version = "2.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "561cd99484561bc39c954768e7b41a66cebbe1ac3d9d081c34361f740c489e2c"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "windows-sys 0.61.2",
  "zbus",
 ]
 

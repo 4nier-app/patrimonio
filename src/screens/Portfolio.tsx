@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage, market, type PortfolioView } from "../api";
+import { isFund } from "../currency";
 import { averagePrice, date, formatDateTime, money, percent, price, quantity, tone } from "../format";
 
 /** Valor em reais embaixo do valor em dólar. */
@@ -7,12 +8,30 @@ function Brl({ v }: { v: string | null }) {
   return <div className="muted small">{v == null ? "R$ —" : money(v)}</div>;
 }
 
+/** Código e nome do ativo; fundo aparece pelo nome, com o CNPJ embaixo. */
+export function AssetName({ asset, name }: { asset: string; name?: string }) {
+  if (isFund(asset) && name) {
+    return (
+      <>
+        <strong>{name}</strong>
+        <div className="muted small">CNPJ {asset}</div>
+      </>
+    );
+  }
+  return (
+    <>
+      <strong>{asset}</strong>
+      {name && <div className="muted small">{name}</div>}
+    </>
+  );
+}
+
 function ratio(a: string | null, b: string | null): string | null {
   if (a == null || b == null || Number(b) === 0) return null;
   return String(Number(a) / Number(b));
 }
 
-export default function Portfolio({ refresh }: { refresh: number }) {
+export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen: (asset: string) => void }) {
   const [view, setView] = useState<PortfolioView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +48,7 @@ export default function Portfolio({ refresh }: { refresh: number }) {
         <div>
           <h2>Carteira</h2>
           <p className="muted">
-            Posição de hoje pelo preço médio (compras somam valor e taxas). Cotações ficam guardadas no cofre: sem
+            Posição de hoje pelo preço médio (compras somam valor e taxas). Clique num ativo para ver o gráfico. Cotações ficam guardadas no cofre: sem
             internet, o app usa a última que tiver.
             {view?.last_update && <> Última atualização: {formatDateTime(view.last_update)}.</>}
             {view?.fx && (
@@ -91,9 +110,9 @@ export default function Portfolio({ refresh }: { refresh: number }) {
             </thead>
             <tbody>
               {open.map((p) => (
-                <tr key={p.asset}>
-                  <td>
-                    <strong>{p.asset}</strong>
+                <tr key={p.asset} className="clickable" onClick={() => onOpen(p.asset)} title="Abrir o gráfico e os detalhes">
+                  <td className="asset-link">
+                    <AssetName asset={p.asset} name={view?.names[p.asset]} />
                     {p.oversold && <div className="error small">Venda maior que a posição: confira os lançamentos.</div>}
                   </td>
                   <td className="num">{quantity(p.quantity)}</td>
@@ -147,8 +166,10 @@ export default function Portfolio({ refresh }: { refresh: number }) {
               </thead>
               <tbody>
                 {closed.map((p) => (
-                  <tr key={p.asset}>
-                    <td>{p.asset}</td>
+                  <tr key={p.asset} className="clickable" onClick={() => onOpen(p.asset)} title="Abrir o gráfico e os detalhes">
+                    <td className="asset-link">
+                      <AssetName asset={p.asset} name={view?.names[p.asset]} />
+                    </td>
                     <td className={`num ${tone(p.realized)}`}>
                       {money(p.realized, p.currency)}
                       {p.currency === "USD" && <Brl v={p.realized_brl} />}

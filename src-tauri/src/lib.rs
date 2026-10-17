@@ -1,6 +1,7 @@
 //! Comandos expostos à interface. Toda a lógica fica nos crates `carteira-*`;
 //! aqui só existe a ponte com o Tauri.
 
+mod asset;
 mod changelog;
 mod market;
 mod recovery;
@@ -301,6 +302,67 @@ fn search_assets(query: String, state: State<AppState>) -> Result<Vec<Asset>, St
     with_vault(&state, |v| v.search_assets(&query, 20))
 }
 
+/// Fundos do catálogo da CVM pelo nome (como no extrato) ou pelo CNPJ.
+#[tauri::command]
+fn search_funds(query: String, state: State<AppState>) -> Result<Vec<Asset>, String> {
+    with_vault(&state, |v| v.search_funds(&query, 30))
+}
+
+/// Nome de um fundo lançado pelo CNPJ que não está no catálogo da CVM.
+#[tauri::command]
+fn name_fund(ticker: String, name: String, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.name_fund(&ticker, &name))
+}
+
+/// Baixa a lista de fundos da CVM, se ainda não houver ou tiver mais de 30 dias.
+#[tauri::command]
+async fn update_fund_catalog(app: tauri::AppHandle) -> Result<market::UpdateLine, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        market::update_fund_catalog(&state.vault, &market::Internet, today())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Página do ativo: posição, lançamentos e preço médio.
+#[tauri::command]
+fn asset_detail(ticker: String, state: State<AppState>) -> Result<asset::AssetDetail, String> {
+    with_vault_str(&state, |v| asset::detail(v, &ticker, today()))
+}
+
+/// Gráfico do ativo, buscado na hora (sem segurar o cofre durante a rede).
+#[tauri::command]
+async fn asset_chart(
+    ticker: String,
+    period: String,
+    interval: String,
+    app: tauri::AppHandle,
+) -> Result<asset::ChartData, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let detail = {
+            let guard = state
+                .vault
+                .lock()
+                .map_err(|_| "estado interno indisponível".to_string())?;
+            let v = guard
+                .as_ref()
+                .ok_or_else(|| "o cofre está bloqueado".to_string())?;
+            asset::detail(v, &ticker, today())?
+        };
+        Ok(asset::chart(
+            &detail,
+            &asset::Internet,
+            &period,
+            &interval,
+            today(),
+        ))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 fn list_accounts(state: State<AppState>) -> Result<Vec<Account>, String> {
     with_vault(&state, |v| v.list_accounts())
@@ -452,6 +514,15 @@ fn with_vault_str<T>(
 
 pub fn run() {
     tauri::Builder::default()
+        // Uma janela só: duas cópias abertas mexeriam no mesmo cofre ao mesmo
+        // tempo. Abrir de novo só traz a janela que já está aberta para a frente.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
@@ -472,6 +543,11 @@ pub fn run() {
             verify_integrity,
             version_history,
             search_assets,
+            search_funds,
+            asset_detail,
+            asset_chart,
+            name_fund,
+            update_fund_catalog,
             list_accounts,
             list_operations,
             preview_operation,

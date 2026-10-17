@@ -1,3 +1,4 @@
+import { assetLabel } from "../currency";
 import { useEffect, useMemo, useState } from "react";
 import { errorMessage, market, type MonthResult, type ReturnsView, type ScopeReturns, type YearResult } from "../api";
 import { chained } from "../dashboard";
@@ -140,7 +141,7 @@ export default function Returns() {
       .filter((a) =>
         year === "inicio" ? sinceStart(a).rate != null : a.years.some((y) => y.year === year && y.rate != null),
       )
-      .map((a) => ({ label: a.asset ?? "", data: a, status: status(a) }));
+      .map((a) => ({ label: assetLabel(a.asset ?? "", view?.names), data: a, status: status(a) }));
     return [
       { title: "Na carteira", rows: rows.filter((r) => r.status.open) },
       { title: "Já vendidos", rows: rows.filter((r) => !r.status.open) },

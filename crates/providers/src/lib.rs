@@ -7,8 +7,11 @@
 //! - Banco Central (Olinda): PTAX do dólar.
 //! - Banco Central (SGS): CDI e IPCA, para comparar com a carteira.
 //! - Nasdaq Trader: catálogo de ações e ETFs dos EUA.
+//! - CVM (dados abertos): cota diária e cadastro dos fundos de investimento.
 
+pub mod coinbase;
 pub mod cotahist;
+pub mod cvm;
 pub mod http;
 pub mod nasdaq;
 pub mod ptax;
