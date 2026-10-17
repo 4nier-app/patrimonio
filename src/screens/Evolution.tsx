@@ -120,6 +120,33 @@ function FlowRow({ label, hint, values }: { label: string; hint: string; values:
   );
 }
 
+/** Anos lado a lado, do mais antigo ao mais recente, com setas. */
+function YearPager({ years, year, onChange }: { years: number[]; year: number; onChange: (y: number) => void }) {
+  const list = [...years].sort((a, b) => a - b);
+  const i = list.indexOf(year);
+  return (
+    <nav className="segmented year-pager" aria-label="Ano">
+      <button type="button" className="seg" disabled={i <= 0} onClick={() => onChange(list[i - 1])} aria-label="Ano anterior">
+        ‹
+      </button>
+      {list.map((y) => (
+        <button key={y} type="button" className={y === year ? "seg active" : "seg"} aria-current={y === year} onClick={() => onChange(y)}>
+          {y}
+        </button>
+      ))}
+      <button
+        type="button"
+        className="seg"
+        disabled={i < 0 || i >= list.length - 1}
+        onClick={() => onChange(list[i + 1])}
+        aria-label="Próximo ano"
+      >
+        ›
+      </button>
+    </nav>
+  );
+}
+
 /** Diferença para a coluna anterior. */
 const diffs = (values: (Dec | null)[]): (string | null)[] =>
   values.map((v, i) => {
@@ -166,7 +193,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
         <Intro
           more={
             <>
-              Cada coluna é o patrimônio no fim do mês (ou do ano, em “Todos os anos”), em reais; o que está em dólar é convertido pela PTAX do dia.
+              Cada coluna é o patrimônio no fim do mês, em reais; o que está em dólar é convertido pela PTAX do dia.
               Abaixo de cada valor, a variação em relação à coluna anterior. Ativo vendido some das colunas seguintes, porque o dinheiro foi para
               outro lugar (outro ativo ou a conta corrente). A coluna “No período” mostra o resultado, descontando compras e vendas: um ativo
               vendido no meio do ano mostra o que rendeu até a venda. “Desde o início” faz a mesma conta desde a primeira compra de cada investimento. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
@@ -188,18 +215,8 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
           )}
         </Intro>
       </div>
-      {view.years.length > 0 && (
-        <label className="ret-pick">
-          Período
-          <select value={year == null ? "todos" : String(year)} onChange={(e) => setYear(e.target.value === "todos" ? null : Number(e.target.value))}>
-            {view.years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-            <option value="todos">Todos os anos</option>
-          </select>
-        </label>
+      {view.years.length > 0 && year != null && (
+        <YearPager years={view.years} year={year} onChange={setYear} />
       )}
     </div>
   );

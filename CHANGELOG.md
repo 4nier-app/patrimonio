@@ -25,6 +25,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Evolução: nova coluna **Desde o início**, ao lado de "No período", com o
   resultado de cada investimento desde a primeira compra (valor de hoje +
   vendas − compras), por grupo e no total dos investimentos.
+- Evolução: a lista de período virou uma navegação entre os anos
+  (‹ 2025 2026 ›) e saiu a opção "Todos os anos", que a coluna "Desde o
+  início" substitui. O gráfico do Painel continua com "Todos os anos".
 - Ao trocar de aba, a tela volta para o topo.
 - **Cofrinhos não são mais estimados**: como a conta corrente e os cartões
   benefício, valem só os saldos que você informa na Evolução, mês a mês. O app

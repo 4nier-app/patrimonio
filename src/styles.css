@@ -576,3 +576,8 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .division-head { display: flex; justify-content: space-between; gap: 12px; font-size: 0.9rem; }
 .division-bar { height: 6px; background: var(--bg); border-radius: 999px; overflow: hidden; margin-top: 4px; }
 .division-bar span { display: block; height: 100%; border-radius: 999px; }
+
+/* Paginação de anos na Evolução */
+.year-pager { align-self: flex-start; flex-wrap: wrap; }
+.year-pager .seg:disabled { opacity: 0.35; cursor: default; }
+.year-pager .seg[aria-label] { font-size: 1.1rem; line-height: 1; padding: 6px 10px; }
