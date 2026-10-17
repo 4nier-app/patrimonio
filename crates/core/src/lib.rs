@@ -2,10 +2,12 @@
 //! reproduzível e testável.
 
 pub mod benchmark;
+pub mod corporate;
 pub mod crypto;
 pub mod fees;
 pub mod format;
 pub mod fund;
+pub mod income;
 pub mod model;
 pub mod operations;
 pub mod portfolio;

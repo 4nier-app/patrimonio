@@ -34,9 +34,17 @@ struct Row {
 
 /// Interpreta a resposta: (data, valor em %) em ordem de data.
 pub fn parse(json: &[u8]) -> Result<Vec<(NaiveDate, Decimal)>> {
-    // Sem dados no intervalo, o SGS responde com um objeto de erro.
-    if json.trim_ascii_start().starts_with(b"{") {
+    let body = json.trim_ascii();
+    // Sem dados no intervalo, o SGS responde com um objeto de erro ou com o
+    // corpo vazio (comum no IPCA, que só tem um valor por mês).
+    if body.is_empty() || body.starts_with(b"{") {
         return Ok(Vec::new());
+    }
+    // Quando está instável, o Banco Central devolve uma página HTML.
+    if body.starts_with(b"<") {
+        return Err(ProviderError::Network(
+            "o Banco Central está instável no momento; tente de novo mais tarde".into(),
+        ));
     }
     let rows: Vec<Row> =
         serde_json::from_slice(json).map_err(|e| ProviderError::Format(e.to_string()))?;
@@ -60,7 +68,17 @@ pub fn fetch(code: u32, from: NaiveDate, to: NaiveDate) -> Result<Vec<(NaiveDate
     let mut start = from;
     while start <= to {
         let end = (start + Duration::days(MAX_SPAN_DAYS)).min(to);
-        out.extend(parse(&http::get_bytes(&url(code, start, end))?)?);
+        let link = url(code, start, end);
+        // Uma segunda tentativa resolve a maioria das instabilidades do SGS.
+        let values = match http::get_bytes(&link).and_then(|b| parse(&b)) {
+            Ok(v) => v,
+            Err(ProviderError::NotFound(u)) => return Err(ProviderError::NotFound(u)),
+            Err(_) => {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                parse(&http::get_bytes(&link)?)?
+            }
+        };
+        out.extend(values);
         start = end + Duration::days(1);
     }
     Ok(out)
@@ -70,6 +88,17 @@ pub fn fetch(code: u32, from: NaiveDate, to: NaiveDate) -> Result<Vec<(NaiveDate
 mod tests {
     use super::*;
     use rust_decimal_macros::dec;
+
+    #[test]
+    fn corpo_vazio_e_pagina_de_erro() {
+        assert!(parse(b"").unwrap().is_empty());
+        assert!(parse(b"  \r\n").unwrap().is_empty());
+        assert!(parse(br#"{"erro":"sem dados"}"#).unwrap().is_empty());
+        assert!(matches!(
+            parse(b"<html><body>erro</body></html>"),
+            Err(ProviderError::Network(_))
+        ));
+    }
 
     #[test]
     fn interpreta_serie() {

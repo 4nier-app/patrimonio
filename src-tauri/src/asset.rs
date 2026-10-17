@@ -78,7 +78,7 @@ pub fn detail(v: &Vault, ticker: &str, as_of: NaiveDate) -> Result<AssetDetail, 
     let s = |e: carteira_storage::VaultError| e.to_string();
     let ticker = normalize_ticker(ticker);
     let asset = v.get_asset(&ticker).map_err(s)?;
-    let all = v.list_operations().map_err(s)?;
+    let all = crate::views::engine_operations(v)?;
     let (priced, _) =
         carteira_core::operations::price_operations(&carteira_core::fees::default_rules(), &all)
             .map_err(|e| e.to_string())?;

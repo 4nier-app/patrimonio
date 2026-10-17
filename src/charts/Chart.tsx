@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as echarts from "echarts/core";
+import { isDark, onThemeChange } from "../theme";
 import { BarChart, CandlestickChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
 import {
   DataZoomComponent,
@@ -53,18 +54,10 @@ const DARK = {
 };
 export type Palette = typeof LIGHT;
 
-const query = "(prefers-color-scheme: dark)";
-
-/** Paleta do tema atual; muda junto com o tema do sistema. */
+/** Paleta do tema atual; muda junto com o tema escolhido (ou o do Windows). */
 export function usePalette(): Palette {
-  const [dark, setDark] = useState(() => window.matchMedia?.(query).matches ?? false);
-  useEffect(() => {
-    const mq = window.matchMedia?.(query);
-    if (!mq) return;
-    const on = (e: MediaQueryListEvent) => setDark(e.matches);
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
+  const [dark, setDark] = useState(() => isDark());
+  useEffect(() => onThemeChange(() => setDark(isDark())), []);
   return dark ? DARK : LIGHT;
 }
 
@@ -72,6 +65,8 @@ export function usePalette(): Palette {
 export function base(p: Palette): EChartsCoreOption {
   return {
     textStyle: { fontFamily: "inherit", color: p.muted },
+    // Quem pediu ao sistema menos movimento não vê os gráficos animando.
+    animation: !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
     grid: { left: 8, right: 16, top: 40, bottom: 8, containLabel: true },
     tooltip: {
       backgroundColor: p.surface,

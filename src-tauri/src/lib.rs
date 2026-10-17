@@ -10,6 +10,8 @@ mod views;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use carteira_core::corporate::CorporateEvent;
+use carteira_core::income::Income;
 use carteira_core::operations::{Operation, PricedOperation};
 use carteira_ledger::Event;
 use carteira_storage::{
@@ -411,6 +413,75 @@ fn remove_operations(ids: Vec<String>, state: State<AppState>) -> Result<usize, 
 }
 
 #[tauri::command]
+fn restore_operations(ids: Vec<String>, state: State<AppState>) -> Result<usize, String> {
+    with_vault(&state, |v| v.restore_operations(&ids))
+}
+
+#[tauri::command]
+fn restore_income(id: String, state: State<AppState>) -> Result<Income, String> {
+    with_vault(&state, |v| v.restore_income(&id))
+}
+
+#[tauri::command]
+fn restore_event(id: String, state: State<AppState>) -> Result<CorporateEvent, String> {
+    with_vault(&state, |v| v.restore_event(&id))
+}
+
+#[tauri::command]
+fn corporate_events(state: State<AppState>) -> Result<views::EventsView, String> {
+    with_vault_str(&state, |v| views::corporate_events(v))
+}
+
+#[tauri::command]
+fn preview_event(event: CorporateEvent, state: State<AppState>) -> Result<views::EventRow, String> {
+    with_vault_str(&state, |v| views::preview_event(v, event))
+}
+
+#[tauri::command]
+fn create_event(event: CorporateEvent, state: State<AppState>) -> Result<CorporateEvent, String> {
+    with_vault(&state, |v| v.create_event(event))
+}
+
+#[tauri::command]
+fn update_event(
+    event: CorporateEvent,
+    reason: Option<String>,
+    state: State<AppState>,
+) -> Result<CorporateEvent, String> {
+    with_vault(&state, |v| v.update_event(event, reason.as_deref()))
+}
+
+#[tauri::command]
+fn remove_event(id: String, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_event(&id))
+}
+
+#[tauri::command]
+fn incomes(state: State<AppState>) -> Result<views::IncomesView, String> {
+    with_vault_str(&state, |v| views::incomes(v))
+}
+
+#[tauri::command]
+fn create_income(income: Income, state: State<AppState>) -> Result<Income, String> {
+    with_vault(&state, |v| v.create_income(income))
+}
+
+#[tauri::command]
+fn update_income(
+    income: Income,
+    reason: Option<String>,
+    state: State<AppState>,
+) -> Result<Income, String> {
+    let reason = reason.filter(|r| !r.trim().is_empty());
+    with_vault(&state, |v| v.update_income(income, reason.as_deref()))
+}
+
+#[tauri::command]
+fn remove_income(id: String, reason: Option<String>, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_income(&id, reason.as_deref()))
+}
+
+#[tauri::command]
 fn note_status(hashes: Vec<String>, state: State<AppState>) -> Result<Vec<NoteStatus>, String> {
     with_vault(&state, |v| {
         hashes.iter().map(|h| v.note_status(h)).collect()
@@ -525,7 +596,21 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        // A janela abre do jeito que foi fechada (tamanho, posição, maximizada).
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
+            // Na primeira vez, sem tamanho guardado, abre maximizada: o app tem
+            // muitas tabelas e gráficos.
+            let saved = app
+                .path()
+                .app_config_dir()
+                .map(|d| d.join(tauri_plugin_window_state::DEFAULT_FILENAME).exists())
+                .unwrap_or(false);
+            if !saved {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.maximize();
+                }
+            }
             let data_dir = app.path().app_data_dir()?;
             app.manage(AppState {
                 data_dir,
@@ -555,6 +640,18 @@ pub fn run() {
             update_operation,
             remove_operation,
             remove_operations,
+            restore_operations,
+            restore_income,
+            restore_event,
+            corporate_events,
+            preview_event,
+            create_event,
+            update_event,
+            remove_event,
+            incomes,
+            create_income,
+            update_income,
+            remove_income,
             portfolio,
             returns_report,
             dashboard,

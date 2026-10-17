@@ -91,6 +91,9 @@ pub fn validate(op: &Operation) -> Result<(), String> {
     if op.account.trim().is_empty() {
         return Err("informe a conta (corretora)".into());
     }
+    if op.side == Side::Ajuste {
+        return Err("eventos corporativos são lançados na seção Eventos".into());
+    }
     if op.quantity <= Decimal::ZERO {
         return Err("a quantidade precisa ser maior que zero".into());
     }
@@ -192,7 +195,7 @@ pub fn price_operations(
     for op in ops.iter().filter(|o| {
         o.manual_fees.is_none()
             && o.currency == BRL
-            && o.side != Side::Transferencia
+            && matches!(o.side, Side::Compra | Side::Venda)
             && !crate::crypto::is_crypto(&o.asset)
             && !crate::fund::is_fund(&o.asset)
     }) {

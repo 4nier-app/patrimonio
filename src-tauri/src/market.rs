@@ -231,7 +231,7 @@ fn tickers_by_month(ops: &[Operation], today: NaiveDate) -> BTreeMap<(i32, u32),
 /// Efeito na quantidade total da carteira. A transferência só tira o resíduo.
 fn signed(o: &Operation) -> Decimal {
     match o.side {
-        Side::Compra => o.quantity,
+        Side::Compra | Side::Ajuste => o.quantity,
         Side::Venda => -o.quantity,
         Side::Transferencia => -o.residue.unwrap_or_default(),
     }
@@ -989,8 +989,13 @@ fn update_indexes(
     let mut done = Vec::new();
     let mut failed = Vec::new();
     for def in INDEXES {
+        let monthly = matches!(def.kind, carteira_core::benchmark::IndexKind::MonthlyRate);
         let range = with(vault, |v| v.index_range(def.id).map_err(|e| e.to_string()))?;
+        let last_saved = range.map(|(_, hi)| hi);
         let start = match range {
+            // O IPCA tem um valor por mês, datado no dia 1º: pedir a partir do
+            // último mês gravado garante que a resposta nunca venha vazia.
+            Some((lo, hi)) if lo <= wanted + Duration::days(10) && monthly => hi,
             Some((lo, hi)) if lo <= wanted + Duration::days(10) => hi + Duration::days(1),
             _ => wanted,
         };
@@ -1009,15 +1014,26 @@ fn update_indexes(
                     v.save_index_values(def.id, def.origin.source(), &values)
                         .map_err(|e| e.to_string())
                 })?;
-                done.push(match last {
+                done.push(match last.filter(|d| Some(*d) > last_saved) {
                     Some(d) => format!("{} até {}", def.name, d.format("%d/%m/%Y")),
                     None => format!("{} em dia", def.name),
                 });
             }
             // O Banco Central responde "não encontrado" quando o dia ainda não
             // foi publicado: nada novo, não é falha.
-            Err(ProviderError::NotFound(_)) if start + Duration::days(10) >= today => {
+            Err(ProviderError::NotFound(_))
+                if start + Duration::days(if monthly { 45 } else { 10 }) >= today =>
+            {
                 done.push(format!("{} em dia", def.name))
+            }
+            // O IPCA sai uma vez por mês: com o último mês já gravado, uma
+            // falha do Banco Central não atrapalha nada e se resolve na
+            // próxima atualização.
+            Err(_) if monthly && last_saved.is_some_and(|d| d + Duration::days(75) >= today) => {
+                done.push(format!(
+                    "{} em dia (Banco Central fora do ar, nova tentativa na próxima atualização)",
+                    def.name
+                ))
             }
             Err(e) => failed.push(format!("{}: {}", def.name, describe(&e))),
         }

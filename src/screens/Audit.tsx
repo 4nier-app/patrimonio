@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import Intro from "../components/Intro";
 import { api, errorMessage, type IntegrityReport, type LedgerEvent, type VaultStatus } from "../api";
 import { formatDateTime, shortHash } from "../format";
 import SystemHistory from "./SystemHistory";
@@ -27,10 +28,9 @@ export default function Audit({ status }: { status: VaultStatus }) {
       <div className="section-head">
         <div>
           <h2>Auditoria</h2>
-          <p className="muted">
-            Toda criação, alteração ou remoção fica registrada aqui e não pode ser apagada. Cada registro guarda o
-            código (hash) do anterior, então qualquer adulteração quebra a corrente.
-          </p>
+          <Intro more="Cada registro guarda o código (hash) do anterior, então qualquer adulteração quebra a corrente e aparece na verificação.">
+            Toda inclusão, alteração ou remoção fica registrada aqui e não pode ser apagada.
+          </Intro>
         </div>
         <button onClick={verify}>Verificar integridade</button>
       </div>

@@ -20,8 +20,18 @@ fn s<E: ToString>(e: E) -> String {
     e.to_string()
 }
 
+/// Lançamentos mais os ajustes dos eventos corporativos: é a base de todos
+/// os cálculos (carteira, rentabilidade, impostos).
+pub fn engine_operations(v: &Vault) -> Result<Vec<Operation>, String> {
+    let mut ops = v.list_operations().map_err(s)?;
+    let events = v.list_corporate_events().map_err(s)?;
+    let (_, adjustments) = carteira_core::corporate::apply(&ops, &events);
+    ops.extend(adjustments);
+    Ok(ops)
+}
+
 fn priced(v: &Vault) -> Result<Vec<PricedOperation>, String> {
-    let ops = v.list_operations().map_err(s)?;
+    let ops = engine_operations(v)?;
     Ok(price_operations(&default_rules(), &ops).map_err(s)?.0)
 }
 
@@ -37,7 +47,8 @@ fn prices_for(v: &Vault, ops: &[PricedOperation]) -> Result<PriceTable, String> 
 
 /// Lançamentos do mais recente para o mais antigo.
 pub fn list_operations(v: &Vault) -> Result<Vec<PricedOperation>, String> {
-    let mut list = priced(v)?;
+    let ops = v.list_operations().map_err(s)?;
+    let mut list = price_operations(&default_rules(), &ops).map_err(s)?.0;
     list.reverse();
     Ok(list)
 }
@@ -847,7 +858,7 @@ fn timeline(ops: &[PricedOperation]) -> Vec<Span> {
     let mut spans = Vec::new();
     for op in sorted {
         let delta = match op.side {
-            carteira_core::model::Side::Compra => op.quantity,
+            carteira_core::model::Side::Compra | carteira_core::model::Side::Ajuste => op.quantity,
             carteira_core::model::Side::Venda => -op.quantity,
             carteira_core::model::Side::Transferencia => -op.residue.unwrap_or_default(),
         };
@@ -1042,5 +1053,305 @@ mod tests {
             .unwrap()
             .days
             .is_empty());
+    }
+}
+
+// ---------- proventos ----------
+
+/// Provento com os valores em reais e a quantidade que havia na data com.
+#[derive(Debug, Serialize)]
+pub struct IncomeRow {
+    #[serde(flatten)]
+    pub priced: carteira_core::income::PricedIncome,
+    /// Quantidade do ativo na data com (ou no pagamento, sem data com).
+    pub quantity: Option<Decimal>,
+    /// Valor bruto por cota, quando há quantidade.
+    pub per_share: Option<Decimal>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct IncomesView {
+    /// Do pagamento mais recente para o mais antigo.
+    pub items: Vec<IncomeRow>,
+    pub names: ByAsset,
+    pub kinds: ByAsset,
+}
+
+/// Quantidade do ativo em todas as contas no fim do dia.
+fn held_on(ops: &[PricedOperation], asset: &str, day: NaiveDate) -> Decimal {
+    ops.iter()
+        .map(|p| &p.operation)
+        .filter(|o| o.asset == asset && o.date <= day)
+        .map(|o| match o.side {
+            carteira_core::model::Side::Compra | carteira_core::model::Side::Ajuste => o.quantity,
+            carteira_core::model::Side::Venda => -o.quantity,
+            _ => -o.residue.unwrap_or_default(),
+        })
+        .sum()
+}
+
+pub fn incomes(v: &Vault) -> Result<IncomesView, String> {
+    let ops = priced(v)?;
+    let fx = v.fx_table().map_err(s)?;
+    let mut names = BTreeMap::new();
+    let mut kinds = BTreeMap::new();
+    let mut items = Vec::new();
+    for i in v.list_incomes().map_err(s)? {
+        if !names.contains_key(&i.asset) && !kinds.contains_key(&i.asset) {
+            if let Some(a) = v.get_asset(&i.asset).map_err(s)? {
+                kinds.insert(i.asset.clone(), a.kind);
+                if !a.name.is_empty() {
+                    names.insert(i.asset.clone(), a.name);
+                }
+            }
+        }
+        let held = held_on(&ops, &i.asset, i.ex_date.unwrap_or(i.pay_date));
+        let quantity = (held > Decimal::ZERO).then_some(held);
+        let per_share = quantity.map(|q| (i.gross / q).round_dp(8).normalize());
+        items.push(IncomeRow {
+            priced: carteira_core::income::price_income(i, &fx),
+            quantity,
+            per_share,
+        });
+    }
+    items.reverse();
+    Ok(IncomesView {
+        items,
+        names,
+        kinds,
+    })
+}
+
+/// Evento corporativo com o efeito em cada conta.
+#[derive(Debug, Serialize)]
+pub struct EventRow {
+    pub event: carteira_core::corporate::CorporateEvent,
+    pub label: String,
+    pub ex_date: NaiveDate,
+    pub effects: Vec<EffectRow>,
+    pub before: Decimal,
+    pub after: Decimal,
+    /// Bonificação: valor isento para a declaração, em reais (exterior pela
+    /// PTAX da data ex). Vazio se faltar a PTAX.
+    pub exempt_brl: Option<Decimal>,
+    /// Preço médio do ativo antes e depois do evento (todas as contas).
+    pub average_before: Option<Decimal>,
+    pub average_after: Option<Decimal>,
+    pub currency: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EffectRow {
+    pub account: String,
+    pub before: Decimal,
+    pub after: Decimal,
+    pub delta: Decimal,
+    pub cost_added: Decimal,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EventsView {
+    /// Do mais recente para o mais antigo.
+    pub items: Vec<EventRow>,
+    /// Ativos que já passaram pela carteira (fundos e cripto ficam de fora).
+    pub assets: Vec<String>,
+    pub names: ByAsset,
+}
+
+/// Preço médio do ativo, somando as contas, no fim do dia.
+fn average_on(
+    ops: &[Operation],
+    asset: &str,
+    day: NaiveDate,
+    table: &PriceTable,
+) -> Result<Option<Decimal>, String> {
+    let mine: Vec<Operation> = ops.iter().filter(|o| o.asset == asset).cloned().collect();
+    let priced = price_operations(&default_rules(), &mine).map_err(s)?.0;
+    Ok(
+        carteira_core::portfolio::positions(&trades_of(&priced), table, day)
+            .into_iter()
+            .find(|p| p.asset == asset && !carteira_core::model::is_dust(p.quantity))
+            .map(|p| p.average_price),
+    )
+}
+
+fn event_rows(
+    v: &Vault,
+    ops: &[Operation],
+    events: &[carteira_core::corporate::CorporateEvent],
+    only: Option<&str>,
+) -> Result<Vec<EventRow>, String> {
+    use carteira_core::corporate::{apply, label, EventKind};
+    let (effects, adjustments) = apply(ops, events);
+    let mut all = ops.to_vec();
+    all.extend(adjustments);
+    let fx = v.fx_table().map_err(s)?;
+    let mut rows = Vec::new();
+    for ev in events.iter().filter(|e| only.is_none_or(|id| e.id == id)) {
+        let mine: Vec<_> = effects.iter().filter(|f| f.event_id == ev.id).collect();
+        let currency = mine
+            .first()
+            .map(|f| f.currency.clone())
+            .unwrap_or_else(|| BRL.into());
+        let cost: Decimal = mine.iter().map(|f| f.cost_added).sum();
+        let exempt_brl = if ev.kind != EventKind::Bonificacao {
+            Some(Decimal::ZERO)
+        } else if currency == BRL {
+            Some(cost)
+        } else {
+            fx.usd_brl_on_or_before(ev.ex_date())
+                .map(|r| (cost * r.rate).round_dp(2))
+        };
+        let table = v.price_table(std::slice::from_ref(&ev.asset)).map_err(s)?;
+        // Antes: sem este evento; depois: com ele (e com os anteriores).
+        let without: Vec<Operation> = all
+            .iter()
+            .filter(|o| !o.id.starts_with(&format!("{}:", ev.id)))
+            .cloned()
+            .collect();
+        rows.push(EventRow {
+            label: label(ev),
+            ex_date: ev.ex_date(),
+            before: mine.iter().map(|f| f.before).sum(),
+            after: mine.iter().map(|f| f.after).sum(),
+            effects: mine
+                .iter()
+                .map(|f| EffectRow {
+                    account: f.account.clone(),
+                    before: f.before,
+                    after: f.after,
+                    delta: f.delta(),
+                    cost_added: f.cost_added,
+                })
+                .collect(),
+            exempt_brl,
+            average_before: average_on(&without, &ev.asset, ev.data_com, &table)?,
+            average_after: average_on(&all, &ev.asset, ev.ex_date(), &table)?,
+            currency,
+            event: ev.clone(),
+        });
+    }
+    Ok(rows)
+}
+
+pub fn corporate_events(v: &Vault) -> Result<EventsView, String> {
+    let ops = v.list_operations().map_err(s)?;
+    let events = v.list_corporate_events().map_err(s)?;
+    let mut items = event_rows(v, &ops, &events, None)?;
+    items.reverse();
+    let assets: Vec<String> = ops
+        .iter()
+        .map(|o| o.asset.clone())
+        .filter(|a| !carteira_core::fund::is_fund(a) && !carteira_core::crypto::is_crypto(a))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let mut names = BTreeMap::new();
+    for a in &assets {
+        if let Some(info) = v.get_asset(a).map_err(s)? {
+            if !info.name.is_empty() {
+                names.insert(a.clone(), info.name);
+            }
+        }
+    }
+    Ok(EventsView {
+        items,
+        assets,
+        names,
+    })
+}
+
+/// Efeito de um evento ainda não salvo (ou de uma alteração), sem gravar.
+pub fn preview_event(
+    v: &Vault,
+    mut draft: carteira_core::corporate::CorporateEvent,
+) -> Result<EventRow, String> {
+    draft.asset = normalize_ticker(&draft.asset);
+    if draft.id.is_empty() {
+        draft.id = "ev-rascunho".into();
+    }
+    draft.validate()?;
+    let ops = v.list_operations().map_err(s)?;
+    let mut events: Vec<_> = v
+        .list_corporate_events()
+        .map_err(s)?
+        .into_iter()
+        .filter(|e| e.id != draft.id)
+        .collect();
+    events.push(draft.clone());
+    event_rows(v, &ops, &events, Some(&draft.id))?
+        .pop()
+        .ok_or_else(|| "evento não encontrado".into())
+}
+
+#[cfg(test)]
+mod event_tests {
+    use super::*;
+    use carteira_core::corporate::{CorporateEvent, EventKind};
+    use carteira_core::model::Side;
+    use carteira_storage::KdfParams;
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn bonificacao_muda_quantidade_preco_medio_e_impostos() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-123",
+            "0.2.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
+        let d = |m, day| NaiveDate::from_ymd_opt(2026, m, day).unwrap();
+        let op = |date, side, q| Operation {
+            id: String::new(),
+            account: "Corretora X".into(),
+            asset: "TEST3".into(),
+            date,
+            side,
+            quantity: q,
+            price: dec!(20),
+            manual_fees: Some(dec!(0)),
+            note: None,
+            currency: "BRL".into(),
+            from_account: None,
+            residue: None,
+            ir: None,
+            iof: None,
+        };
+        v.create_operation(op(d(1, 5), Side::Compra, dec!(100)))
+            .unwrap();
+        // Venda no dia ex: não pode virar day trade com as ações bonificadas.
+        v.create_operation(op(d(3, 2), Side::Venda, dec!(10)))
+            .unwrap();
+        let ev = CorporateEvent {
+            id: String::new(),
+            asset: "TEST3".into(),
+            kind: EventKind::Bonificacao,
+            data_com: d(3, 1),
+            proportion: dec!(10),
+            cost_per_share: dec!(9),
+            note: None,
+        };
+        let preview = preview_event(&v, ev.clone()).unwrap();
+        assert_eq!(preview.after, dec!(110));
+        assert_eq!(preview.exempt_brl, Some(dec!(90)));
+        assert_eq!(preview.average_before, Some(dec!(20)));
+        // (2.000 + 90) / 110
+        assert_eq!(preview.average_after.unwrap().round_dp(4), dec!(19.0000));
+        v.create_event(ev).unwrap();
+
+        let view = corporate_events(&v).unwrap();
+        assert_eq!(view.items.len(), 1);
+        assert_eq!(view.assets, vec!["TEST3".to_string()]);
+        // Lançamentos não mostram o ajuste; os cálculos usam.
+        assert_eq!(list_operations(&v).unwrap().len(), 2);
+        let ops = priced(&v).unwrap();
+        assert_eq!(held_on(&ops, "TEST3", d(3, 2)), dec!(100));
+        let kind = |_: &str| Some("ACAO".to_string());
+        let report = carteira_core::tax::b3_months(&ops, &kind, d(12, 31));
+        let march = report.months.iter().find(|m| m.month == "2026-03").unwrap();
+        // Venda comum (isenta) com o preço médio já ajustado: 10 × (20 − 19).
+        assert_eq!(march.exempt_profit, dec!(10));
     }
 }

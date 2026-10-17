@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Intro from "../components/Intro";
 import { errorMessage, market, notesApi, type Account, type Operation } from "../api";
 import { date, money, price, quantity } from "../format";
 import { noteHash, readNotes, UnknownLayout } from "../import";
@@ -164,10 +165,9 @@ export default function ImportNotes({ onImported }: { onImported: () => void }) 
   return (
     <section className="import">
       <h2>Importar notas de corretagem</h2>
-      <p className="muted">
-        Escolha um ou mais PDFs de notas (Itaú, Nubank e outras no padrão da B3, e confirmações da Nomad). O arquivo é lido
-        aqui no computador e não é enviado para lugar nenhum. Antes de gravar, o aplicativo confere os totais de cada nota.
-      </p>
+      <Intro more="Aceita notas da Itaú, Nubank e outras no padrão da B3, e confirmações da Nomad. Antes de gravar, o aplicativo confere os totais de cada nota e não importa a mesma nota duas vezes.">
+        Escolha um ou mais PDFs de notas. Eles são lidos aqui no computador e não vão para lugar nenhum.
+      </Intro>
       <label className="file-pick">
         <input type="file" accept="application/pdf,.pdf" multiple onChange={(e) => pick(e.target.files).finally(() => (e.target.value = ""))} />
         <span className="button">Escolher PDFs…</span>

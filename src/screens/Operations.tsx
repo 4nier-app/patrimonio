@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import Intro from "../components/Intro";
+import { offerUndo } from "../undo";
 import {
   errorMessage,
   market,
@@ -24,6 +26,7 @@ import {
   toCashMask,
 } from "../format";
 import { currencyOfNewAccount, fundTicker, isFund, normalizeTicker } from "../currency";
+import CashInput from "../components/CashInput";
 
 type Form = {
   id: string;
@@ -81,9 +84,9 @@ const COME_COTAS = "Come-cotas";
 
 const MONTH_NAMES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
-const SIDE_LABEL: Record<Side, string> = { COMPRA: "Compra", VENDA: "Venda", TRANSFERENCIA: "Transferência" };
-const FUND_SIDE_LABEL: Record<Side, string> = { COMPRA: "Aplicação", VENDA: "Resgate", TRANSFERENCIA: "Transferência" };
-const SIDE_BADGE: Record<Side, string> = { COMPRA: "criada", VENDA: "removida", TRANSFERENCIA: "alterada" };
+const SIDE_LABEL: Record<Side, string> = { COMPRA: "Compra", VENDA: "Venda", TRANSFERENCIA: "Transferência", AJUSTE: "Evento" };
+const FUND_SIDE_LABEL: Record<Side, string> = { COMPRA: "Aplicação", VENDA: "Resgate", TRANSFERENCIA: "Transferência", AJUSTE: "Evento" };
+const SIDE_BADGE: Record<Side, string> = { COMPRA: "criada", VENDA: "removida", TRANSFERENCIA: "alterada", AJUSTE: "alterada" };
 
 function NumberInput({
   value,
@@ -109,31 +112,6 @@ function NumberInput({
       required={required}
       onChange={(e) => onChange(keepNumberChars(e.target.value))}
       onBlur={() => onChange(maskDecimal(value, kind, usd ? "USD" : "BRL", usd))}
-    />
-  );
-}
-
-/** Campo de dinheiro com máscara de caixa: só números, da direita para a esquerda. */
-function CashInput({
-  value,
-  decimals,
-  currency,
-  onChange,
-  required,
-}: {
-  value: string;
-  decimals: number;
-  currency: Currency;
-  onChange: (v: string) => void;
-  required?: boolean;
-}) {
-  return (
-    <input
-      inputMode="numeric"
-      value={value}
-      placeholder={`${currency === "USD" ? "US$" : "R$"} 0,${"0".repeat(decimals)}`}
-      required={required}
-      onChange={(e) => onChange(cashMask(e.target.value, decimals, currency))}
     />
   );
 }
@@ -345,7 +323,11 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
         await market.create(draft);
         setMessage("Lançamento incluído.");
       }
-      setForm({ ...EMPTY, account: form.account, date: form.date, fund: form.fund, priceDecimals: priceDecimals(currency) });
+      const next: Form = { ...EMPTY, account: form.account, date: form.date, fund: form.fund, priceDecimals: priceDecimals(currency) };
+      // Na inclusão, a próxima já vem com o mesmo ativo e operação (notas e
+      // extratos costumam ter várias linhas iguais); só os valores são limpos.
+      if (!form.id) Object.assign(next, { asset: form.asset, side: form.side, comeCotas: form.comeCotas, manual: form.manual, fromAccount: form.fromAccount });
+      setForm(next);
       setReason("");
       load();
       onChanged();
@@ -395,7 +377,12 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
     try {
       await market.remove(id);
       setRemoving(null);
-      setMessage("Lançamento removido. Ele continua visível na Auditoria.");
+      setMessage(null);
+      offerUndo("Lançamento removido.", async () => {
+        await market.restore([id]);
+        load();
+        onChanged();
+      });
       if (form.id === id) setForm(EMPTY);
       load();
       onChanged();
@@ -413,7 +400,12 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
     try {
       const n = await market.removeMany(ids);
       setRemoving(null);
-      setMessage(`${n} lançamentos removidos. Eles continuam visíveis na Auditoria.`);
+      setMessage(null);
+      offerUndo(`${n} lançamentos removidos.`, async () => {
+        await market.restore(ids);
+        load();
+        onChanged();
+      });
       if (ids.includes(form.id)) setForm(EMPTY);
       load();
       onChanged();
@@ -495,7 +487,10 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             <button className="link" onClick={() => edit(p)}>
               Alterar
             </button>
-            <button className="link danger" onClick={() => setRemoving(p.operation.id)}>
+            <button
+              className="link subtle"
+              onClick={() => (noteOf(p.operation).length > 1 ? setRemoving(p.operation.id) : void confirmRemove(p.operation.id))}
+            >
               Remover
             </button>
           </td>
@@ -504,9 +499,9 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
           <tr className="detail">
             <td colSpan={9}>
               <div className="remove-box">
-                <span>Remover este lançamento?</span>
+                <span>Este dia tem {noteOf(p.operation).length} lançamentos nesta conta.</span>
                 <button autoFocus onClick={() => confirmRemove(p.operation.id)}>
-                  {noteOf(p.operation).length > 1 ? "Remover só este" : "Confirmar remoção"}
+                  Remover só este
                 </button>
                 {noteOf(p.operation).length > 1 && (
                   <button className="danger" onClick={() => confirmRemoveNote(p.operation)}>
@@ -536,12 +531,17 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
       <div className="section-head">
         <div>
           <h2>Lançamentos</h2>
-          <p className="muted">
-            Compras e vendas na B3 e no exterior. Na B3, as taxas (liquidação, emolumentos e transferência) são
-            calculadas sobre o total da nota, ou seja, de todos os lançamentos da mesma corretora no mesmo dia, e
-            divididas entre eles. Se a nota trouxer outro valor, informe a taxa à mão. No exterior os valores são em
-            dólar e a conversão para reais usa a PTAX do Banco Central. Fundos de investimento são lançados pelo extrato do banco, em cotas.
-          </p>
+          <Intro
+            more={
+              <>
+                Na B3, as taxas (liquidação, emolumentos e transferência) são calculadas sobre o total da nota, ou seja, de todos os lançamentos da
+                mesma corretora no mesmo dia, e divididas entre eles. Se a nota trouxer outro valor, informe a taxa à mão. No exterior os valores são em
+                dólar e a conversão para reais usa a PTAX do Banco Central. Fundos de investimento são lançados pelo extrato do banco, em cotas.
+              </>
+            }
+          >
+            Compras e vendas na B3, no exterior, em cripto e em fundos. As taxas da B3 são calculadas sozinhas.
+          </Intro>
         </div>
       </div>
 

@@ -22,7 +22,55 @@ type Memo = { title: string; lines: string[] };
 const brl = (n: number) => money(String(n));
 const pct = (n: number | null) => (n == null ? "—" : percent(String(n)));
 
-export default function Dashboard({ refresh }: { refresh: number }) {
+export type Go = (tab: "lancamentos" | "carteira" | "seguranca", section?: "manual" | "importar" | "seguranca") => void;
+
+/** Primeiros passos, enquanto o cofre ainda não tem lançamentos. */
+function FirstSteps({ go, hasRecovery }: { go: Go; hasRecovery: boolean }) {
+  return (
+    <section className="first-steps">
+      <h2>Bem-vindo ao 4Nier</h2>
+      <p className="muted">Três passos para ver sua carteira e a rentabilidade de verdade:</p>
+      <ol className="steps">
+        <li className="card">
+          <strong>Traga suas operações</strong>
+          <span className="muted">Importe os PDFs das notas de corretagem ou lance compras e vendas à mão.</span>
+          <div className="actions">
+            <button type="button" onClick={() => go("lancamentos", "importar")}>
+              Importar notas
+            </button>
+            <button type="button" className="secondary" onClick={() => go("lancamentos", "manual")}>
+              Lançar à mão
+            </button>
+          </div>
+        </li>
+        <li className="card">
+          <strong>Confira a Carteira</strong>
+          <span className="muted">Veja quantidade, preço médio e resultado de cada ativo. Clique num ativo para ver o gráfico.</span>
+          <div className="actions">
+            <button type="button" className="secondary" onClick={() => go("carteira")}>
+              Abrir a Carteira
+            </button>
+          </div>
+        </li>
+        <li className="card">
+          <strong>Acompanhe aqui no Painel</strong>
+          <span className="muted">Com as operações lançadas, esta tela mostra a rentabilidade comparada com CDI, IPCA e Ibovespa.</span>
+        </li>
+      </ol>
+      {!hasRecovery && (
+        <p className="muted small">
+          Dica: crie a chave de recuperação em{" "}
+          <button type="button" className="link" onClick={() => go("seguranca", "seguranca")}>
+            Segurança
+          </button>
+          . Sem ela, se você esquecer a senha, não há como abrir os dados.
+        </p>
+      )}
+    </section>
+  );
+}
+
+export default function Dashboard({ refresh, go, hasRecovery }: { refresh: number; go: Go; hasRecovery: boolean }) {
   const [view, setView] = useState<DashboardView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>("inicio");
@@ -63,13 +111,7 @@ export default function Dashboard({ refresh }: { refresh: number }) {
 
   if (error) return <p className="error">{error}</p>;
   if (!view) return <p className="muted">Calculando…</p>;
-  if (view.months.length === 0)
-    return (
-      <section>
-        <h2>Painel</h2>
-        <p className="muted">Nenhum lançamento ainda. Comece pela aba Lançamentos.</p>
-      </section>
-    );
+  if (view.months.length === 0) return <FirstSteps go={go} hasRecovery={hasRecovery} />;
 
   const years = [...new Set(view.months.map((m) => m.year))];
 

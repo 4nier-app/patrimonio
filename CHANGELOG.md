@@ -6,6 +6,57 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.9.0] - Não lançada
+
+### Adicionado
+- Aba **Proventos**: dividendos, JCP, rendimentos de FIIs e juros, lançados
+  pelo valor recebido (bruto e imposto retido), com data com opcional.
+  - Resumo por ano: líquido, bruto, imposto retido, média por mês e últimos
+    12 meses; gráfico por mês (ou por ano) separado por tipo.
+  - Total por ativo e rendimento sobre o custo dos últimos 12 meses.
+  - Valor por cota, pela quantidade que havia na data com.
+  - Resumo para a declaração: isentos, tributação exclusiva e exterior
+    (Lei 14.754/2023, com estimativa do imposto no ajuste anual).
+  - Exterior convertido pela PTAX do dia do pagamento.
+  - Cada inclusão, alteração e remoção fica na Auditoria.
+  - Proventos não entram na rentabilidade, que mede só a variação de preço.
+- A página do ativo mostra os proventos recebidos dele.
+
+- Lançamentos → **Eventos**: bonificação, desdobramento e grupamento.
+  Escolha o que aconteceu, copie a data com e a proporção do anúncio, e
+  confira antes de salvar a quantidade de cada conta, o preço médio novo e,
+  na bonificação, o valor isento para a declaração. Carteira, preço médio,
+  rentabilidade e impostos passam a considerar o evento.
+
+### Alterado
+- Seletor de tema no topo: automático (segue o Windows), claro ou escuro.
+- A janela abre maximizada na primeira vez e, depois, do jeito que foi
+  fechada (tamanho, posição e maximizada).
+- Remover lançamento, provento ou evento não pede mais confirmação: aparece
+  por alguns segundos o aviso "Removido · Desfazer". Desfazer devolve o
+  registro como estava e fica na Auditoria como criação com o motivo
+  "remoção desfeita". Remover todos os lançamentos de um dia continua
+  pedindo confirmação.
+- Cofre vazio: o Painel mostra os primeiros passos (importar notas ou lançar
+  à mão, conferir a Carteira, acompanhar o Painel).
+- Revisão de usabilidade: cada tela abre com uma frase curta e os detalhes
+  ficam em "Saiba mais"; "Remover" fica discreto em todas as listas (o
+  vermelho só aparece ao passar o mouse e na confirmação); "Atualizar
+  cotações" deixou de ser o botão mais chamativo, já que a atualização é
+  automática; os ativos da Carteira mostram "›" e abrem também pelo teclado
+  (Tab e Enter); foco visível ao navegar pelo teclado; gráficos sem animação
+  para quem pediu ao Windows menos movimento.
+- Menu principal mais enxuto: **Importar notas** e **Eventos** ficam dentro
+  de Lançamentos, e **Auditoria** dentro de Segurança.
+- Lançamentos e proventos: depois de incluir, o formulário mantém conta,
+  data, operação e ativo (ou fundo, ou tipo de provento), para lançar a
+  próxima linha da nota ou do extrato só com quantidade e valores.
+
+### Corrigido
+- IPCA: a atualização não mostra mais erro quando o Banco Central responde
+  vazio ou fica fora do ar; o app tenta de novo e, com o último mês já
+  gravado, informa "em dia" e busca na próxima atualização.
+
 ## [0.8.0] - Não lançada
 
 ### Adicionado

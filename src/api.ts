@@ -81,7 +81,8 @@ export function errorMessage(e: unknown): string {
 
 /** Decimais chegam e vão como texto exato ("1234.56"). */
 export type Dec = string;
-export type Side = "COMPRA" | "VENDA" | "TRANSFERENCIA";
+/** AJUSTE: efeito de um evento corporativo (bonificação, desdobramento, grupamento). */
+export type Side = "COMPRA" | "VENDA" | "TRANSFERENCIA" | "AJUSTE";
 export type Currency = "BRL" | "USD";
 export type Account = { name: string; currency: Currency };
 
@@ -204,6 +205,7 @@ export const market = {
   update: (operation: Operation, reason: string) => invoke<Operation>("update_operation", { operation, reason }),
   remove: (id: string) => invoke<void>("remove_operation", { id, reason: null }),
   removeMany: (ids: string[]) => invoke<number>("remove_operations", { ids }),
+  restore: (ids: string[]) => invoke<number>("restore_operations", { ids }),
   portfolio: () => invoke<PortfolioView>("portfolio"),
   returns: () => invoke<ReturnsView>("returns_report"),
   updateQuotes: () => invoke<UpdateLine[]>("update_quotes"),
@@ -408,4 +410,79 @@ export type ChartData = {
 export const assetApi = {
   detail: (ticker: string) => invoke<AssetDetail>("asset_detail", { ticker }),
   chart: (ticker: string, period: ChartPeriod, interval: string) => invoke<ChartData>("asset_chart", { ticker, period, interval }),
+};
+
+// ---------- proventos (etapa 9) ----------
+
+export type IncomeKind = "DIVIDENDO" | "JCP" | "RENDIMENTO" | "JUROS" | "OUTRO";
+
+export type Income = {
+  id: string;
+  account: string;
+  asset: string;
+  kind: IncomeKind;
+  pay_date: string;
+  ex_date: string | null;
+  gross: Dec;
+  withheld: Dec;
+  currency: "BRL" | "USD";
+  note: string | null;
+};
+
+export type IncomeRow = {
+  income: Income;
+  net: Dec;
+  gross_brl: Dec | null;
+  withheld_brl: Dec | null;
+  net_brl: Dec | null;
+  fx: FxRate | null;
+  quantity: Dec | null;
+  per_share: Dec | null;
+};
+
+export type IncomesView = { items: IncomeRow[]; names: Record<string, string>; kinds: Record<string, string> };
+
+export type EventKind = "BONIFICACAO" | "DESDOBRAMENTO" | "GRUPAMENTO";
+
+export type CorporateEvent = {
+  id: string;
+  asset: string;
+  kind: EventKind;
+  data_com: string;
+  /** Bonificação: %; desdobramento: cada ação vira N; grupamento: cada N viram 1. */
+  proportion: Dec;
+  cost_per_share: Dec;
+  note: string | null;
+};
+
+export type EventRow = {
+  event: CorporateEvent;
+  label: string;
+  ex_date: string;
+  effects: { account: string; before: Dec; after: Dec; delta: Dec; cost_added: Dec }[];
+  before: Dec;
+  after: Dec;
+  exempt_brl: Dec | null;
+  average_before: Dec | null;
+  average_after: Dec | null;
+  currency: "BRL" | "USD";
+};
+
+export type EventsView = { items: EventRow[]; assets: string[]; names: Record<string, string> };
+
+export const eventsApi = {
+  load: () => invoke<EventsView>("corporate_events"),
+  preview: (event: CorporateEvent) => invoke<EventRow>("preview_event", { event }),
+  create: (event: CorporateEvent) => invoke<CorporateEvent>("create_event", { event }),
+  update: (event: CorporateEvent) => invoke<CorporateEvent>("update_event", { event, reason: null }),
+  remove: (id: string) => invoke<void>("remove_event", { id }),
+  restore: (id: string) => invoke<CorporateEvent>("restore_event", { id }),
+};
+
+export const incomesApi = {
+  load: () => invoke<IncomesView>("incomes"),
+  create: (income: Income) => invoke<Income>("create_income", { income }),
+  update: (income: Income, reason: string) => invoke<Income>("update_income", { income, reason }),
+  remove: (id: string) => invoke<void>("remove_income", { id, reason: null }),
+  restore: (id: string) => invoke<Income>("restore_income", { id }),
 };

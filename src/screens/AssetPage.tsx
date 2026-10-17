@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ECharts } from "echarts/core";
 import type { EChartsCoreOption } from "echarts/core";
-import { assetApi, errorMessage, type AssetDetail, type ChartData, type ChartPeriod } from "../api";
+import { assetApi, errorMessage, incomesApi, type AssetDetail, type ChartData, type ChartPeriod, type IncomeRow } from "../api";
+import { KIND_LABEL as INCOME_KIND, totals } from "../incomes";
 import Chart, { axisStyle, base, usePalette } from "../charts/Chart";
 import { averageLine, candleLabel, change, operationMarkers } from "../assetChart";
 import { averagePrice, date, money, percent, price, quantity, tone } from "../format";
@@ -96,6 +97,15 @@ export default function AssetPage({
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, [ticker]);
+
+  // Proventos recebidos deste ativo.
+  const [incomes, setIncomes] = useState<IncomeRow[]>([]);
+  useEffect(() => {
+    incomesApi
+      .load()
+      .then((v) => setIncomes(v.items.filter((r) => r.income.asset === ticker)))
+      .catch(() => setIncomes([]));
+  }, [ticker, refresh]);
 
   useEffect(() => {
     if (!detail) return;
@@ -502,6 +512,38 @@ export default function AssetPage({
         </div>
       )}
 
+      {incomes.length > 0 && (
+        <>
+          <h3 className="spaced">
+            Proventos recebidos <span className="muted small">· {money(totals(incomes).net.toFixed(2))} líquidos no total</span>
+          </h3>
+          <div className="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Pagamento</th>
+                  <th>Tipo</th>
+                  <th>Conta</th>
+                  <th className="num">Por cota</th>
+                  <th className="num">Líquido</th>
+                </tr>
+              </thead>
+              <tbody>
+                {incomes.map((r) => (
+                  <tr key={r.income.id}>
+                    <td>{date(r.income.pay_date)}</td>
+                    <td>{INCOME_KIND[r.income.kind]}</td>
+                    <td>{r.income.account}</td>
+                    <td className="num">{r.per_share ? price(r.per_share, r.income.currency) : "—"}</td>
+                    <td className="num">{money(r.net, r.income.currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       {detail && detail.operations.length > 0 && (
         <>
           <h3 className="spaced">Seus lançamentos</h3>
@@ -521,8 +563,10 @@ export default function AssetPage({
               <tbody>
                 {detail.operations.map((x) => {
                   const o = x.operation;
-                  const label =
-                    o.side === "TRANSFERENCIA"
+                  const event = o.side === "AJUSTE";
+                  const label = event
+                    ? (o.note ?? "Evento")
+                    : o.side === "TRANSFERENCIA"
                       ? "Transferência"
                       : fund
                         ? o.note === "Come-cotas"
@@ -538,10 +582,13 @@ export default function AssetPage({
                       <td>{date(o.date)}</td>
                       <td>{o.account}</td>
                       <td>{label}</td>
-                      <td className="num">{quantity(o.quantity)}</td>
-                      <td className="num">{o.side === "TRANSFERENCIA" ? "—" : price(o.price, cur)}</td>
-                      <td className="num">{o.side === "TRANSFERENCIA" ? "—" : money(x.gross, cur)}</td>
-                      <td className="num">{money(x.fees, cur)}</td>
+                      <td className="num">
+                        {event && Number(o.quantity) > 0 ? "+" : ""}
+                        {quantity(o.quantity)}
+                      </td>
+                      <td className="num">{o.side === "TRANSFERENCIA" || event ? "—" : price(o.price, cur)}</td>
+                      <td className="num">{o.side === "TRANSFERENCIA" || (event && Number(x.gross) === 0) ? "—" : money(x.gross, cur)}</td>
+                      <td className="num">{event ? "—" : money(x.fees, cur)}</td>
                     </tr>
                   );
                 })}
