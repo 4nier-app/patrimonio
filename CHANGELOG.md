@@ -31,7 +31,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   meses, a linha aparece na Evolução mesmo vazia, para informar os saldos
   direto na tabela; depois do "até", o saldo some e não conta mais no
   patrimônio nem nas pendências do Painel. Os cadastros existentes recebem
-  como "desde" o mês do primeiro saldo lançado.
+  como "desde" o mês do primeiro saldo lançado. Na Evolução, os meses antes
+  do "desde" e depois do "até" não ficam editáveis.
 - Evolução: FGTS, conta e cartão benefício mostram a **variação simples** em
   "No período" (último saldo − primeiro saldo do período) e em "Desde o
   início" (último saldo − primeiro saldo informado).

@@ -277,8 +277,8 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                               missing={r.missing[i]}
                               onEdit={
                                 // 31/12 do ano anterior e "todos os anos" só mostram;
-                                // o saldo se informa no mês dele.
-                                r.savings_id && (c.kind === "MONTH" || c.kind === "TODAY")
+                                // o saldo se informa no mês dele, dentro do período do saldo.
+                                r.savings_id && !r.outside?.[i] && (c.kind === "MONTH" || c.kind === "TODAY")
                                   ? () =>
                                       setEdit({
                                         savingsId: r.savings_id!,

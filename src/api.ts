@@ -298,6 +298,8 @@ export type EvolutionRow = {
   detail: string | null;
   values: (Dec | null)[];
   missing: boolean[];
+  /** Coluna fora do período do saldo (antes do "desde" ou depois do "até"). */
+  outside: boolean[];
   gain: EvolutionGain | null;
   /** Desde a primeira compra até a última coluna (só investimentos). */
   since: EvolutionGain | null;

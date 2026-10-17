@@ -49,6 +49,9 @@ pub struct Row {
     pub values: Vec<Option<Decimal>>,
     /// Coluna em que havia o ativo, mas faltou cotação ou PTAX.
     pub missing: Vec<bool>,
+    /// Coluna fora do período do saldo (antes do "desde" ou depois do
+    /// "até"): ali não se informa saldo.
+    pub outside: Vec<bool>,
     /// Resultado da primeira à última coluna.
     pub gain: Option<Gain>,
     /// Resultado desde a primeira compra até a última coluna (só
@@ -262,6 +265,7 @@ fn build(
                 detail: None,
                 values: vec![None; n],
                 missing: vec![false; n],
+                outside: vec![false; n],
                 gain: None,
                 since: None,
             });
@@ -284,6 +288,7 @@ fn build(
                 detail: None,
                 values: vec![None; n],
                 missing: vec![false; n],
+                outside: vec![false; n],
                 gain: None,
                 since: None,
             });
@@ -390,6 +395,10 @@ fn build(
             },
             values,
             missing: vec![false; n],
+            outside: cols
+                .iter()
+                .map(|c| r.savings.since.is_some_and(|s| c.date < s) || !r.savings.open_on(c.date))
+                .collect(),
             gain,
             since,
         });
@@ -587,6 +596,7 @@ fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
         }),
         values,
         missing: (0..n).map(|i| sold.iter().any(|r| r.missing[i])).collect(),
+        outside: vec![false; n],
         gain: sum_gains(sold.iter()),
         since: sum_since(sold.iter()),
     };
@@ -777,7 +787,7 @@ mod tests {
                 rate_pct: Decimal::ZERO,
                 tax_free: false,
                 note: None,
-                since: None,
+                since: Some(d(2026, 2, 1)),
                 until: None,
             })
             .unwrap();
@@ -872,6 +882,12 @@ mod tests {
             .collect();
         assert_eq!(names, vec!["Conta", "Reserva"]);
         assert!(view.groups[1].rows[1].values.iter().all(Option::is_none));
+        // Antes do "desde" não se informa saldo.
+        assert!(view.groups[1].rows[1].outside.iter().all(|o| !o));
+        assert_eq!(
+            view.groups[1].rows[0].outside,
+            vec![true, false, false, false]
+        );
         assert_eq!(
             view.investments_since.unwrap().value,
             today - dec!(1500) + dec!(30)
@@ -911,6 +927,7 @@ mod tests {
             name: name.into(),
             detail: None,
             missing: vec![false; values.len()],
+            outside: vec![false; values.len()],
             values,
             gain: Some(Gain {
                 value: gain,
