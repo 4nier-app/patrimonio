@@ -380,7 +380,7 @@ function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () 
           Saldo que o app do banco mostrava nesse dia
           <CashInput value={amount} decimals={2} currency="BRL" onChange={setAmount} required />
         </label>
-        <p className="muted small">Fica gravado em Lançamentos › Saldos e cofrinhos, onde dá para ver e corrigir o histórico.</p>
+        <p className="muted small">Fica gravado em Evolução › Saldos e cofrinhos, onde dá para ver e corrigir o histórico.</p>
         {error && <p className="error">{error}</p>}
         <div className="actions">
           <button type="submit" disabled={busy}>

@@ -97,7 +97,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
         changed("Alteração salva.");
       } else {
         await savingsApi.create(item);
-        changed(`${item.name} cadastrado. Informe o saldo de cada mês na aba Evolução, clicando na célula.`);
+        changed(`${item.name} cadastrado. Informe o saldo de cada mês em Evolução › Patrimônio, clicando na célula.`);
       }
       setForm(null);
     } catch (err) {
