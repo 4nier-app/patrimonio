@@ -108,22 +108,27 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     onChanged();
   }
 
-  // Do mesmo tipo e no mesmo banco, só um fica sem nome: o segundo Itaú, ou o
-  // FGTS de outra pessoa, precisa de um.
-  const unnamed = (view?.items ?? []).filter((it) => !it.savings.name || it.savings.name === it.kind_label);
+  // O app guarda os dados de uma pessoa: um FGTS só, e uma conta (ou cartão
+  // benefício) por banco. Cofrinhos podem ser vários no mesmo banco; do mesmo
+  // banco, só um fica sem nome.
+  const all = view?.items ?? [];
+  const unnamed = all.filter((it) => !it.savings.name || it.savings.name === it.kind_label);
   const bankOf = (kind: SavingsKind, account: string) => (kind === "FGTS" ? "" : account.trim().toLowerCase());
-  const fgtsTaken = unnamed.some((it) => it.savings.kind === "FGTS");
-  const needsName =
+  const sameSlot = (it: SavingsItem) =>
     !!form?.kind &&
-    unnamed.some(
-      (it) =>
-        it.savings.id !== form.id &&
-        it.savings.kind === form.kind &&
-        bankOf(it.savings.kind, it.savings.account) === bankOf(form.kind!, form.account),
-    );
-  // Conta e FGTS só mostram o nome quando ele é preciso (ou quando já tinham um).
+    it.savings.id !== form.id &&
+    it.savings.kind === form.kind &&
+    bankOf(it.savings.kind, it.savings.account) === bankOf(form.kind!, form.account);
+  const isCofrinho = form?.kind === "COFRINHO";
+  const fgtsTaken = all.some((it) => it.savings.kind === "FGTS");
+  const needsName = isCofrinho && unnamed.some(sameSlot);
+  // Um cadastro antigo repetido continua podendo ser alterado.
+  const original = all.find((it) => it.savings.id === form?.id)?.savings;
+  const kept = !!original && original.kind === form?.kind && bankOf(original.kind, original.account) === bankOf(form.kind, form.account);
+  const duplicate = !!form?.kind && !isCofrinho && !kept && all.some(sameSlot);
+  // Conta, FGTS e benefício não têm nome (só os cadastros antigos que já tinham).
   const hadName = !!form?.id && !unnamed.some((it) => it.savings.id === form.id);
-  const showName = needsName || hadName || (form?.kind !== "FGTS" && form?.kind !== "CONTA");
+  const showName = isCofrinho || hadName;
 
   async function saveSavings(e: React.FormEvent) {
     e.preventDefault();
@@ -360,17 +365,18 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           {!form.id && (
             <div className="event-kinds">
               {KINDS.map((k) => {
-                const second = k.id === "FGTS" && fgtsTaken;
+                const taken = k.id === "FGTS" && fgtsTaken;
                 return (
                   <button
                     key={k.id}
                     type="button"
                     className={`event-kind${form.kind === k.id ? " active" : ""}`}
+                    disabled={taken}
                     onClick={() => setForm({ ...form, kind: k.id })}
                   >
                     <strong>{k.title}</strong>
                     <span>{k.text}</span>
-                    <span className="muted small">{second ? "Já há um FGTS: este será de outra pessoa" : k.example}</span>
+                    <span className="muted small">{taken ? "Já cadastrado" : k.example}</span>
                   </button>
                 );
               })}
@@ -393,10 +399,10 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                 )}
                 {showName && (
                   <label>
-                    {needsName ? (form.kind === "FGTS" ? "De quem é este FGTS" : "Nome (para diferenciar da outra)") : "Nome (opcional)"}
+                    {needsName ? "Nome (para diferenciar do outro cofrinho)" : "Nome (opcional)"}
                     <input
                       value={form.name}
-                      placeholder={needsName ? (form.kind === "FGTS" ? "Ex.: Esposa" : "Ex.: Conta conjunta") : NAME_HINT[form.kind]}
+                      placeholder={NAME_HINT[form.kind]}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       required={needsName}
                     />
@@ -428,10 +434,18 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               </div>
             </>
           )}
+          {duplicate && (
+            <p className="error">
+              {form.kind === "FGTS"
+                ? "Já existe um FGTS cadastrado."
+                : `Já existe um cadastro de ${KINDS.find((k) => k.id === form.kind)?.title.toLowerCase()} ${form.account.trim()}.`}{" "}
+              O app guarda os dados de uma pessoa; para outra pessoa, use outro login do Windows.
+            </p>
+          )}
           {error && <p className="error">{error}</p>}
           <div className="actions">
             {form.kind && (
-              <button type="submit" disabled={busy}>
+              <button type="submit" disabled={busy || duplicate}>
                 {busy ? "Salvando…" : form.id ? "Salvar alteração" : "Cadastrar"}
               </button>
             )}

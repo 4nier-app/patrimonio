@@ -6,7 +6,17 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.12.1] - Não lançada
+## [0.13.0] - Não lançada
+
+### Alterado
+- **O app guarda os dados de uma pessoa**: um FGTS só, e uma conta corrente
+  (ou cartão benefício) por banco, sem campo de nome. Cofrinhos continuam
+  podendo ser vários no mesmo banco, com nome. Cadastros antigos repetidos
+  continuam aparecendo e podem ser alterados ou apagados, mas não dá para
+  criar novos. Substitui a regra da 0.12.0 que permitia um segundo FGTS ou
+  uma segunda conta no mesmo banco com nome.
+
+## [0.12.1] - 2026-10-17
 
 ### Alterado
 - **Proventos saiu do menu principal**: agora fica em Lançamentos › Proventos,

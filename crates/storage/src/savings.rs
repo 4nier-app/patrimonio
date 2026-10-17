@@ -113,34 +113,50 @@ impl Vault {
 
     /// Do mesmo tipo e no mesmo banco, só um pode ficar sem nome: o segundo
     /// Itaú, ou o FGTS de outra pessoa, precisa de um para não confundir.
-    fn check_name(&self, s: &Savings) -> Result<()> {
-        if s.own_name().is_some() {
+    /// O app guarda os dados de uma pessoa: um FGTS só, e uma conta (ou
+    /// cartão benefício) por banco. Cofrinhos podem ser vários no mesmo banco,
+    /// mas só um fica sem nome. Um cadastro antigo repetido (`before`, sem
+    /// trocar tipo nem banco) continua podendo ser alterado.
+    fn check_unique(&self, s: &Savings, before: Option<&Savings>) -> Result<()> {
+        let bank = s.bank().to_lowercase();
+        let cofrinho = s.kind == SavingsKind::Cofrinho;
+        if cofrinho && s.own_name().is_some() {
             return Ok(());
         }
-        let bank = s.bank().to_lowercase();
+        if !cofrinho && before.is_some_and(|b| b.kind == s.kind && b.bank().to_lowercase() == bank)
+        {
+            return Ok(());
+        }
         let taken = self.list_savings()?.iter().any(|o| {
             o.id != s.id
                 && o.kind == s.kind
                 && o.bank().to_lowercase() == bank
-                && o.own_name().is_none()
+                && (!cofrinho || o.own_name().is_none())
         });
         if !taken {
             return Ok(());
         }
-        Err(bad(if s.kind == SavingsKind::Fgts {
-            "já existe um FGTS sem nome; dê um nome a este (de quem é o FGTS)".to_string()
-        } else {
-            format!(
-                "já existe {} {} sem nome; dê um nome a este para diferenciar",
+        Err(bad(match s.kind {
+            SavingsKind::Cofrinho => format!(
+                "já existe um cofrinho {} sem nome; dê um nome a este para diferenciar",
+                s.account
+            ),
+            SavingsKind::Fgts => "já existe um FGTS cadastrado".to_string(),
+            _ => format!(
+                "já existe um cadastro de {} {}",
                 s.kind.label().to_lowercase(),
                 s.account
-            )
+            ),
         }))
     }
 
     pub fn create_savings(&mut self, mut s: Savings) -> Result<Savings> {
         prepare(&mut s)?;
-        self.check_name(&s)?;
+        // Só cofrinho tem nome; o resto é um por banco.
+        if !s.kind.is_investment() {
+            s.name.clear();
+        }
+        self.check_unique(&s, None)?;
         s.id = new_id()?.replacen("op-", "sd-", 1);
         let now = now_iso();
         self.conn.execute(
@@ -187,7 +203,7 @@ impl Vault {
             .get_savings(&s.id)?
             .ok_or_else(|| bad("saldo não encontrado"))?;
         prepare(&mut s)?;
-        self.check_name(&s)?;
+        self.check_unique(&s, Some(&before))?;
         if s.kind.is_investment() != before.kind.is_investment() {
             return Err(bad(
                 "não dá para transformar um cofrinho em outro tipo de saldo (ou o contrário); cadastre um novo",
@@ -419,7 +435,7 @@ mod tests {
     use rust_decimal_macros::dec;
 
     #[test]
-    fn so_um_fgts_sem_nome() {
+    fn um_fgts_e_uma_conta_por_banco() {
         let tmp = tempfile::tempdir().unwrap();
         let mut v = Vault::create_with_params(
             tmp.path(),
@@ -428,7 +444,7 @@ mod tests {
             KdfParams::fast_for_tests(),
         )
         .unwrap();
-        // FGTS: sem banco; o primeiro sem nome, o segundo precisa de um.
+        // FGTS: sem banco e sem nome; só um.
         let fgts = |name: &str| Savings {
             id: String::new(),
             kind: SavingsKind::Fgts,
@@ -440,29 +456,41 @@ mod tests {
             since: None,
             until: None,
         };
-        let f1 = v.create_savings(fgts("")).unwrap();
-        assert_eq!(f1.account, "");
+        let f1 = v.create_savings(fgts("Meu")).unwrap();
+        assert_eq!((f1.account.as_str(), f1.name.as_str()), ("", ""));
         assert!(v.create_savings(fgts("")).is_err());
-        assert!(
-            v.create_savings(fgts("FGTS")).is_err(),
-            "igual ao tipo é sem nome"
-        );
-        let f2 = v.create_savings(fgts("Esposa")).unwrap();
-        let mut unnamed = f2.clone();
-        unnamed.name = String::new();
-        assert!(v.update_savings(unnamed).is_err());
+        assert!(v.create_savings(fgts("Esposa")).is_err());
         v.update_savings(f1).unwrap();
 
-        // Conta: o segundo Itaú precisa de nome; outro banco, não.
+        // Conta: um Itaú só, com ou sem nome; outro banco pode.
         let conta = |account: &str, name: &str| Savings {
             kind: SavingsKind::Conta,
             account: account.into(),
             ..fgts(name)
         };
-        v.create_savings(conta("Itaú", "")).unwrap();
+        let itau = v.create_savings(conta("Itaú", "")).unwrap();
         assert!(v.create_savings(conta("itaú", "")).is_err());
-        v.create_savings(conta("Bradesco", "")).unwrap();
-        v.create_savings(conta("Itaú", "Conjunta")).unwrap();
+        assert!(v.create_savings(conta("Itaú", "Conjunta")).is_err());
+        let bradesco = v.create_savings(conta("Bradesco", "")).unwrap();
+        // Trocar o Bradesco para Itaú repetiria o banco.
+        assert!(v
+            .update_savings(Savings {
+                account: "Itaú".into(),
+                ..bradesco
+            })
+            .is_err());
+        v.update_savings(itau).unwrap();
+
+        // Cofrinhos: vários no mesmo banco, só um sem nome.
+        let cofrinho = |name: &str| Savings {
+            kind: SavingsKind::Cofrinho,
+            account: "Nubank".into(),
+            rate_pct: dec!(100),
+            ..fgts(name)
+        };
+        v.create_savings(cofrinho("")).unwrap();
+        assert!(v.create_savings(cofrinho("")).is_err());
+        v.create_savings(cofrinho("Viagem")).unwrap();
     }
 
     #[test]
