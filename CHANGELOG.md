@@ -23,6 +23,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   4Nier continua). O nome da instalação no Windows não mudou, então o app
   atualiza por cima da versão anterior.
 - Ao trocar de aba, a tela volta para o topo.
+- No cadastro do cofrinho, "Isento de IR" virou "O saldo que o banco mostra
+  já é líquido de IR": vale para quem já mostra o saldo descontado (como o
+  Mercado Pago) e para LCI e LCA. Marcado, o app não desconta IR e IOF de novo.
 
 ## [0.11.0] - 2026-10-17
 

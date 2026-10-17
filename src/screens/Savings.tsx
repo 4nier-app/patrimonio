@@ -332,8 +332,12 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   <>
                     <label className="check">
                       <input type="checkbox" checked={form.taxFree} onChange={(e) => setForm({ ...form, taxFree: e.target.checked })} />
-                      Isento de IR (LCI, LCA)
+                      O saldo que o banco mostra já é líquido de IR
                     </label>
+                    <p className="muted small">
+                      Marque se o app do banco já mostra o saldo com o IR descontado (como o Mercado Pago) ou se o investimento é isento (LCI,
+                      LCA). Assim o 4Nier não desconta IR e IOF de novo. Deixe desmarcado se o banco mostra o saldo bruto.
+                    </p>
                   </>
                 )}
               </div>
@@ -389,7 +393,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     </h3>
                     <p className="muted small">
                       {it.last_informed ? `Último saldo informado em ${date(it.last_informed)}` : "Nenhum saldo informado ainda"}
-                      {isCofrinho && s.tax_free && " · isento de IR"}
+                      {isCofrinho && s.tax_free && " · saldo líquido de IR"}
                     </p>
                   </div>
                   <div className="savings-balance">
