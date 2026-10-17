@@ -288,7 +288,7 @@ export const dashboardApi = {
 
 // ---------- evolução do patrimônio ----------
 
-export type EvolutionColumn = { date: string; kind: "BASE" | "MONTH" | "YEAR" | "YESTERDAY" | "TODAY" | "FUTURE" };
+export type EvolutionColumn = { date: string; kind: "BASE" | "MONTH" | "YEAR" | "YESTERDAY" | "TODAY" };
 export type EvolutionRow = {
   /** Código no motor; vazio para FGTS, conta e benefício (não são investimento). */
   asset: string | null;

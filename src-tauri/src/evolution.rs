@@ -28,8 +28,6 @@ pub enum ColumnKind {
     Year,
     Yesterday,
     Today,
-    /// Mês que ainda não chegou: coluna em branco, para o ano ter os 12 meses.
-    Future,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -119,8 +117,8 @@ pub fn columns(year: Option<i32>, first: NaiveDate, today: NaiveDate) -> Vec<Col
                     kind: ColumnKind::Month,
                 });
             }
-            if let Some(c) = current {
-                // O mês corrente aparece como ontem e hoje; os seguintes, em branco.
+            if current.is_some() {
+                // O mês corrente aparece como ontem e hoje.
                 let yesterday = previous_weekday(today);
                 if cols.last().is_none_or(|x| x.date < yesterday) {
                     cols.push(Column {
@@ -132,12 +130,6 @@ pub fn columns(year: Option<i32>, first: NaiveDate, today: NaiveDate) -> Vec<Col
                     date: today,
                     kind: ColumnKind::Today,
                 });
-                for m in c + 1..=12 {
-                    cols.push(Column {
-                        date: month_end(y, m),
-                        kind: ColumnKind::Future,
-                    });
-                }
             }
         }
         None => {
@@ -202,9 +194,6 @@ fn build(
     let mut rows: BTreeMap<(&'static str, String), Vec<Row>> = BTreeMap::new();
     let mut by_asset: BTreeMap<String, Row> = BTreeMap::new();
     for (i, c) in cols.iter().enumerate() {
-        if c.kind == ColumnKind::Future {
-            continue;
-        }
         for p in positions_with_fx(&trades, inp.table, Some(inp.fx), c.date) {
             if p.quantity.is_zero() || savings::is_savings(&p.asset) {
                 continue;
@@ -246,9 +235,6 @@ fn build(
         let values: Vec<Option<Decimal>> = cols
             .iter()
             .map(|c| {
-                if c.kind == ColumnKind::Future {
-                    return None;
-                }
                 let started = r.units_history.first().is_some_and(|(d, _)| *d <= c.date);
                 started.then(|| r.balance_on(c.date))
             })
@@ -330,7 +316,7 @@ fn build(
     let new_money = (0..n)
         .map(|i| {
             let empty = |j: usize| investments[j].is_none();
-            if i == 0 || cols[i].kind == ColumnKind::Future || (empty(i) && empty(i - 1)) {
+            if i == 0 || (empty(i) && empty(i - 1)) {
                 return None;
             }
             let (from, to) = (cols[i - 1].date, cols[i].date);
@@ -425,10 +411,8 @@ mod tests {
         assert_eq!(c[10].kind, ColumnKind::Yesterday);
         assert_eq!(c[10].date, d(2026, 10, 15));
         assert_eq!(c[11].kind, ColumnKind::Today);
-        // Novembro e dezembro em branco: o ano sempre tem os 12 meses.
-        assert_eq!(c.len(), 14);
-        assert_eq!(c[13].kind, ColumnKind::Future);
-        assert_eq!(c[13].date, d(2026, 12, 31));
+        // Ano atual vai só até o mês corrente.
+        assert_eq!(c.len(), 12);
         // Segunda: ontem é a sexta anterior.
         let c = columns(Some(2026), d(2024, 3, 1), d(2026, 10, 19));
         assert_eq!(c[10].date, d(2026, 10, 16));
@@ -533,10 +517,8 @@ mod tests {
 
         let view = evolution(&v, Some(2026), d(2026, 3, 4)).unwrap();
         assert_eq!(view.years, vec![2026]);
-        // Primeiro ano: jan, fev, ontem (03/03), hoje e abr a dez em branco.
-        assert_eq!(view.columns.len(), 13);
-        assert_eq!(view.total[12], None);
-        assert_eq!(view.new_money[12], None);
+        // Primeiro ano, ano atual: jan, fev, ontem (03/03) e hoje.
+        assert_eq!(view.columns.len(), 4);
         let ids: Vec<_> = view.groups.iter().map(|g| g.id).collect();
         assert_eq!(ids, vec!["rv", "dinheiro"]);
         assert!(view.groups[0].investment);

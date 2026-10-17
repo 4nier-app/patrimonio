@@ -15,9 +15,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
     variável, renda fixa (cofrinhos), FGTS (saldo e fundos FMP-FGTS) e
     dinheiro (conta corrente e cartões benefício). Cada grupo recolhe com
     um clique e o app lembra.
-  - Colunas: 31/12 do ano anterior e os 12 meses do ano. No ano atual, o
-    mês corrente aparece como ontem e hoje, e os meses seguintes ficam em
-    branco. "Todos os anos" mostra o 31/12 de cada ano.
+  - Colunas: 31/12 do ano anterior e os 12 meses do ano. No ano atual, vai
+    até o mês corrente, que aparece como ontem e hoje. "Todos os anos"
+    mostra o 31/12 de cada ano.
   - Embaixo de cada valor, a variação em relação à coluna anterior; na
     última coluna, o ganho no período em R$ e %.
   - Total dos investimentos e total geral. A variação dos investimentos é

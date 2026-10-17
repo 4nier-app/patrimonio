@@ -38,8 +38,6 @@ function columnLabel(c: EvolutionColumn): { top: string; sub?: string } {
       return { top: "ontem", sub: `${d}/${m}` };
     case "TODAY":
       return { top: "hoje", sub: `${d}/${m}` };
-    case "FUTURE":
-      return { top: monthLabel(Number(m)), sub: `${d}/${m}` };
   }
 }
 
@@ -189,8 +187,7 @@ export default function Evolution() {
     );
 
   const cols = view.columns;
-  // "No período" vai até hoje: meses futuros ficam fora.
-  const end = cols.reduce((last, c, i) => (c.kind === "FUTURE" ? last : i), 0);
+  const end = cols.length - 1;
   const investDiffs = diffs(view.investments, end);
   const income = investDiffs.map((d, i) => {
     const n = view.new_money[i];
@@ -212,7 +209,7 @@ export default function Evolution() {
                 {cols.map((c) => {
                   const l = columnLabel(c);
                   return (
-                    <th key={c.date} className={`num evo-col ${c.kind === "TODAY" ? "today" : c.kind === "FUTURE" ? "future" : ""}`} title={date(c.date)}>
+                    <th key={c.date} className={`num evo-col ${c.kind === "TODAY" ? "today" : ""}`} title={date(c.date)}>
                       {l.top}
                       {l.sub && <span className="evo-sub">{l.sub}</span>}
                     </th>
