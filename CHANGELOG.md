@@ -12,6 +12,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - **Proventos saiu do menu principal**: agora fica em Lançamentos › Proventos,
   ao lado de Eventos. O menu principal passou de 8 para 7 abas. Em Eventos, o
   aviso sobre sobras de fração leva direto a Proventos.
+- Saiu a linha **Dinheiro novo** da Evolução (e o cartão do Painel): como a
+  conta corrente também está no patrimônio, comprar um investimento só muda o
+  dinheiro de lugar, e o valor já estava dentro do total dos investimentos.
+  Fica o **Rendimento**, que mostra quanto os investimentos renderam sem
+  contar compras e vendas.
 
 ## [0.12.0] - 2026-10-17
 

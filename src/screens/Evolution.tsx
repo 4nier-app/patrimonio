@@ -99,7 +99,7 @@ function Gain({ gain, strong, plain }: { gain: EvolutionGain | null; strong?: bo
   );
 }
 
-/** Linha só de valores em R$ (variação, dinheiro novo, rendimento), sem %. */
+/** Linha só de valores em R$ (variação, rendimento), sem %. */
 function FlowRow({ label, hint, values }: { label: string; hint: string; values: (string | null)[] }) {
   const known = values.filter((v): v is string => v != null);
   const sum = known.length ? known.reduce((s, v) => s + Number(v), 0).toFixed(2) : null;
@@ -171,8 +171,8 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
               Abaixo de cada valor, a variação em relação à coluna anterior. Ativo vendido some das colunas seguintes, porque o dinheiro foi para
               outro lugar (outro ativo ou a conta corrente). A coluna “No período” mostra o resultado, descontando compras e vendas: um ativo
               vendido no meio do ano mostra o que rendeu até a venda. “Desde o início” faz a mesma conta desde a primeira compra de cada investimento. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
-              alta e um saque como queda. Por isso, embaixo, a variação dos investimentos é separada em dinheiro novo (aportes menos resgates) e
-              rendimento. Investimentos são ações, ETFs, criptomoedas, fundos e cofrinhos; FGTS, conta corrente e cartões benefício entram só no total
+              alta e um saque como queda. Por isso, embaixo, a linha Rendimento mostra quanto os investimentos renderam sem contar compras e
+              vendas. Investimentos são ações, ETFs, criptomoedas, fundos e cofrinhos; FGTS, conta corrente e cartões benefício entram só no total
               geral. A rentabilidade, que desconta os aportes, fica em Carteira › Rentabilidade.
             </>
           }
@@ -313,12 +313,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                 <Gain gain={view.investments_gain} strong />
                 <Gain gain={view.investments_since} strong plain />
               </tr>
-              <FlowRow
-                label="Dinheiro novo"
-                hint="Aportes menos resgates nos investimentos desde a coluna anterior"
-                values={view.new_money.map((v, i) => (i === 0 ? null : v))}
-              />
-              <FlowRow label="Rendimento" hint="Variação dos investimentos menos o dinheiro novo" values={income} />
+              <FlowRow label="Rendimento" hint="Variação dos investimentos sem contar compras e vendas" values={income} />
               <tr className="evo-total grand">
                 <th scope="row">Total geral</th>
                 {cols.map((c, i) => (
