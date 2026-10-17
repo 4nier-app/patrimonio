@@ -6,7 +6,14 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.12.0] - Não lançada
+## [0.12.1] - Não lançada
+
+### Alterado
+- **Proventos saiu do menu principal**: agora fica em Lançamentos › Proventos,
+  ao lado de Eventos. O menu principal passou de 8 para 7 abas. Em Eventos, o
+  aviso sobre sobras de fração leva direto a Proventos.
+
+## [0.12.0] - 2026-10-17
 
 ### Alterado
 - **Painel novo, centrado no patrimônio**: o total de hoje com a variação no

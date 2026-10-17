@@ -60,7 +60,7 @@ function signed(v: string): string {
   return `${Number(v) > 0 ? "+" : ""}${quantity(v)}`;
 }
 
-export default function Events({ onChanged }: { onChanged: () => void }) {
+export default function Events({ onChanged, onIncomes }: { onChanged: () => void; onIncomes: () => void }) {
   const [view, setView] = useState<EventsView | null>(null);
   const [form, setForm] = useState<Form>(EMPTY);
   const [preview, setPreview] = useState<EventRow | null>(null);
@@ -332,7 +332,10 @@ export default function Events({ onChanged }: { onChanged: () => void }) {
                   )}
                   {fractionLost && (
                     <li className="muted">
-                      Na B3 não existe fração de ação: a empresa vende as sobras em leilão e deposita o dinheiro. Quando ele cair, lance o valor em Proventos
+                      Na B3 não existe fração de ação: a empresa vende as sobras em leilão e deposita o dinheiro. Quando ele cair, lance o valor em{" "}
+                      <button type="button" className="link" onClick={onIncomes}>
+                        Proventos
+                      </button>{" "}
                       com o tipo "Outro".
                     </li>
                   )}
