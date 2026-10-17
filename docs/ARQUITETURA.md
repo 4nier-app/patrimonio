@@ -350,3 +350,7 @@ interface BrokerModule {
 4. Plataforma prioritária para testes: **Windows**.
 5. Corretoras iniciais: Itaú e Nomad, mais CSV genérico. Outras via módulos.
 6. Day trade, cripto (lançamento manual), renda fixa, Tesouro e FIIs: suportados conforme o roteiro.
+
+## Perfis (0.13.0)
+
+Cada perfil é um cofre independente (`src-tauri/src/profiles.rs`). O perfil principal usa a pasta de dados do app, como antes; os outros ficam em `perfis/<id>`. A lista de nomes fica em `perfis.json`, fora dos cofres e sem nenhum dado da carteira, para a tela de entrada mostrar os perfis antes da senha. Só se troca de perfil com a carteira bloqueada; perfil com cofre não pode ser removido pelo app. O app guarda os dados de uma pessoa por perfil: um FGTS, uma conta corrente (ou cartão benefício) por banco, e cofrinhos à vontade (só um sem nome por banco).

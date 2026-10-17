@@ -16,6 +16,14 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   criar novos. Substitui a regra da 0.12.0 que permitia um segundo FGTS ou
   uma segunda conta no mesmo banco com nome.
 
+### Adicionado
+- **Perfis na tela de entrada**: cada pessoa da família tem o próprio perfil,
+  com cofre e senha separados (um não vê os dados do outro). "Novo perfil"
+  cria um e já pede a senha dele; "Renomear" troca o nome; um perfil criado
+  por engano, ainda sem senha, pode ser removido. O perfil de quem já usava o
+  app continua com os dados de sempre. Com mais de um perfil, o botão
+  Bloquear mostra o nome do perfil aberto.
+
 ## [0.12.1] - 2026-10-17
 
 ### Alterado

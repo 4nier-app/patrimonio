@@ -5,6 +5,7 @@ mod asset;
 mod changelog;
 mod evolution;
 mod market;
+mod profiles;
 mod recovery;
 mod views;
 
@@ -31,8 +32,35 @@ const AUTO_BACKUP_DAYS: i64 = 7;
 const AUTO_BACKUP_KEEP: usize = 5;
 
 struct AppState {
-    data_dir: PathBuf,
+    /// Pasta de dados do app; o perfil principal usa ela mesma.
+    base_dir: PathBuf,
+    /// Perfil escolhido na tela de entrada.
+    profile: Mutex<String>,
     vault: Mutex<Option<Vault>>,
+}
+
+impl AppState {
+    /// Pasta do cofre do perfil atual.
+    fn data_dir(&self) -> PathBuf {
+        let id = self
+            .profile
+            .lock()
+            .map(|p| p.clone())
+            .unwrap_or_else(|_| profiles::MAIN.into());
+        profiles::dir_of(&self.base_dir, &id)
+    }
+
+    fn unlocked(&self) -> bool {
+        self.vault.lock().map(|v| v.is_some()).unwrap_or(false)
+    }
+}
+
+#[derive(Serialize)]
+struct ProfileInfo {
+    id: String,
+    name: String,
+    /// O perfil já tem cofre (senha criada).
+    exists: bool,
 }
 
 #[derive(Serialize)]
@@ -43,6 +71,9 @@ struct VaultStatus {
     unlocked: bool,
     app_version: &'static str,
     data_dir: String,
+    /// Perfil atual e todos os perfis, para a tela de entrada.
+    profile: String,
+    profiles: Vec<ProfileInfo>,
 }
 
 fn err(e: VaultError) -> String {
@@ -65,13 +96,66 @@ fn with_vault<T>(
 
 #[tauri::command]
 fn vault_status(state: State<AppState>) -> VaultStatus {
+    let dir = state.data_dir();
+    let base = &state.base_dir;
     VaultStatus {
-        exists: Vault::exists(&state.data_dir),
-        has_recovery_key: Vault::has_recovery_key(&state.data_dir),
-        unlocked: state.vault.lock().map(|v| v.is_some()).unwrap_or(false),
+        exists: Vault::exists(&dir),
+        has_recovery_key: Vault::has_recovery_key(&dir),
+        unlocked: state.unlocked(),
         app_version: APP_VERSION,
-        data_dir: state.data_dir.display().to_string(),
+        data_dir: dir.display().to_string(),
+        profile: state.profile.lock().map(|p| p.clone()).unwrap_or_default(),
+        profiles: profiles::load(base)
+            .profiles
+            .into_iter()
+            .map(|p| ProfileInfo {
+                exists: Vault::exists(&profiles::dir_of(base, &p.id)),
+                id: p.id,
+                name: p.name,
+            })
+            .collect(),
     }
+}
+
+fn switch_profile(state: &State<AppState>, id: &str) -> Result<(), String> {
+    if state.unlocked() {
+        return Err("bloqueie a carteira antes de trocar de perfil".into());
+    }
+    profiles::set_last(&state.base_dir, id)?;
+    *state
+        .profile
+        .lock()
+        .map_err(|_| "estado interno indisponível".to_string())? = id.to_string();
+    Ok(())
+}
+
+/// Troca o perfil na tela de entrada (com a carteira bloqueada).
+#[tauri::command]
+fn select_profile(id: String, state: State<AppState>) -> Result<(), String> {
+    switch_profile(&state, &id)
+}
+
+/// Cria um perfil e já passa para ele; a tela pede a senha do cofre novo.
+#[tauri::command]
+fn create_profile(name: String, state: State<AppState>) -> Result<(), String> {
+    if state.unlocked() {
+        return Err("bloqueie a carteira antes de criar um perfil".into());
+    }
+    let p = profiles::create(&state.base_dir, &name)?;
+    switch_profile(&state, &p.id)
+}
+
+#[tauri::command]
+fn rename_profile(id: String, name: String, state: State<AppState>) -> Result<(), String> {
+    profiles::rename(&state.base_dir, &id, &name)
+}
+
+/// Remove um perfil criado por engano, ainda sem senha; volta ao principal.
+#[tauri::command]
+fn remove_profile(id: String, state: State<AppState>) -> Result<(), String> {
+    let base = &state.base_dir;
+    profiles::remove_empty(base, &id, Vault::exists(&profiles::dir_of(base, &id)))?;
+    switch_profile(&state, &profiles::initial(base))
 }
 
 fn after_unlock(mut vault: Vault, state: &State<AppState>) -> Result<(), String> {
@@ -106,7 +190,7 @@ fn create_vault(
             return Err(format!("e-mail inválido: {}", e.trim()));
         }
     }
-    let mut vault = Vault::create(&state.data_dir, &password, APP_VERSION).map_err(err)?;
+    let mut vault = Vault::create(&state.data_dir(), &password, APP_VERSION).map_err(err)?;
     let key = vault.setup_recovery(email.as_deref()).map_err(err)?;
     after_unlock(vault, &state)?;
     Ok(key)
@@ -124,7 +208,7 @@ fn reset_password(
         return Err("as senhas novas não conferem".into());
     }
     let vault =
-        Vault::reset_password(&state.data_dir, &recovery_key, &new, APP_VERSION).map_err(err)?;
+        Vault::reset_password(&state.data_dir(), &recovery_key, &new, APP_VERSION).map_err(err)?;
     after_unlock(vault, &state)
 }
 
@@ -230,7 +314,7 @@ async fn restore_backup(
 ) -> Result<RestoreResult, String> {
     let state = app.state::<AppState>();
     let prepared = Vault::prepare_restore(
-        &state.data_dir,
+        &state.data_dir(),
         std::path::Path::new(&path),
         &password,
         APP_VERSION,
@@ -254,13 +338,13 @@ async fn restore_backup(
 #[tauri::command]
 fn open_data_folder(state: State<AppState>, app: tauri::AppHandle) -> Result<(), String> {
     app.opener()
-        .open_path(state.data_dir.display().to_string(), None::<&str>)
+        .open_path(state.data_dir().display().to_string(), None::<&str>)
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn unlock(password: String, state: State<AppState>) -> Result<(), String> {
-    let vault = Vault::open(&state.data_dir, &password, APP_VERSION).map_err(err)?;
+    let vault = Vault::open(&state.data_dir(), &password, APP_VERSION).map_err(err)?;
     after_unlock(vault, &state)
 }
 
@@ -688,15 +772,20 @@ pub fn run() {
                     let _ = w.maximize();
                 }
             }
-            let data_dir = app.path().app_data_dir()?;
+            let base_dir = app.path().app_data_dir()?;
             app.manage(AppState {
-                data_dir,
+                profile: Mutex::new(profiles::initial(&base_dir)),
+                base_dir,
                 vault: Mutex::new(None),
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             vault_status,
+            select_profile,
+            create_profile,
+            rename_profile,
+            remove_profile,
             create_vault,
             unlock,
             lock,

@@ -181,8 +181,8 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             <button className="secondary" onClick={updateQuotes} disabled={updating} title="As cotações já são atualizadas ao abrir e depois de cada lançamento; use para buscar de novo agora">
               {updating ? "Atualizando…" : "↻ Atualizar cotações"}
             </button>
-            <button className="secondary" onClick={lock}>
-              Bloquear
+            <button className="secondary" onClick={lock} title="Fecha a carteira; na tela de entrada dá para trocar de perfil">
+              {status.profiles.length > 1 ? `Bloquear (${status.profiles.find((p) => p.id === status.profile)?.name})` : "Bloquear"}
             </button>
           </div>
         </div>

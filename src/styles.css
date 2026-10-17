@@ -588,3 +588,5 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .segmented.small.year-pager .seg.arrow { padding: 3px 9px; }
 .chart-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .event-kind:disabled { opacity: 0.5; cursor: default; border-color: var(--border); }
+.login-profile { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.login-profile .login-links { justify-content: flex-start; gap: 16px; }

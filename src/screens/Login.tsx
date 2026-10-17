@@ -10,8 +10,18 @@ const STRENGTH = ["muito fraca", "fraca", "razoável", "boa", "forte"];
 
 type Mode = "entrar" | "esqueci" | "restaurar";
 
-export default function Login({ status, onUnlocked }: { status: VaultStatus; onUnlocked: () => void }) {
+export default function Login({
+  status,
+  onUnlocked,
+  onProfile,
+}: {
+  status: VaultStatus;
+  onUnlocked: () => void;
+  /** O perfil mudou (trocado, criado, renomeado): recarregar o status. */
+  onProfile: () => void;
+}) {
   const creating = !status.exists;
+  const profile = status.profiles.find((p) => p.id === status.profile);
   const [mode, setMode] = useState<Mode>("entrar");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -21,6 +31,32 @@ export default function Login({ status, onUnlocked }: { status: VaultStatus; onU
   const [restored, setRestored] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Edição de perfil: criar um novo ou renomear o atual.
+  const [editing, setEditing] = useState<"novo" | "renomear" | null>(null);
+  const [profileName, setProfileName] = useState("");
+
+  async function profileAction(action: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      setEditing(null);
+      setPassword("");
+      setConfirmation("");
+      onProfile();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function saveProfile() {
+    const name = profileName;
+    void profileAction(() =>
+      editing === "novo" ? api.createProfile(name) : api.renameProfile(status.profile, name),
+    );
+  }
 
   function go(m: Mode) {
     setMode(m);
@@ -102,6 +138,93 @@ export default function Login({ status, onUnlocked }: { status: VaultStatus; onU
         <div className="login-brand">
           <Logo size={48} />
         </div>
+        {mode === "entrar" && (
+          <div className="login-profile">
+            {editing ? (
+              <>
+                <label>
+                  {editing === "novo" ? "Nome do novo perfil" : "Nome deste perfil"}
+                  <input
+                    autoFocus
+                    value={profileName}
+                    maxLength={40}
+                    placeholder="Ex.: Marcelo, Esposa"
+                    onChange={(e) => setProfileName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        saveProfile();
+                      }
+                    }}
+                  />
+                </label>
+                <div className="login-links">
+                  <button type="button" className="link" disabled={busy || !profileName.trim()} onClick={saveProfile}>
+                    {editing === "novo" ? "Criar perfil" : "Salvar nome"}
+                  </button>
+                  <button type="button" className="link" onClick={() => setEditing(null)}>
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {status.profiles.length > 1 ? (
+                  <label>
+                    Perfil
+                    <select
+                      value={status.profile}
+                      disabled={busy}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        void profileAction(() => api.selectProfile(id));
+                      }}
+                    >
+                      {status.profiles.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p className="muted small">Perfil: {profile?.name}</p>
+                )}
+                <div className="login-links">
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => {
+                      setProfileName("");
+                      setEditing("novo");
+                    }}
+                  >
+                    Novo perfil
+                  </button>
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => {
+                      setProfileName(profile?.name ?? "");
+                      setEditing("renomear");
+                    }}
+                  >
+                    Renomear
+                  </button>
+                  {creating && status.profile !== "principal" && (
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => void profileAction(() => api.removeProfile(status.profile))}
+                    >
+                      Remover este perfil
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {mode === "esqueci" ? (
           <>
             <h3>Esqueci minha senha</h3>
@@ -132,8 +255,9 @@ export default function Login({ status, onUnlocked }: { status: VaultStatus; onU
         ) : creating ? (
           <>
             <p className="muted">
-              Crie a senha que protege seus dados. Eles ficam criptografados neste computador e não são enviados para
-              lugar nenhum.
+              Crie a senha que protege os dados {status.profiles.length > 1 ? `do perfil ${profile?.name}` : "deste perfil"}.
+              Eles ficam criptografados neste computador e não são enviados para lugar nenhum. Cada perfil tem a própria
+              senha e não vê os dados dos outros.
             </p>
             <p className="muted">
               Em seguida o aplicativo gera uma <strong>chave de recuperação</strong>, para o caso de você esquecer a senha,
