@@ -98,15 +98,16 @@ avaliada em reais pela PTAX, e o saldo de cada reserva em
 patrimônio, não rentabilidade: a variação simples entre colunas inclui
 aportes e saques. Para explicar a variação, o "dinheiro novo" soma o fluxo
 de caixa (`Trade::cash_flow`) dos investimentos entre duas colunas, e o
-rendimento é a variação dos investimentos menos esse dinheiro novo.
+rendimento é a variação dos investimentos menos esse dinheiro novo. Desde a
+0.12.1 só o rendimento aparece na tela: com a conta corrente no patrimônio,
+o dinheiro novo só mostrava dinheiro mudando de lugar.
 Investimento é toda linha com código no motor (ativos, fundos e
 cofrinhos); FGTS, conta corrente e cartões benefício entram só no total
 geral.
 
 O Painel (`src/screens/Panel.tsx`, desde a 0.12.0) usa a mesma visão da
 Evolução: total da última coluna, variação no mês contra o último fim de mês,
-variação no ano pelo `total_gain`, rendimento pelo `investments_gain` e
-dinheiro novo pela soma de `new_money`. Os fundos de cada banco viram uma fatia
+variação no ano pelo `total_gain` e rendimento pelo `investments_gain`. Os fundos de cada banco viram uma fatia
 só. A rentabilidade detalhada fica em Carteira › Rentabilidade.
 
 ### 4.4 Cotações e câmbio (imutáveis)

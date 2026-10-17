@@ -30,7 +30,6 @@ const TABS = [
   { id: "carteira", label: "Carteira" },
   { id: "homebroker", label: "Home broker" },
   { id: "lancamentos", label: "Lançamentos" },
-  { id: "proventos", label: "Proventos" },
   { id: "impostos", label: "Impostos" },
   { id: "seguranca", label: "Segurança" },
 ] as const;
@@ -45,12 +44,13 @@ const SECTIONS = {
   ],
   evolucao: [
     { id: "patrimonio", label: "Patrimônio" },
-    { id: "saldos", label: "Saldos e cofrinhos" },
+    { id: "saldos", label: "Contas e reservas" },
   ],
   lancamentos: [
     { id: "manual", label: "Incluir e editar" },
     { id: "importar", label: "Importar notas" },
     { id: "eventos", label: "Eventos (bonificação, desdobramento)" },
+    { id: "proventos", label: "Proventos" },
   ],
   seguranca: [
     { id: "seguranca", label: "Senha e backup" },
@@ -260,17 +260,19 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             </div>
           )}
           {!asset && tab === "lancamentos" && current === "manual" && <Operations onChanged={() => void updateQuotes()} />}
-          {!asset && tab === "proventos" && <Incomes refresh={refresh} onChanged={loadTaxes} />}
+          {!asset && tab === "lancamentos" && current === "proventos" && <Incomes refresh={refresh} onChanged={loadTaxes} />}
           {!asset && tab === "lancamentos" && current === "importar" && (
             <Suspense fallback={<p className="muted">Carregando…</p>}>
               <ImportNotes onImported={() => void updateQuotes()} />
             </Suspense>
           )}
           {!asset && tab === "evolucao" && current === "patrimonio" && (
-            <Evolution key={refresh} onSavings={() => setTab("evolucao", "saldos")} />
+            <Evolution key={refresh} />
           )}
           {!asset && tab === "evolucao" && current === "saldos" && <Savings onChanged={() => void updateQuotes()} />}
-          {!asset && tab === "lancamentos" && current === "eventos" && <Events onChanged={() => void updateQuotes()} />}
+          {!asset && tab === "lancamentos" && current === "eventos" && (
+            <Events onChanged={() => void updateQuotes()} onIncomes={() => setTab("lancamentos", "proventos")} />
+          )}
           {!asset && tab === "carteira" && current === "posicoes" && <Portfolio refresh={refresh} onOpen={openAsset} />}
           {!asset && tab === "carteira" && current === "rentabilidade" && (
             <>

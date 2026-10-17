@@ -333,7 +333,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     <section className="savings">
       <div className="section-head">
         <div>
-          <h2>Saldos e reservas</h2>
+          <h2>Contas e reservas</h2>
           <Intro
             more={
               <>

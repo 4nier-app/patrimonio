@@ -143,7 +143,6 @@ export default function Panel({
   const prev = prevIdx >= 0 && prevIdx < today ? num(year.total[prevIdx]) : null;
   const yearGain = year.total_gain ? Number(year.total_gain.value) : null;
   const yearBase = year.total_gain ? Number(year.total_gain.base) : null;
-  const newMoney = year.new_money.reduce((t, v) => t + Number(v ?? 0), 0);
   const income = year.investments_gain ? Number(year.investments_gain.value) : null;
   const incomeBase = year.investments_gain ? Number(year.investments_gain.base) : null;
   const thisYear = new Date().getFullYear();
@@ -212,11 +211,6 @@ export default function Panel({
       </div>
 
       <div className="dash-cards">
-        <div className="card stat static">
-          <span className="stat-label">Dinheiro novo em {thisYear}</span>
-          <span className={`stat-value ${tone(String(newMoney))}`}>{money(newMoney.toFixed(2))}</span>
-          <span className="stat-sub">Aportes menos resgates nos investimentos</span>
-        </div>
         <div className="card stat static">
           <span className="stat-label">Rendimento em {thisYear}</span>
           <span className={`stat-value ${tone(income == null ? null : String(income))}`}>

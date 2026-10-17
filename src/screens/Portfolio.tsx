@@ -143,7 +143,7 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
             <tbody>
               {open.map((p) =>
                 isSavings(p.asset) ? (
-                  <tr key={p.asset} title="Movimentos e saldos em Evolução › Saldos e cofrinhos">
+                  <tr key={p.asset} title="Movimentos e saldos em Evolução › Contas e reservas">
                     <td>
                       <AssetName asset={p.asset} name={view?.names[p.asset]} />
                     </td>

@@ -6,7 +6,22 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.12.0] - Não lançada
+## [0.12.1] - Não lançada
+
+### Alterado
+- **Proventos saiu do menu principal**: agora fica em Lançamentos › Proventos,
+  ao lado de Eventos. O menu principal passou de 8 para 7 abas. Em Eventos, o
+  aviso sobre sobras de fração leva direto a Proventos.
+- Saiu a linha **Dinheiro novo** da Evolução (e o cartão do Painel): como a
+  conta corrente também está no patrimônio, comprar um investimento só muda o
+  dinheiro de lugar, e o valor já estava dentro do total dos investimentos.
+  Fica o **Rendimento**, que mostra quanto os investimentos renderam sem
+  contar compras e vendas.
+- A seção **Saldos e cofrinhos** da Evolução passou a se chamar **Contas e
+  reservas**, e saiu o link "Cadastrar conta, FGTS ou cofrinho", que repetia
+  a seção ao lado.
+
+## [0.12.0] - 2026-10-17
 
 ### Alterado
 - **Painel novo, centrado no patrimônio**: o total de hoje com a variação no
