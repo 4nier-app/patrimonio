@@ -17,7 +17,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
     um clique e o app lembra.
   - Colunas: 31/12 do ano anterior e os 12 meses do ano. No ano atual, vai
     até o mês corrente, que aparece como ontem e hoje. "Todos os anos"
-    mostra o 31/12 de cada ano.
+    mostra o 31/12 de cada ano e lista só o que você ainda tem; o que já
+    foi vendido vira uma linha "Já vendidos" por grupo, para os totais dos
+    anos passados continuarem completos.
   - Embaixo de cada valor, a variação em relação à coluna anterior. Ativo
     vendido some das colunas seguintes (o dinheiro está onde foi parar).
   - Última coluna, "No período": o resultado de cada ativo descontando

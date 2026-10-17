@@ -370,6 +370,9 @@ fn build(
         .into_iter()
         .map(|((id, label), mut rows)| {
             rows.sort_by(|a, b| a.name.cmp(&b.name));
+            if year.is_none() {
+                rows = merge_sold(rows, n);
+            }
             let total = (0..n)
                 .map(|i| {
                     let vals: Vec<Decimal> = rows.iter().filter_map(|r| r.values[i]).collect();
@@ -457,6 +460,37 @@ fn build(
         investments_gain,
         incomplete,
     })
+}
+
+/// Em "Todos os anos", os ativos que já não estão na carteira viram uma
+/// linha só por grupo: os totais dos anos passados continuam completos sem
+/// listar o que foi vendido.
+fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
+    let (held, sold): (Vec<Row>, Vec<Row>) = rows
+        .into_iter()
+        .partition(|r| r.savings_id.is_some() || r.values[n - 1].is_some());
+    if sold.is_empty() {
+        return held;
+    }
+    let values = (0..n)
+        .map(|i| {
+            let vals: Vec<Decimal> = sold.iter().filter_map(|r| r.values[i]).collect();
+            (!vals.is_empty()).then(|| vals.iter().sum())
+        })
+        .collect();
+    let merged = Row {
+        asset: Some(String::new()),
+        savings_id: None,
+        name: "Já vendidos".into(),
+        detail: Some(match sold.len() {
+            1 => "1 ativo".into(),
+            k => format!("{k} ativos"),
+        }),
+        values,
+        missing: (0..n).map(|i| sold.iter().any(|r| r.missing[i])).collect(),
+        gain: sum_gains(sold.iter()),
+    };
+    held.into_iter().chain(std::iter::once(merged)).collect()
 }
 
 /// Primeiro dia com patrimônio (lançamento ou saldo).
@@ -699,5 +733,36 @@ mod tests {
         let all = evolution(&v, None, d(2026, 3, 4)).unwrap();
         assert_eq!(all.year, None);
         assert_eq!(all.columns.len(), 1);
+        // OUTR3 foi vendida antes do período: não aparece.
+        let names: Vec<_> = all.groups[0].rows.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, vec!["TEST3"]);
+    }
+
+    #[test]
+    fn todos_os_anos_junta_os_vendidos() {
+        use rust_decimal_macros::dec;
+        let row = |name: &str, values: Vec<Option<Decimal>>, gain| Row {
+            asset: Some(name.into()),
+            savings_id: None,
+            name: name.into(),
+            detail: None,
+            missing: vec![false; values.len()],
+            values,
+            gain: Some(Gain {
+                value: gain,
+                base: dec!(100),
+            }),
+        };
+        let rows = vec![
+            row("AAAA3", vec![Some(dec!(100)), Some(dec!(120))], dec!(20)),
+            row("BBBB3", vec![Some(dec!(100)), None], dec!(5)),
+            row("CCCC3", vec![Some(dec!(50)), None], dec!(-3)),
+        ];
+        let merged = merge_sold(rows, 2);
+        assert_eq!(merged.len(), 2);
+        assert_eq!(merged[1].name, "Já vendidos");
+        assert_eq!(merged[1].detail.as_deref(), Some("2 ativos"));
+        assert_eq!(merged[1].values, vec![Some(dec!(150)), None]);
+        assert_eq!(merged[1].gain.unwrap().value, dec!(2));
     }
 }
