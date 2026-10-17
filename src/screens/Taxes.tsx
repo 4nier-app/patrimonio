@@ -459,24 +459,24 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
           )}
           {balances.length > 0 && (
             <>
-              <h3 className="spaced">Saldos em 31/12/{year} (Bens e Direitos)</h3>
+              <h3 className="spaced">Saldos e bens em 31/12/{year} (Bens e Direitos)</h3>
               <div className="card">
                 <p className="small muted">
                   Cofrinhos e contas são declarados pelo saldo em 31/12 (cofrinho em "Aplicações de renda fixa", conta corrente em "Depósito em conta
                   corrente", se acima de R$ 140). O saldo é o último informado até 31/12 (informe o de dezembro na Evolução); confira com o informe de rendimentos
-                  do banco.
+                  do banco. Imóveis e veículos entram pelo custo: valor pago mais as obras feitas até 31/12, sem valor de mercado.
                 </p>
                 <table className="tax-positions">
                   <thead>
                     <tr>
-                      <th>Saldo</th>
+                      <th>Saldo ou bem</th>
                       <th>Tipo</th>
                       <th className="num">Em 31/12/{year}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {balances.map((b) => (
-                      <tr key={`${b.name}|${b.account}`}>
+                      <tr key={`${b.kind}|${b.name}|${b.account}`}>
                         <td>
                           <strong>{b.name}</strong>
                           <div className="muted small">{b.account}</div>

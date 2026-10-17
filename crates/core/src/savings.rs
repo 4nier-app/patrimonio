@@ -50,6 +50,9 @@ pub enum SavingsKind {
     Conta,
     /// Cartão benefício (VR, VA): sem rendimento.
     Beneficio,
+    /// Aplicação de renda fixa (CDB, LCI, LCA, Tesouro Direto): como o
+    /// cofrinho, vale o saldo informado, com produto, taxa e vencimento.
+    RendaFixa,
 }
 
 impl SavingsKind {
@@ -59,6 +62,7 @@ impl SavingsKind {
             SavingsKind::Fgts => "FGTS",
             SavingsKind::Conta => "CONTA",
             SavingsKind::Beneficio => "BENEFICIO",
+            SavingsKind::RendaFixa => "RENDA_FIXA",
         }
     }
 
@@ -68,12 +72,13 @@ impl SavingsKind {
             "FGTS" => SavingsKind::Fgts,
             "CONTA" => SavingsKind::Conta,
             "BENEFICIO" => SavingsKind::Beneficio,
+            "RENDA_FIXA" => SavingsKind::RendaFixa,
             _ => return None,
         })
     }
 
     pub fn is_investment(self) -> bool {
-        self == SavingsKind::Cofrinho
+        matches!(self, SavingsKind::Cofrinho | SavingsKind::RendaFixa)
     }
 
     pub fn label(self) -> &'static str {
@@ -82,6 +87,7 @@ impl SavingsKind {
             SavingsKind::Fgts => "FGTS",
             SavingsKind::Conta => "Conta corrente",
             SavingsKind::Beneficio => "Cartão benefício",
+            SavingsKind::RendaFixa => "Renda fixa",
         }
     }
 }
@@ -108,6 +114,20 @@ pub struct Savings {
     /// some e não conta mais no total.
     #[serde(default)]
     pub until: Option<NaiveDate>,
+    /// Só na renda fixa: produto, taxa e vencimento.
+    #[serde(default)]
+    pub fixed: Option<FixedIncome>,
+}
+
+/// Dados de uma aplicação de renda fixa, só para identificar: o valor é o
+/// saldo informado, sem estimar pela taxa.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FixedIncome {
+    /// "CDB", "LCI", "LCA", "Tesouro Selic", "Tesouro IPCA+"...
+    pub product: String,
+    /// Como o banco descreve a taxa ("110% do CDI", "IPCA + 6%").
+    pub rate: Option<String>,
+    pub maturity: Option<NaiveDate>,
 }
 
 impl Savings {
@@ -138,9 +158,12 @@ impl Savings {
         }
     }
 
-    /// Nome para listas: o próprio ou o tipo ("Conta corrente").
+    /// Nome para listas: o próprio, o produto (renda fixa) ou o tipo
+    /// ("Conta corrente").
     pub fn title(&self) -> &str {
-        self.own_name().unwrap_or(self.kind.label())
+        self.own_name()
+            .or(self.fixed.as_ref().map(|f| f.product.as_str()))
+            .unwrap_or(self.kind.label())
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -151,6 +174,14 @@ impl Savings {
         }
         if self.account.trim().is_empty() && self.kind != SavingsKind::Fgts {
             return Err("informe o banco (conta)".into());
+        }
+        if self.kind == SavingsKind::RendaFixa
+            && self
+                .fixed
+                .as_ref()
+                .is_none_or(|f| f.product.trim().is_empty())
+        {
+            return Err("informe o produto (CDB, LCI, Tesouro...)".into());
         }
         if self.kind == SavingsKind::Cofrinho
             && (self.rate_pct <= Decimal::ZERO || self.rate_pct > Decimal::from(300))
@@ -618,6 +649,7 @@ mod tests {
             note: None,
             since: None,
             until: None,
+            fixed: None,
         }
     }
 

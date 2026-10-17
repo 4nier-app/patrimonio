@@ -56,6 +56,7 @@ function colorOf(id: string, p: Palette): string {
     rf: p.series[5],
     fgts: p.muted,
     dinheiro: p.axis,
+    bens: "#8a63d2",
   };
   return map[id] ?? p.muted;
 }

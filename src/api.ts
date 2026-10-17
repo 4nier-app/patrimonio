@@ -570,7 +570,10 @@ export const incomesApi = {
 
 // ---------- saldos e reservas (etapa 10) ----------
 
-export type SavingsKind = "COFRINHO" | "FGTS" | "CONTA" | "BENEFICIO";
+export type SavingsKind = "COFRINHO" | "FGTS" | "CONTA" | "BENEFICIO" | "RENDA_FIXA";
+
+/** Renda fixa (CDB, LCI, LCA, Tesouro): produto, taxa como texto e vencimento. */
+export type FixedIncome = { product: string; rate: string | null; maturity: string | null };
 export type SavingsMoveKind = "DEPOSITO" | "RESGATE" | "SALDO";
 
 export type Savings = {
@@ -585,6 +588,8 @@ export type Savings = {
   since: string | null;
   /** Mês de encerramento ("AAAA-MM-01"), se a conta foi fechada. */
   until: string | null;
+  /** Só na renda fixa. */
+  fixed?: FixedIncome | null;
 };
 
 export type SavingsMove = {
@@ -627,4 +632,41 @@ export const savingsApi = {
   updateMove: (item: SavingsMove) => invoke<SavingsMove>("update_savings_move", { item }),
   removeMove: (id: string) => invoke<void>("remove_savings_move", { id }),
   restoreMove: (id: string) => invoke<SavingsMove>("restore_savings_move", { id }),
+};
+
+// ---------- bens (imóvel e veículo) e corretagem (0.14.0) ----------
+
+export type OwnedKind = "IMOVEL" | "VEICULO";
+
+export type OwnedAsset = {
+  id: string;
+  kind: OwnedKind;
+  name: string;
+  bought_on: string;
+  price: Dec;
+  sold_on: string | null;
+  note: string | null;
+};
+
+/** Obra ou reforma do imóvel: soma ao custo. */
+export type Improvement = { id: string; owned_id: string; date: string; amount: Dec; description: string };
+
+export type OwnedRow = { item: OwnedAsset; works: Improvement[]; cost: Dec };
+
+export const ownedApi = {
+  list: () => invoke<OwnedRow[]>("list_owned"),
+  create: (item: OwnedAsset) => invoke<OwnedAsset>("create_owned", { item }),
+  update: (item: OwnedAsset) => invoke<OwnedAsset>("update_owned", { item }),
+  remove: (id: string) => invoke<void>("remove_owned", { id }),
+  createWork: (item: Improvement) => invoke<Improvement>("create_improvement", { item }),
+  updateWork: (item: Improvement) => invoke<Improvement>("update_improvement", { item }),
+  removeWork: (id: string) => invoke<void>("remove_improvement", { id }),
+};
+
+/** Corretagem de uma conta nos lançamentos à mão, a partir de uma data. */
+export type Brokerage = { per_order: Dec; iss_pct: Dec; since: string };
+
+export const brokerageApi = {
+  table: () => invoke<Record<string, Brokerage>>("brokerage_table"),
+  set: (account: string, brokerage: Brokerage) => invoke<void>("set_brokerage", { account, brokerage }),
 };

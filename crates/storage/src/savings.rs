@@ -1,7 +1,7 @@
 //! Saldos e reservas (cofrinhos, FGTS, conta corrente, cartão benefício) e
 //! seus movimentos, com o mesmo registro de auditoria dos lançamentos.
 
-use carteira_core::savings::{self, MoveKind, Savings, SavingsKind, SavingsMove};
+use carteira_core::savings::{self, FixedIncome, MoveKind, Savings, SavingsKind, SavingsMove};
 use carteira_ledger::Action;
 use chrono::{Datelike, NaiveDate};
 use rusqlite::{params, OptionalExtension};
@@ -10,7 +10,7 @@ use crate::records::{bad, date, dec, new_id, Asset};
 use crate::{now_iso, Result, Vault};
 
 const SELECT: &str =
-    "SELECT id, kind, account, name, rate_pct, tax_free, note, since, until FROM savings";
+    "SELECT id, kind, account, name, rate_pct, tax_free, note, since, until, product, rate_desc, maturity FROM savings";
 const SELECT_MOVE: &str =
     "SELECT id, savings_id, move_date, kind, amount, ir, iof, note FROM savings_moves";
 
@@ -32,7 +32,30 @@ fn row_to_savings(r: &rusqlite::Row<'_>) -> rusqlite::Result<Savings> {
             .get::<_, Option<String>>(8)?
             .map(|s| date(s, 8))
             .transpose()?,
+        fixed: match r.get::<_, Option<String>>(9)? {
+            Some(product) => Some(FixedIncome {
+                product,
+                rate: r.get(10)?,
+                maturity: r
+                    .get::<_, Option<String>>(11)?
+                    .map(|s| date(s, 11))
+                    .transpose()?,
+            }),
+            None => None,
+        },
     })
+}
+
+/// Colunas da renda fixa: produto, taxa e vencimento.
+fn fixed_cols(s: &Savings) -> (Option<String>, Option<String>, Option<String>) {
+    match &s.fixed {
+        Some(f) => (
+            Some(f.product.clone()),
+            f.rate.clone(),
+            f.maturity.map(|d| d.to_string()),
+        ),
+        None => (None, None, None),
+    }
 }
 
 fn opt_dec(v: Option<String>, col: usize) -> rusqlite::Result<Option<rust_decimal::Decimal>> {
@@ -80,6 +103,15 @@ fn prepare(s: &mut Savings) -> Result<()> {
         s.rate_pct = rust_decimal::Decimal::ONE_HUNDRED;
         s.tax_free = true;
     }
+    // Produto, taxa e vencimento só na renda fixa.
+    if s.kind == SavingsKind::RendaFixa {
+        if let Some(f) = s.fixed.as_mut() {
+            f.product = f.product.trim().to_string();
+            f.rate = clean(f.rate.take());
+        }
+    } else {
+        s.fixed = None;
+    }
     s.validate().map_err(bad)
 }
 
@@ -118,6 +150,11 @@ impl Vault {
     /// mas só um fica sem nome. Um cadastro antigo repetido (`before`, sem
     /// trocar tipo nem banco) continua podendo ser alterado.
     fn check_unique(&self, s: &Savings, before: Option<&Savings>) -> Result<()> {
+        // Aplicações de renda fixa: várias no mesmo banco, cada uma com seu
+        // produto e vencimento.
+        if s.kind == SavingsKind::RendaFixa {
+            return Ok(());
+        }
         let bank = s.bank().to_lowercase();
         let cofrinho = s.kind == SavingsKind::Cofrinho;
         if cofrinho && s.own_name().is_some() {
@@ -159,9 +196,11 @@ impl Vault {
         self.check_unique(&s, None)?;
         s.id = new_id()?.replacen("op-", "sd-", 1);
         let now = now_iso();
+        let fixed = fixed_cols(&s);
         self.conn.execute(
-            "INSERT INTO savings (id, kind, account, name, rate_pct, tax_free, note, since, until, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?9, ?10, ?8, ?8)",
+            "INSERT INTO savings (id, kind, account, name, rate_pct, tax_free, note, since, until, created_at, updated_at,
+                                  product, rate_desc, maturity)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?9, ?10, ?8, ?8, ?11, ?12, ?13)",
             params![
                 s.id,
                 s.kind.as_str(),
@@ -172,7 +211,10 @@ impl Vault {
                 s.note,
                 now,
                 s.since.map(|d| d.to_string()),
-                s.until.map(|d| d.to_string())
+                s.until.map(|d| d.to_string()),
+                fixed.0,
+                fixed.1,
+                fixed.2
             ],
         )?;
         self.catalog_savings(&s)?;
@@ -212,9 +254,11 @@ impl Vault {
         if before == s {
             return Ok(s);
         }
+        let fixed = fixed_cols(&s);
         self.conn.execute(
             "UPDATE savings SET kind = ?2, account = ?3, name = ?4, rate_pct = ?5, tax_free = ?6,
-               note = ?7, updated_at = ?8, since = ?9, until = ?10 WHERE id = ?1",
+               note = ?7, updated_at = ?8, since = ?9, until = ?10, product = ?11, rate_desc = ?12,
+               maturity = ?13 WHERE id = ?1",
             params![
                 s.id,
                 s.kind.as_str(),
@@ -225,7 +269,10 @@ impl Vault {
                 s.note,
                 now_iso(),
                 s.since.map(|d| d.to_string()),
-                s.until.map(|d| d.to_string())
+                s.until.map(|d| d.to_string()),
+                fixed.0,
+                fixed.1,
+                fixed.2
             ],
         )?;
         self.catalog_savings(&s)?;
@@ -455,6 +502,7 @@ mod tests {
             note: None,
             since: None,
             until: None,
+            fixed: None,
         };
         let f1 = v.create_savings(fgts("Meu")).unwrap();
         assert_eq!((f1.account.as_str(), f1.name.as_str()), ("", ""));
@@ -514,6 +562,7 @@ mod tests {
                 note: None,
                 since: None,
                 until: None,
+                fixed: None,
             })
             .unwrap();
         assert_eq!(s.account, "Banco X");
@@ -530,6 +579,7 @@ mod tests {
                 note: None,
                 since: None,
                 until: None,
+                fixed: None,
             })
             .unwrap();
         assert!(v.get_asset(&savings::ticker(&vr.id)).unwrap().is_none());

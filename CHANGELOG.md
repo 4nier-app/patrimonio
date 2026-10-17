@@ -6,6 +6,33 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.14.0] - Não lançada
+
+### Adicionado
+- **Renda fixa (CDB, LCI, LCA, Tesouro Direto)** em Evolução › Contas e
+  reservas › Novo saldo › Renda fixa: produto, banco ou corretora, taxa (só
+  para lembrar) e vencimento. Funciona como o cofrinho: aplicação é depósito,
+  resgate ou vencimento é resgate, e o saldo de cada mês vem do extrato, sem
+  estimativa. Entra na carteira, na rentabilidade e no grupo Renda fixa da
+  Evolução, com vários títulos no mesmo banco.
+- **Bens (imóveis e veículos)** em Evolução › Bens: compra (data e valor) e,
+  no imóvel, obras e reformas (data, valor e descrição) que somam ao custo a
+  partir da data. Venda opcional tira o bem do patrimônio. Aparecem no grupo
+  "Bens" da Evolução, no Painel e em Impostos (custo em 31/12 para Bens e
+  Direitos). Sem ITBI, escritura ou valor de mercado.
+- **Corretagem por corretora**: em Lançamentos › Incluir e editar, numa conta
+  em reais, "Informar a corretagem" guarda o valor por ordem, o ISS e a data a
+  partir da qual vale. Soma nas compras e vendas lançadas à mão daquela data
+  em diante; lançamentos antigos e notas importadas não mudam.
+- **Fundos em Bens e Direitos**: Impostos mostra a posição de cada fundo em
+  31/12 pelo valor aplicado (custo médio), junto com as ações e o exterior.
+
+### Corrigido
+- Em Impostos, uma posição sumia dos anos seguintes quando aquela origem
+  (B3, exterior ou fundos) não tinha operação no ano.
+- A mensagem de cadastro repetido agora indica criar outro perfil na tela de
+  entrada (antes falava em outro login do Windows).
+
 ## [0.13.0] - Não lançada
 
 ### Alterado

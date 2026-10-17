@@ -354,3 +354,12 @@ interface BrokerModule {
 ## Perfis (0.13.0)
 
 Cada perfil é um cofre independente (`src-tauri/src/profiles.rs`). O perfil principal usa a pasta de dados do app, como antes; os outros ficam em `perfis/<id>`. A lista de nomes fica em `perfis.json`, fora dos cofres e sem nenhum dado da carteira, para a tela de entrada mostrar os perfis antes da senha. Só se troca de perfil com a carteira bloqueada; perfil com cofre não pode ser removido pelo app. O app guarda os dados de uma pessoa por perfil: um FGTS, uma conta corrente (ou cartão benefício) por banco, e cofrinhos à vontade (só um sem nome por banco).
+
+## Renda fixa, bens e corretagem (0.14.0)
+
+Migração 13 (`0013_renda_fixa_corretagem_bens.sql`).
+
+- **Renda fixa** é um tipo de saldo (`SavingsKind::RendaFixa`) com `FixedIncome { product, rate, maturity }`. Usa o mesmo motor do cofrinho (ativo `RF:<id>`, cota sempre 1, saldos informados, depósitos e resgates), sem estimativa de rendimento nem preço automático do Tesouro. Não tem limite por banco.
+- **Bens** (`carteira_core::owned`): `OwnedAsset` (imóvel ou veículo, compra, venda opcional) e `Improvement` (obra, só imóvel). O valor em qualquer data é `cost_on` = compra + obras até a data; nada antes da compra nem a partir da venda. Entram na Evolução no grupo `bens` (fora dos investimentos) e em Impostos pelo custo em 31/12. Auditoria: entidades `BEM` e `OBRA`.
+- **Corretagem** (`account_brokerage`, entidade `CORRETAGEM`): valor por ordem + ISS por conta, a partir de `since`. `price_operations_with` soma a corretagem às operações com taxa automática (B3, sem taxa informada) daquela data em diante; notas importadas trazem a taxa informada e não mudam.
+- **Fundos em Bens e Direitos**: `tax::annual` junta B3, exterior e fundos (`fund_year_end`, custo médio) e repete a posição de cada origem nos anos sem operação (`fill_to`).

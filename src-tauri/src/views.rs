@@ -23,6 +23,22 @@ fn s<E: ToString>(e: E) -> String {
 
 /// Lançamentos mais os ajustes dos eventos corporativos: é a base de todos
 /// os cálculos (carteira, rentabilidade, impostos).
+/// Taxas de cada operação: B3 automática, mais a corretagem da conta nas
+/// ordens sem taxa informada.
+pub fn price_all(
+    v: &Vault,
+    ops: &[Operation],
+) -> Result<
+    (
+        Vec<PricedOperation>,
+        Vec<carteira_core::operations::NoteGroup>,
+    ),
+    String,
+> {
+    let brokerage = v.brokerage_table().map_err(s)?;
+    carteira_core::operations::price_operations_with(&default_rules(), ops, &brokerage).map_err(s)
+}
+
 pub fn engine_operations(v: &Vault) -> Result<Vec<Operation>, String> {
     let mut ops = v.list_operations().map_err(s)?;
     let events = v.list_corporate_events().map_err(s)?;
@@ -64,7 +80,7 @@ pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
 
 fn priced(v: &Vault) -> Result<Vec<PricedOperation>, String> {
     let ops = engine_operations(v)?;
-    Ok(price_operations(&default_rules(), &ops).map_err(s)?.0)
+    Ok(price_all(v, &ops)?.0)
 }
 
 fn prices_for(v: &Vault, ops: &[PricedOperation]) -> Result<PriceTable, String> {
@@ -103,7 +119,7 @@ pub fn add_savings_quotes(v: &Vault, table: &mut PriceTable) -> Result<(), Strin
 /// Lançamentos do mais recente para o mais antigo.
 pub fn list_operations(v: &Vault) -> Result<Vec<PricedOperation>, String> {
     let ops = v.list_operations().map_err(s)?;
-    let mut list = price_operations(&default_rules(), &ops).map_err(s)?.0;
+    let mut list = price_all(v, &ops)?.0;
     list.reverse();
     Ok(list)
 }
@@ -148,7 +164,7 @@ pub fn preview(v: &Vault, mut draft: Operation) -> Result<Preview, String> {
         .filter(|o| o.id != draft.id)
         .collect();
     ops.push(draft.clone());
-    let (list, notes) = price_operations(&default_rules(), &ops).map_err(s)?;
+    let (list, notes) = price_all(v, &ops)?;
     let me = list
         .iter()
         .find(|p| p.operation.id == draft.id)
@@ -469,7 +485,7 @@ fn kind_label(kind: Option<&str>, currency: &str) -> &'static str {
     match (currency == BRL, kind) {
         (_, Some("CRIPTO")) => "Criptomoedas",
         (_, Some("FUNDO")) => "Fundos de investimento",
-        (_, Some("RENDA_FIXA")) => "Renda fixa (cofrinhos)",
+        (_, Some("RENDA_FIXA")) => "Renda fixa",
         (true, Some("ACAO")) => "Ações",
         (true, Some("FII")) => "FIIs",
         (true, Some("ETF")) => "ETFs",
@@ -937,7 +953,7 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                 .join(", ")
         ));
     }
-    let savings_year_end = savings_reports(v)?
+    let mut savings_year_end: Vec<SavingsYearEnd> = savings_reports(v)?
         .into_iter()
         .flat_map(|r| {
             r.year_end
@@ -952,6 +968,22 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                 .collect::<Vec<_>>()
         })
         .collect();
+    // Imóveis e veículos: custo em 31/12 (compra + obras até a data).
+    let works = v.list_improvements().map_err(s)?;
+    for item in v.list_owned().map_err(s)? {
+        for year in item.bought_on.year()..=as_of.year() {
+            let end = NaiveDate::from_ymd_opt(year, 12, 31).expect("31/12");
+            if let Some(value) = item.cost_on(&works, end) {
+                savings_year_end.push(SavingsYearEnd {
+                    year,
+                    name: item.name.clone(),
+                    account: String::new(),
+                    kind: item.kind.label(),
+                    value,
+                });
+            }
+        }
+    }
     Ok(TaxView {
         savings_year_end,
         months,
@@ -1568,6 +1600,7 @@ mod savings_tests {
             note: None,
             since: None,
             until: None,
+            fixed: None,
         };
         let c = v.create_savings(mk(SavingsKind::Cofrinho)).unwrap();
         let f = v.create_savings(mk(SavingsKind::Fgts)).unwrap();
@@ -1611,7 +1644,7 @@ mod savings_tests {
         );
         let dash = dashboard(&v, today()).unwrap();
         assert_eq!(dash.other_balances.len(), 1);
-        assert_eq!(dash.allocation[0].label, "Renda fixa (cofrinhos)");
+        assert_eq!(dash.allocation[0].label, "Renda fixa");
         let sv = savings_view(&v).unwrap();
         assert_eq!(sv.total_investments, dec!(900));
         assert_eq!(sv.total_others, dec!(5000), "FGTS sem estimativa");

@@ -11,6 +11,7 @@ mod incomes;
 mod kdf;
 mod migrations;
 mod notes;
+mod owned;
 mod records;
 mod savings;
 

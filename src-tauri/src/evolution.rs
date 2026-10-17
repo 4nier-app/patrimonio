@@ -222,8 +222,8 @@ fn group_of(kind: Option<&str>, currency: &str, account: &str) -> (&'static str,
     }
 }
 
-const ORDER: [&str; 8] = [
-    "fundos", "b3", "fii", "exterior", "cripto", "rf", "fgts", "dinheiro",
+const ORDER: [&str; 9] = [
+    "fundos", "b3", "fii", "exterior", "cripto", "rf", "fgts", "dinheiro", "bens",
 ];
 
 struct Inputs<'a> {
@@ -231,6 +231,8 @@ struct Inputs<'a> {
     table: &'a PriceTable,
     fx: &'a FxTable,
     reports: &'a [SavingsReport],
+    owned: &'a [carteira_core::owned::OwnedAsset],
+    works: &'a [carteira_core::owned::Improvement],
 }
 
 fn build(
@@ -371,7 +373,7 @@ fn build(
             (gain, since)
         };
         let key = match r.savings.kind {
-            SavingsKind::Cofrinho => ("rf", "Renda fixa (cofrinhos)".to_string()),
+            SavingsKind::Cofrinho | SavingsKind::RendaFixa => ("rf", "Renda fixa".to_string()),
             SavingsKind::Fgts => ("fgts", "FGTS".to_string()),
             SavingsKind::Conta | SavingsKind::Beneficio => ("dinheiro", "Dinheiro".to_string()),
         };
@@ -382,12 +384,23 @@ fn build(
             // banco em cima e o tipo embaixo ("Itaú" / "Conta corrente").
             // FGTS não tem banco: "FGTS", ou o nome (de quem é) com "FGTS"
             // embaixo.
+            // Renda fixa: o nome (ou o produto) em cima; banco e vencimento
+            // embaixo.
             name: match (r.savings.kind, r.savings.own_name()) {
                 (_, Some(n)) => n.to_string(),
                 (SavingsKind::Fgts, None) => r.savings.kind.label().to_string(),
+                (SavingsKind::RendaFixa, None) => r.savings.title().to_string(),
                 (_, None) => r.savings.account.clone(),
             },
             detail: match (r.savings.kind, r.savings.own_name()) {
+                (SavingsKind::RendaFixa, _) => {
+                    Some(match r.savings.fixed.as_ref().and_then(|f| f.maturity) {
+                        Some(m) => {
+                            format!("{} · vence {}", r.savings.account, m.format("%d/%m/%Y"))
+                        }
+                        None => r.savings.account.clone(),
+                    })
+                }
                 (SavingsKind::Fgts, Some(_)) => Some(r.savings.kind.label().to_string()),
                 (SavingsKind::Fgts, None) => None,
                 (_, Some(_)) => Some(r.savings.account.clone()),
@@ -402,6 +415,28 @@ fn build(
             gain,
             since,
         });
+    }
+
+    // Bens: o custo (compra + obras) em cada coluna; some depois da venda.
+    for b in inp.owned {
+        let values: Vec<Option<Decimal>> =
+            cols.iter().map(|c| b.cost_on(inp.works, c.date)).collect();
+        if values.iter().all(Option::is_none) {
+            continue;
+        }
+        rows.entry(("bens", "Bens (imóveis e veículos)".to_string()))
+            .or_default()
+            .push(Row {
+                asset: None,
+                savings_id: None,
+                name: b.name.clone(),
+                detail: Some(b.kind.label().to_string()),
+                values,
+                missing: vec![false; n],
+                outside: vec![false; n],
+                gain: None,
+                since: None,
+            });
     }
 
     // Resultado de cada linha: valor final − inicial − (compras − vendas).
@@ -604,7 +639,11 @@ fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
 }
 
 /// Primeiro dia com patrimônio (lançamento ou saldo).
-fn first_day(ops: &[PricedOperation], reports: &[SavingsReport]) -> Option<NaiveDate> {
+fn first_day(
+    ops: &[PricedOperation],
+    reports: &[SavingsReport],
+    owned: &[carteira_core::owned::OwnedAsset],
+) -> Option<NaiveDate> {
     ops.iter()
         .map(|p| p.operation.date)
         .chain(
@@ -612,16 +651,17 @@ fn first_day(ops: &[PricedOperation], reports: &[SavingsReport]) -> Option<Naive
                 .iter()
                 .filter_map(|r| r.units_history.first().map(|(d, _)| *d)),
         )
+        .chain(owned.iter().map(|b| b.bought_on))
         .min()
 }
 
 pub fn evolution(v: &Vault, year: Option<i32>, today: NaiveDate) -> Result<EvolutionView, String> {
     let all = crate::views::engine_operations(v)?;
-    let (ops, _) =
-        carteira_core::operations::price_operations(&carteira_core::fees::default_rules(), &all)
-            .map_err(s)?;
+    let (ops, _) = crate::views::price_all(v, &all)?;
     let reports = crate::views::savings_reports(v)?;
-    let Some(first) = first_day(&ops, &reports) else {
+    let owned = v.list_owned().map_err(s)?;
+    let works = v.list_improvements().map_err(s)?;
+    let Some(first) = first_day(&ops, &reports, &owned) else {
         return Ok(EvolutionView {
             years: Vec::new(),
             year,
@@ -651,6 +691,8 @@ pub fn evolution(v: &Vault, year: Option<i32>, today: NaiveDate) -> Result<Evolu
         table: &table,
         fx: &fx,
         reports: &reports,
+        owned: &owned,
+        works: &works,
     };
     build(v, &inp, year, years, first, today)
 }
@@ -789,6 +831,7 @@ mod tests {
                 note: None,
                 since: Some(d(2026, 2, 1)),
                 until: None,
+                fixed: None,
             })
             .unwrap();
         v.create_savings_move(SavingsMove {
@@ -825,6 +868,7 @@ mod tests {
             note: None,
             since: Some(since),
             until,
+            fixed: None,
         };
         v.create_savings(outra("Banco Y", d(2025, 6, 1), None))
             .unwrap();
@@ -916,6 +960,74 @@ mod tests {
         // OUTR3 foi vendida antes do período: não aparece.
         let names: Vec<_> = all.groups[0].rows.iter().map(|r| r.name.as_str()).collect();
         assert_eq!(names, vec!["TEST3"]);
+    }
+
+    #[test]
+    fn bens_pelo_custo_com_as_obras() {
+        use carteira_core::owned::{Improvement, OwnedAsset, OwnedKind};
+        use carteira_storage::KdfParams;
+        use rust_decimal_macros::dec;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-123",
+            "0.14.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
+        let bem = |kind, name: &str, bought_on, price, sold_on| OwnedAsset {
+            id: String::new(),
+            kind,
+            name: name.into(),
+            bought_on,
+            price,
+            sold_on,
+            note: None,
+        };
+        let casa = v
+            .create_owned(bem(
+                OwnedKind::Imovel,
+                "Casa",
+                d(2025, 6, 10),
+                dec!(300000),
+                None,
+            ))
+            .unwrap();
+        v.create_improvement(Improvement {
+            id: String::new(),
+            owned_id: casa.id.clone(),
+            date: d(2026, 2, 5),
+            amount: dec!(25000),
+            description: "Reforma da cozinha".into(),
+        })
+        .unwrap();
+        v.create_owned(bem(
+            OwnedKind::Veiculo,
+            "Carro",
+            d(2026, 1, 20),
+            dec!(80000),
+            Some(d(2026, 3, 1)),
+        ))
+        .unwrap();
+
+        let view = evolution(&v, Some(2026), d(2026, 3, 4)).unwrap();
+        let g = view.groups.iter().find(|g| g.id == "bens").unwrap();
+        assert!(!g.investment);
+        let at = |m: u32| {
+            view.columns
+                .iter()
+                .position(|c| c.date.month() == m && c.date.year() == 2026)
+                .unwrap()
+        };
+        let row = |name: &str| g.rows.iter().find(|r| r.name == name).unwrap();
+        // Janeiro: só a compra; fevereiro: compra + obra.
+        assert_eq!(row("Casa").values[at(1)], Some(dec!(300000)));
+        assert_eq!(row("Casa").values[at(2)], Some(dec!(325000)));
+        // O carro vendido em 01/03 sai do patrimônio.
+        assert_eq!(row("Carro").values[at(1)], Some(dec!(80000)));
+        assert_eq!(row("Carro").values[view.columns.len() - 1], None);
+        assert_eq!(view.total[at(2)], Some(dec!(405000)));
     }
 
     #[test]

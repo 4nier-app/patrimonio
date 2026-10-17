@@ -79,9 +79,7 @@ pub fn detail(v: &Vault, ticker: &str, as_of: NaiveDate) -> Result<AssetDetail, 
     let ticker = normalize_ticker(ticker);
     let asset = v.get_asset(&ticker).map_err(s)?;
     let all = crate::views::engine_operations(v)?;
-    let (priced, _) =
-        carteira_core::operations::price_operations(&carteira_core::fees::default_rules(), &all)
-            .map_err(|e| e.to_string())?;
+    let (priced, _) = crate::views::price_all(v, &all)?;
     let mine: Vec<PricedOperation> = priced
         .into_iter()
         .filter(|p| p.operation.asset == ticker)
