@@ -10,6 +10,7 @@ import Incomes from "./Incomes";
 import Broker, { rememberAsset } from "./Broker";
 import Dashboard from "./Dashboard";
 import Events from "./Events";
+import Evolution from "./Evolution";
 import Operations from "./Operations";
 import Portfolio from "./Portfolio";
 import Returns from "./Returns";
@@ -24,6 +25,7 @@ const ImportNotes = lazy(() => import("./ImportNotes"));
 
 const TABS = [
   { id: "painel", label: "Painel" },
+  { id: "evolucao", label: "Evolução" },
   { id: "carteira", label: "Carteira" },
   { id: "homebroker", label: "Home broker" },
   { id: "lancamentos", label: "Lançamentos" },
@@ -232,6 +234,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             />
           )}
           {!asset && tab === "painel" && <Dashboard refresh={refresh} go={setTab} hasRecovery={status.has_recovery_key} />}
+          {!asset && tab === "evolucao" && <Evolution key={refresh} />}
           {!asset && tab === "carteira" && <Portfolio refresh={refresh} onOpen={openAsset} />}
           {!asset && tab === "homebroker" && <Broker refresh={refresh} onOpen={openAsset} />}
           {!asset && sections && (

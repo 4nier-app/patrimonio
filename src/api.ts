@@ -286,6 +286,34 @@ export const dashboardApi = {
   days: (year: number, month: number) => invoke<DaysView>("dashboard_days", { year, month }),
 };
 
+// ---------- evolução do patrimônio ----------
+
+export type EvolutionColumn = { date: string; kind: "BASE" | "MONTH" | "YEAR" | "YESTERDAY" | "TODAY" | "FUTURE" };
+export type EvolutionRow = {
+  /** Código no motor; vazio para FGTS, conta e benefício (não são investimento). */
+  asset: string | null;
+  name: string;
+  detail: string | null;
+  values: (Dec | null)[];
+  missing: boolean[];
+};
+export type EvolutionGroup = { id: string; label: string; investment: boolean; rows: EvolutionRow[]; total: (Dec | null)[] };
+export type EvolutionView = {
+  years: number[];
+  year: number | null;
+  columns: EvolutionColumn[];
+  groups: EvolutionGroup[];
+  total: (Dec | null)[];
+  investments: (Dec | null)[];
+  /** Aportes − resgates dos investimentos desde a coluna anterior. */
+  new_money: (Dec | null)[];
+  incomplete: boolean;
+};
+
+export const evolutionApi = {
+  load: (year: number | null) => invoke<EvolutionView>("evolution", { year }),
+};
+
 // ---------- impostos ----------
 
 export type TaxGroup = "COMUM" | "DAY_TRADE" | "FII";

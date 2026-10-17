@@ -6,7 +6,25 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.10.0] - Não lançada
+## [0.11.0] - Não lançada
+
+### Adicionado
+- Nova aba **Evolução**: o patrimônio no fim de cada mês, em reais (o que
+  está em dólar vai pela PTAX do dia), como uma planilha de controle.
+  - Linhas agrupadas: fundos (por banco), ETFs e ações no exterior, renda
+    variável, renda fixa (cofrinhos), FGTS (saldo e fundos FMP-FGTS) e
+    dinheiro (conta corrente e cartões benefício). Cada grupo recolhe com
+    um clique e o app lembra.
+  - Colunas: 31/12 do ano anterior e os 12 meses do ano. No ano atual, o
+    mês corrente aparece como ontem e hoje, e os meses seguintes ficam em
+    branco. "Todos os anos" mostra o 31/12 de cada ano.
+  - Embaixo de cada valor, a variação em relação à coluna anterior; na
+    última coluna, o ganho no período em R$ e %.
+  - Total dos investimentos e total geral. A variação dos investimentos é
+    separada em dinheiro novo (aportes menos resgates) e rendimento, para
+    um aporte não parecer lucro nem um saque parecer prejuízo.
+
+## [0.10.0] - 2026-10-17
 
 ### Adicionado
 - Lançamentos → **Saldos e cofrinhos**: acompanhe cofrinhos (caixinhas que

@@ -3,6 +3,7 @@
 
 mod asset;
 mod changelog;
+mod evolution;
 mod market;
 mod recovery;
 mod views;
@@ -608,6 +609,15 @@ fn dashboard(state: State<AppState>) -> Result<views::DashboardView, String> {
     with_vault_str(&state, |v| views::dashboard(v, today()))
 }
 
+/// Evolução do patrimônio de um ano (ou de todos, com `year` vazio).
+#[tauri::command]
+fn evolution(
+    year: Option<i32>,
+    state: State<AppState>,
+) -> Result<evolution::EvolutionView, String> {
+    with_vault_str(&state, |v| evolution::evolution(v, year, today()))
+}
+
 #[tauri::command]
 fn dashboard_days(
     year: i32,
@@ -736,6 +746,7 @@ pub fn run() {
             resolve_b3_names,
             import_note,
             dashboard_days,
+            evolution,
             taxes,
             mark_darf_paid,
             unmark_darf_paid,

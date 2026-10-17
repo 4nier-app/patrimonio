@@ -512,3 +512,38 @@ th.sortable.sorted .sort-arrow { opacity: 1; color: var(--accent); }
 th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
 .today-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .today-total { font-size: 1.1rem; margin: 4px 0 8px; }
+
+/* Evolução do patrimônio: o ano inteiro numa tabela compacta. A primeira
+   coluna fica fixa se a janela for estreita demais e precisar rolar. */
+.evolution { display: flex; flex-direction: column; gap: 12px; }
+.evo-card { padding: 8px 0; }
+.evo-scroll { overflow-x: auto; }
+.evo-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.evo-table th, .evo-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.evo-table thead th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); white-space: nowrap; }
+.evo-table tbody th, .evo-table tfoot th { text-align: left; font-weight: 400; }
+.evo-table th:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 150px; max-width: 220px; padding-left: 16px; }
+.evo-table td:last-child, .evo-table th:last-child { padding-right: 16px; }
+.evo-sub { display: block; font-size: 0.68rem; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.evo-col.today { color: var(--accent); }
+.evo-cell { white-space: nowrap; }
+.evo-val { display: block; }
+.evo-val.strong { font-weight: 600; }
+.evo-val.pos, .evo-pct.pos { color: var(--ok); }
+.evo-val.neg, .evo-pct.neg { color: var(--error); }
+.evo-pct { display: block; font-size: 0.68rem; color: var(--muted); }
+.evo-gain { border-left: 1px solid var(--border); }
+.evo-group th, .evo-group td { background: var(--bg); }
+.evo-group th:first-child { background: var(--bg); font-weight: 600; white-space: nowrap; }
+.evo-group:hover th, .evo-group:hover td { filter: brightness(0.97); }
+.evo-row th:first-child { padding-left: 32px; }
+.evo-asset { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evo-detail { display: block; font-size: 0.7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evo-total th, .evo-total td { border-top: 2px solid var(--border); }
+.evo-total th:first-child { font-weight: 700; }
+.evo-total.grand th, .evo-total.grand td { background: var(--bg); }
+.evo-flow th:first-child { color: var(--muted); padding-left: 32px; font-size: 0.75rem; }
+.evo-flow td { color: var(--muted); }
+.evo-table tbody th, .evo-table tfoot th { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 0.8rem; }
+.evo-table .evo-flow th:first-child, .evo-detail { color: var(--muted); }
+.evo-col.future { opacity: 0.55; }
