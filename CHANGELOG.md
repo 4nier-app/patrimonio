@@ -33,6 +33,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   patrimônio nem nas pendências do Painel. Os cadastros existentes recebem
   como "desde" o mês do primeiro saldo lançado. Na Evolução, os meses antes
   do "desde" e depois do "até" não ficam editáveis.
+- Campos de dinheiro aceitam **valor zero**: digitar 0 mostra "R$ 0,00" (por
+  exemplo, para zerar o saldo de um cartão benefício encerrado).
 - Evolução: FGTS, conta e cartão benefício mostram a **variação simples** em
   "No período" (último saldo − primeiro saldo do período) e em "Desde o
   início" (último saldo − primeiro saldo informado).

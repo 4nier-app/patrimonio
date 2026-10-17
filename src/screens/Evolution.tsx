@@ -3,7 +3,7 @@ import YearPager from "../components/YearPager";
 import { errorMessage, evolutionApi, savingsApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
 import CashInput from "../components/CashInput";
 import Intro from "../components/Intro";
-import { date, money, monthLabel, parseDecimalInput, percent, toCashMask, tone } from "../format";
+import { cashZero, date, money, monthLabel, parseDecimalInput, percent, toCashMask, tone } from "../format";
 
 // Na tabela, valores sem "R$" (o cabeçalho já diz) para caber o ano inteiro.
 const numFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -284,7 +284,12 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                                         savingsId: r.savings_id!,
                                         name: r.name,
                                         date: c.date,
-                                        amount: r.values[i] == null ? "" : toCashMask(r.values[i]!, 2).text,
+                                        amount:
+                                          r.values[i] == null
+                                            ? ""
+                                            : Number(r.values[i]) === 0
+                                              ? cashZero(2)
+                                              : toCashMask(r.values[i]!, 2).text,
                                         month: c.kind === "MONTH",
                                       })
                                   : undefined
