@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import YearPager from "../components/YearPager";
 import { errorMessage, evolutionApi, savingsApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
 import CashInput from "../components/CashInput";
 import Intro from "../components/Intro";
@@ -117,33 +118,6 @@ function FlowRow({ label, hint, values }: { label: string; hint: string; values:
       </td>
       <td className="num evo-cell" />
     </tr>
-  );
-}
-
-/** Anos lado a lado, do mais antigo ao mais recente, com setas. */
-function YearPager({ years, year, onChange }: { years: number[]; year: number; onChange: (y: number) => void }) {
-  const list = [...years].sort((a, b) => a - b);
-  const i = list.indexOf(year);
-  return (
-    <nav className="segmented year-pager" aria-label="Ano">
-      <button type="button" className="seg" disabled={i <= 0} onClick={() => onChange(list[i - 1])} aria-label="Ano anterior">
-        ‹
-      </button>
-      {list.map((y) => (
-        <button key={y} type="button" className={y === year ? "seg active" : "seg"} aria-current={y === year} onClick={() => onChange(y)}>
-          {y}
-        </button>
-      ))}
-      <button
-        type="button"
-        className="seg"
-        disabled={i < 0 || i >= list.length - 1}
-        onClick={() => onChange(list[i + 1])}
-        aria-label="Próximo ano"
-      >
-        ›
-      </button>
-    </nav>
   );
 }
 
@@ -307,6 +281,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
                                         name: r.name,
                                         date: c.date,
                                         amount: r.values[i] == null ? "" : toCashMask(r.values[i]!, 2).text,
+                                        month: c.kind === "MONTH",
                                       })
                                   : undefined
                               }
@@ -362,13 +337,38 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
   );
 }
 
-type Editing = { savingsId: string; name: string; date: string; amount: string };
+type Editing = { savingsId: string; name: string; date: string; amount: string; month: boolean };
 
 /** Saldo informado numa data: grava como "Saldo informado" em Saldos e cofrinhos. */
 function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () => void; onSaved: () => void }) {
   const [amount, setAmount] = useState(edit.amount);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState(false);
+
+  // Apaga o saldo informado no mês (FGTS, conta e benefício não têm outra
+  // lista de movimentos). Depósitos e resgates de cofrinho ficam.
+  async function erase() {
+    if (!confirm) return setConfirm(true);
+    setBusy(true);
+    setError(null);
+    try {
+      const view = await savingsApi.load();
+      const item = view.items.find((x) => x.savings.id === edit.savingsId);
+      const month = edit.date.slice(0, 7);
+      const saldos = item?.moves.filter((m) => m.kind === "SALDO" && m.date.startsWith(month) && m.date <= edit.date) ?? [];
+      if (saldos.length === 0) {
+        setBusy(false);
+        setConfirm(false);
+        return setError("Não há saldo informado neste mês; o valor vem de um depósito ou resgate do cofrinho.");
+      }
+      for (const m of saldos) await savingsApi.removeMove(m.id);
+      onSaved();
+    } catch (err) {
+      setError(errorMessage(err));
+      setBusy(false);
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -406,7 +406,6 @@ function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () 
           Saldo que o app do banco mostrava nesse dia
           <CashInput value={amount} decimals={2} currency="BRL" onChange={setAmount} required />
         </label>
-        <p className="muted small">Fica gravado em Evolução › Saldos e cofrinhos, onde dá para ver e corrigir o histórico.</p>
         {error && <p className="error">{error}</p>}
         <div className="actions">
           <button type="submit" disabled={busy}>
@@ -415,6 +414,14 @@ function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () 
           <button type="button" className="secondary" onClick={onClose}>
             Cancelar
           </button>
+          {edit.month && edit.amount !== "" && (
+            <>
+              <span className="spacer" />
+              <button type="button" className={confirm ? "danger" : "link subtle"} disabled={busy} onClick={() => void erase()}>
+                {confirm ? "Confirmar: apagar" : "Apagar este saldo"}
+              </button>
+            </>
+          )}
         </div>
       </form>
     </aside>

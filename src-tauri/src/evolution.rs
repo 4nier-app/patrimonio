@@ -344,11 +344,9 @@ fn build(
             asset: r.savings.kind.is_investment().then(|| r.ticker.clone()),
             savings_id: Some(r.savings.id.clone()),
             name: r.savings.name.clone(),
-            detail: Some(format!(
-                "{} · {}",
-                r.savings.kind.label(),
-                r.savings.account
-            )),
+            // O nome já diz o tipo quando não foi preenchido ("Conta
+            // corrente"); embaixo, só o banco.
+            detail: Some(r.savings.account.clone()),
             values,
             missing: vec![false; n],
             gain: None,

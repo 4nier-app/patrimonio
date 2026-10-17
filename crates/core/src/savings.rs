@@ -279,7 +279,8 @@ pub struct SavingsReport {
     pub unit_values: Vec<(NaiveDate, Decimal)>,
     /// Operações equivalentes, para a carteira e a rentabilidade.
     pub operations: Vec<Operation>,
-    /// Saldo bruto estimado hoje e o que sobraria depois do IR e do IOF.
+    /// Saldo hoje (o último informado, mais depósitos e menos resgates
+    /// depois dele); `balance_net` é igual, sem IR estimado.
     pub balance: Decimal,
     pub balance_net: Decimal,
     /// Quanto do saldo é dinheiro depositado (custo das cotas).
@@ -344,25 +345,9 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
         return report;
     };
 
-    // Valor da cota: R$ 1. Só o FGTS ainda cresce entre um saldo e outro.
-    let mut unit = Decimal::ONE;
+    // Valor da cota: R$ 1, sempre; nada é estimado entre um saldo e outro.
+    let unit = Decimal::ONE;
     let mut values = vec![(first, unit)];
-    match savings.kind {
-        SavingsKind::Fgts => {
-            // 3% ao ano, capitalizados por mês como a Caixa faz (dia 10),
-            // aqui espalhados dia a dia: 1,03^(1/365) por dia corrido.
-            let daily = Decimal::new(10_000_809_868, 10);
-            let mut d = first;
-            while let Some(next) = d.succ_opt().filter(|n| *n <= today) {
-                unit = (unit * daily).round_dp(12);
-                if next.day() == 1 || next == today {
-                    values.push((next, unit));
-                }
-                d = next;
-            }
-        }
-        SavingsKind::Cofrinho | SavingsKind::Conta | SavingsKind::Beneficio => {}
-    }
     if values.last().map(|(d, _)| *d) != Some(today) {
         values.push((today, unit));
     }
@@ -631,12 +616,8 @@ mod tests {
             "depósitos do empregador não são lançados"
         );
         assert_eq!(r.invested, dec!(20000));
-        // De julho a dezembro, 3% ao ano: cerca de 1,4%.
-        assert!(
-            r.balance > dec!(23300) && r.balance < dec!(23360),
-            "{}",
-            r.balance
-        );
+        // Sem estimativa: vale o último saldo informado.
+        assert_eq!(r.balance, dec!(23000));
         assert_eq!(r.balance_net, r.balance, "FGTS não tem IR");
 
         let conta = Savings {

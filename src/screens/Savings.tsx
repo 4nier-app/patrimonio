@@ -325,7 +325,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   </datalist>
                 </label>
                 <label>
-                  Nome
+                  Nome (opcional)
                   <input value={form.name} placeholder={NAME_HINT[form.kind]} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </label>
               </div>
@@ -375,16 +375,16 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               <div className="card savings-card" key={s.id}>
                 <div className="savings-head">
                   <div>
-                    <span className="tag">{it.kind_label}</span>
+                    {s.name !== it.kind_label && <span className="tag">{it.kind_label}</span>}
                     <h3>
                       {s.name} <span className="muted">· {s.account}</span>
                     </h3>
                     <p className="muted small">
                       {it.last_informed ? `Último saldo informado em ${date(it.last_informed)}` : "Nenhum saldo informado ainda"}
-                                          </p>
+                    </p>
                   </div>
                   <div className="savings-balance">
-                    <span className="muted small">{s.kind === "FGTS" ? "Saldo estimado hoje" : "Saldo"}</span>
+                    <span className="muted small">{isCofrinho ? "Saldo" : "Último saldo informado"}</span>
                     <strong>{money(it.balance)}</strong>
                     {isCofrinho && Number(it.earned) !== 0 && (
                       <span className={`small ${tone(it.earned)}`}>
@@ -418,7 +418,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                       </>
                     )}
                     <span className="spacer" />
-                    {it.moves.length > 0 && (
+                    {isCofrinho && it.moves.length > 0 && (
                       <button type="button" className="link" onClick={() => setOpen((o) => ({ ...o, [s.id]: !o[s.id] }))}>
                         {open[s.id] ? "Esconder movimentos" : `Ver movimentos (${it.moves.length})`}
                       </button>
@@ -434,7 +434,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   moveForm(it)
                 )}
 
-                {open[s.id] && it.moves.length > 0 && (
+                {isCofrinho && open[s.id] && it.moves.length > 0 && (
                   <div className="scroll">
                     <table>
                       <thead>

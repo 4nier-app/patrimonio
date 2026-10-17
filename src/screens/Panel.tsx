@@ -14,6 +14,7 @@ import Chart, { axisStyle, base, usePalette, type Palette } from "../charts/Char
 import { date, money, monthLabel, percent, tone } from "../format";
 import { Cards, compact, FirstSteps, type Go } from "./Dashboard";
 import { columnLabel } from "./Evolution";
+import YearPager from "../components/YearPager";
 
 /** Abas e seções que o Painel abre. */
 export type PanelGo = (
@@ -91,6 +92,9 @@ export default function Panel({
   const [all, setAll] = useState<EvolutionView | null>(null);
   const [dash, setDash] = useState<DashboardView | null>(null);
   const [allYears, setAllYears] = useState(false);
+  // Ano do gráfico; os outros anos são carregados quando escolhidos.
+  const [chartYear, setChartYear] = useState(() => new Date().getFullYear());
+  const [byYear, setByYear] = useState<Record<number, EvolutionView>>({});
   const [error, setError] = useState<string | null>(null);
   const p = usePalette();
 
@@ -103,6 +107,19 @@ export default function Panel({
       })
       .catch((e) => setError(errorMessage(e)));
   }, [refresh]);
+
+  useEffect(() => {
+    setAll(null);
+    setByYear({});
+  }, [refresh]);
+
+  useEffect(() => {
+    if (allYears || !year || chartYear === year.year || byYear[chartYear]) return;
+    evolutionApi
+      .load(chartYear)
+      .then((v) => setByYear((m) => ({ ...m, [chartYear]: v })))
+      .catch((e) => setError(errorMessage(e)));
+  }, [allYears, chartYear, year, byYear]);
 
   useEffect(() => {
     if (!allYears || all) return;
@@ -214,16 +231,22 @@ export default function Panel({
         <div className="card dash-block wide">
           <div className="block-head">
             <h3>Evolução do patrimônio</h3>
-            <div className="segmented small" role="group" aria-label="Período do gráfico">
-              <button className={!allYears ? "seg active" : "seg"} onClick={() => setAllYears(false)}>
-                {thisYear}
-              </button>
-              <button className={allYears ? "seg active" : "seg"} onClick={() => setAllYears(true)}>
-                Todos os anos
-              </button>
+            <div className="chart-controls">
+              {!allYears && <YearPager years={year.years} year={chartYear} onChange={setChartYear} small />}
+              <div className="segmented small" role="group" aria-label="Período do gráfico">
+                <button className={!allYears ? "seg active" : "seg"} onClick={() => setAllYears(false)}>
+                  Por mês
+                </button>
+                <button className={allYears ? "seg active" : "seg"} onClick={() => setAllYears(true)}>
+                  Todos os anos
+                </button>
+              </div>
             </div>
           </div>
-          {allYears && !all ? <p className="muted">Calculando…</p> : <Evolution view={allYears && all ? all : year} p={p} />}
+          {(() => {
+            const shown = allYears ? all : chartYear === year.year ? year : byYear[chartYear];
+            return shown ? <Evolution view={shown} p={p} /> : <p className="muted">Calculando…</p>;
+          })()}
         </div>
 
         <div className="card dash-block">

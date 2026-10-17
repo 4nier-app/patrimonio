@@ -1596,11 +1596,7 @@ mod savings_tests {
         let p = portfolio(&v, today()).unwrap();
         assert_eq!(p.positions.len(), 1, "só o cofrinho é investimento");
         assert_eq!(p.positions[0].asset, carteira_core::savings::ticker(&c.id));
-        assert_eq!(
-            p.market_value,
-            Some(dec!(900)),
-            "sem CDI baixado, não rende"
-        );
+        assert_eq!(p.market_value, Some(dec!(900)), "cofrinho sem estimativa");
         assert_eq!(
             p.kinds.get(&p.positions[0].asset).map(String::as_str),
             Some("RENDA_FIXA")
@@ -1615,6 +1611,6 @@ mod savings_tests {
         assert_eq!(dash.allocation[0].label, "Renda fixa (cofrinhos)");
         let sv = savings_view(&v).unwrap();
         assert_eq!(sv.total_investments, dec!(900));
-        assert!(sv.total_others > dec!(5000), "FGTS rende 3% ao ano");
+        assert_eq!(sv.total_others, dec!(5000), "FGTS sem estimativa");
     }
 }

@@ -25,9 +25,17 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Evolução: nova coluna **Desde o início**, ao lado de "No período", com o
   resultado de cada investimento desde a primeira compra (valor de hoje +
   vendas − compras), por grupo e no total dos investimentos.
-- Evolução: a lista de período virou uma navegação entre os anos
-  (‹ 2025 2026 ›) e saiu a opção "Todos os anos", que a coluna "Desde o
-  início" substitui. O gráfico do Painel continua com "Todos os anos".
+- Evolução: a lista de período virou o ano entre setas (‹ 2026 ›) e saiu a
+  opção "Todos os anos", que a coluna "Desde o início" substitui.
+- Painel: o gráfico da evolução também tem o ano entre setas, para ver
+  qualquer ano mês a mês, e o botão "Todos os anos".
+- FGTS, conta corrente e cartão benefício: sem lista de movimentos e sem
+  estimativa (o FGTS não soma mais 3% ao ano); o cartão mostra o último saldo
+  informado. Para apagar um saldo digitado errado, clique no mês na Evolução e
+  use "Apagar este saldo".
+- Na Evolução, a linha da conta não repete mais o tipo: "Conta corrente" em
+  cima e só o banco embaixo. O nome no cadastro é opcional; em branco, vira o
+  tipo.
 - Ao trocar de aba, a tela volta para o topo.
 - **Cofrinhos não são mais estimados**: como a conta corrente e os cartões
   benefício, valem só os saldos que você informa na Evolução, mês a mês. O app

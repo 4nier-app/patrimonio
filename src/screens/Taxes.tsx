@@ -462,8 +462,8 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
               <div className="card">
                 <p className="small muted">
                   Cofrinhos e contas são declarados pelo saldo em 31/12 (cofrinho em "Aplicações de renda fixa", conta corrente em "Depósito em conta
-                  corrente", se acima de R$ 140). O saldo é o estimado pelo app a partir do último saldo informado; confira com o informe de rendimentos do
-                  banco.
+                  corrente", se acima de R$ 140). O saldo é o último informado até 31/12 (informe o de dezembro na Evolução); confira com o informe de rendimentos
+                  do banco.
                 </p>
                 <table className="tax-positions">
                   <thead>

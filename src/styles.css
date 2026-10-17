@@ -577,7 +577,11 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .division-bar { height: 6px; background: var(--bg); border-radius: 999px; overflow: hidden; margin-top: 4px; }
 .division-bar span { display: block; height: 100%; border-radius: 999px; }
 
-/* Paginação de anos na Evolução */
-.year-pager { align-self: flex-start; flex-wrap: wrap; }
-.year-pager .seg:disabled { opacity: 0.35; cursor: default; }
-.year-pager .seg[aria-label] { font-size: 1.1rem; line-height: 1; padding: 6px 10px; }
+/* Ano entre setas (Evolução e Painel) */
+.year-pager { align-self: flex-start; align-items: stretch; }
+.year-pager .seg.year { display: inline-flex; align-items: center; padding: 6px 14px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 4.5em; justify-content: center; }
+.year-pager .seg.arrow { font-size: 1.15rem; line-height: 1; padding: 6px 12px; }
+.year-pager .seg.arrow:disabled { opacity: 0.35; cursor: default; }
+.segmented.small.year-pager .seg.year { padding: 3px 10px; }
+.segmented.small.year-pager .seg.arrow { padding: 3px 9px; }
+.chart-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
