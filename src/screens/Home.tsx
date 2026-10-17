@@ -44,7 +44,7 @@ const SECTIONS = {
   ],
   evolucao: [
     { id: "patrimonio", label: "Patrimônio" },
-    { id: "saldos", label: "Saldos e cofrinhos" },
+    { id: "saldos", label: "Contas e reservas" },
   ],
   lancamentos: [
     { id: "manual", label: "Incluir e editar" },
@@ -267,7 +267,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             </Suspense>
           )}
           {!asset && tab === "evolucao" && current === "patrimonio" && (
-            <Evolution key={refresh} onSavings={() => setTab("evolucao", "saldos")} />
+            <Evolution key={refresh} />
           )}
           {!asset && tab === "evolucao" && current === "saldos" && <Savings onChanged={() => void updateQuotes()} />}
           {!asset && tab === "lancamentos" && current === "eventos" && (

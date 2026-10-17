@@ -17,6 +17,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   dinheiro de lugar, e o valor já estava dentro do total dos investimentos.
   Fica o **Rendimento**, que mostra quanto os investimentos renderam sem
   contar compras e vendas.
+- A seção **Saldos e cofrinhos** da Evolução passou a se chamar **Contas e
+  reservas**, e saiu o link "Cadastrar conta, FGTS ou cofrinho", que repetia
+  a seção ao lado.
 
 ## [0.12.0] - 2026-10-17
 

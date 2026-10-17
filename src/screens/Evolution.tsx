@@ -130,7 +130,7 @@ const diffs = (values: (Dec | null)[]): (string | null)[] =>
     return (Number(v ?? 0) - Number(prev ?? 0)).toFixed(2);
   });
 
-export default function Evolution({ onSavings }: { onSavings?: () => void }) {
+export default function Evolution() {
   const [year, setYear] = useState<number | null | undefined>(undefined);
   const [view, setView] = useState<EvolutionView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -179,14 +179,6 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
         >
           Quanto você tinha no fim de cada mês, agrupado por tipo, com o total dos investimentos e o total geral. Para informar o saldo da
           conta, do FGTS, de um cofrinho ou cartão benefício num mês, clique na célula.
-          {onSavings && (
-            <>
-              {" "}
-              <button type="button" className="link" onClick={onSavings}>
-                Cadastrar conta, FGTS ou cofrinho ›
-              </button>
-            </>
-          )}
         </Intro>
       </div>
       {view.years.length > 0 && year != null && (
@@ -343,7 +335,7 @@ export default function Evolution({ onSavings }: { onSavings?: () => void }) {
 
 type Editing = { savingsId: string; name: string; date: string; amount: string; month: boolean };
 
-/** Saldo informado numa data: grava como "Saldo informado" em Saldos e cofrinhos. */
+/** Saldo informado numa data: grava como "Saldo informado" em Contas e reservas. */
 function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () => void; onSaved: () => void }) {
   const [amount, setAmount] = useState(edit.amount);
   const [busy, setBusy] = useState(false);
