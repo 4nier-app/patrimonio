@@ -184,10 +184,40 @@ pub fn trades_of(priced: &[PricedOperation]) -> Vec<Trade> {
     priced.iter().filter_map(PricedOperation::trade).collect()
 }
 
+/// Corretagem de uma conta nos lançamentos à mão: valor fixo por ordem, mais
+/// ISS sobre ele, a partir de uma data (as ordens antigas não mudam).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Brokerage {
+    pub per_order: Decimal,
+    pub iss_pct: Decimal,
+    pub since: NaiveDate,
+}
+
+impl Brokerage {
+    /// Corretagem + ISS de uma ordem, em centavos.
+    pub fn per_order_total(&self) -> Decimal {
+        (self.per_order * (Decimal::ONE + self.iss_pct / Decimal::from(100)))
+            .round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
+    }
+}
+
+/// Corretagem por conta.
+pub type BrokerageTable = BTreeMap<String, Brokerage>;
+
 /// Atribui as taxas a cada operação, agrupando por conta e pregão.
 pub fn price_operations(
     rules: &[FeeRule],
     ops: &[Operation],
+) -> Result<(Vec<PricedOperation>, Vec<NoteGroup>), FeeError> {
+    price_operations_with(rules, ops, &BrokerageTable::new())
+}
+
+/// Como [`price_operations`], somando a corretagem da conta às ordens com
+/// taxa automática.
+pub fn price_operations_with(
+    rules: &[FeeRule],
+    ops: &[Operation],
+    brokerage: &BrokerageTable,
 ) -> Result<(Vec<PricedOperation>, Vec<NoteGroup>), FeeError> {
     let mut groups: BTreeMap<(String, NaiveDate), Vec<&Operation>> = BTreeMap::new();
     // Taxas da B3: só operações em reais (compra e venda), sem taxa informada;
@@ -210,7 +240,12 @@ pub fn price_operations(
         let values: Vec<Decimal> = members.iter().map(|o| o.gross()).collect();
         let fees = compute_note_fees(rules, date, &values)?;
         for (i, op) in members.iter().enumerate() {
-            auto.insert(op.id.clone(), fees.fees_of(i));
+            let broker = brokerage
+                .get(&op.account)
+                .filter(|b| op.date >= b.since)
+                .map(Brokerage::per_order_total)
+                .unwrap_or_default();
+            auto.insert(op.id.clone(), fees.fees_of(i) + broker);
         }
         notes.push(NoteGroup {
             account,
@@ -277,6 +312,33 @@ mod tests {
             ir: None,
             iof: None,
         }
+    }
+
+    #[test]
+    fn corretagem_da_conta_a_partir_da_data() {
+        let ops = vec![
+            op("a", "Corretora X", 2, dec!(10), dec!(10), None),
+            op("b", "Corretora X", 9, dec!(10), dec!(10), None),
+            op("c", "Corretora X", 9, dec!(10), dec!(10), Some(dec!(1))),
+        ];
+        let table: BrokerageTable = [(
+            "Corretora X".to_string(),
+            Brokerage {
+                per_order: dec!(4.90),
+                iss_pct: dec!(5),
+                since: NaiveDate::from_ymd_opt(2026, 3, 5).unwrap(),
+            },
+        )]
+        .into();
+        let plain = price_operations(&default_rules(), &ops).unwrap().0;
+        let with = price_operations_with(&default_rules(), &ops, &table)
+            .unwrap()
+            .0;
+        // Antes da data, nada muda; depois, 4,90 + 5% de ISS = 5,15 por ordem.
+        assert_eq!(with[0].fees, plain[0].fees);
+        assert_eq!(with[1].fees, plain[1].fees + dec!(5.15));
+        // Taxa informada à mão fica como está.
+        assert_eq!(with[2].fees, dec!(1));
     }
 
     #[test]

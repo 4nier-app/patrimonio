@@ -10,6 +10,7 @@ pub mod fund;
 pub mod income;
 pub mod model;
 pub mod operations;
+pub mod owned;
 pub mod portfolio;
 pub mod returns;
 pub mod savings;

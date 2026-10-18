@@ -16,6 +16,7 @@ import Operations from "./Operations";
 import Portfolio from "./Portfolio";
 import Returns from "./Returns";
 import Savings from "./Savings";
+import Owned from "./Owned";
 import Security from "./Security";
 import Taxes, { pendingDarfs } from "./Taxes";
 import { isSavings } from "../currency";
@@ -45,6 +46,7 @@ const SECTIONS = {
   evolucao: [
     { id: "patrimonio", label: "Patrimônio" },
     { id: "saldos", label: "Contas e reservas" },
+    { id: "bens", label: "Bens" },
   ],
   lancamentos: [
     { id: "manual", label: "Incluir e editar" },
@@ -270,6 +272,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             <Evolution key={refresh} />
           )}
           {!asset && tab === "evolucao" && current === "saldos" && <Savings onChanged={() => void updateQuotes()} />}
+          {!asset && tab === "evolucao" && current === "bens" && <Owned onChanged={() => setRefresh((n) => n + 1)} />}
           {!asset && tab === "lancamentos" && current === "eventos" && (
             <Events onChanged={() => void updateQuotes()} onIncomes={() => setTab("lancamentos", "proventos")} />
           )}

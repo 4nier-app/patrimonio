@@ -2,6 +2,8 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Intro from "../components/Intro";
 import { offerUndo } from "../undo";
 import {
+  brokerageApi,
+  type Brokerage,
   errorMessage,
   market,
   type Account,
@@ -27,6 +29,7 @@ import {
 } from "../format";
 import { currencyOfNewAccount, fundTicker, isFund, normalizeTicker } from "../currency";
 import CashInput from "../components/CashInput";
+import BrokerageBox from "../components/BrokerageBox";
 
 type Form = {
   id: string;
@@ -198,10 +201,13 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
   const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [brokerage, setBrokerage] = useState<Record<string, Brokerage>>({});
+  const [bump, setBump] = useState(0);
 
   function load() {
     market.listOperations().then(setList).catch((e) => setError(errorMessage(e)));
     market.listAccounts().then(setAccounts).catch(() => {});
+    brokerageApi.table().then(setBrokerage).catch(() => {});
   }
   useEffect(load, []);
 
@@ -298,7 +304,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
     }
     const t = setTimeout(() => market.preview(draft).then(setPreview).catch(() => setPreview(null)), 200);
     return () => clearTimeout(t);
-  }, [draft, form.asset, form.account]);
+  }, [draft, form.asset, form.account, bump]);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -756,6 +762,18 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
           </p>
         )}
 
+        {existing && existing.currency === "BRL" && !form.fund && !coin && !transfer && (
+          <BrokerageBox
+            key={existing.name}
+            account={existing.name}
+            current={brokerage[existing.name]}
+            onSaved={() => {
+              load();
+              setBump((n) => n + 1);
+              onChanged();
+            }}
+          />
+        )}
         {!transfer && !form.fund && (
           <label className="inline">
             <input type="checkbox" checked={form.manual} onChange={(e) => set("manual", e.target.checked)} />
@@ -816,6 +834,12 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
                 </ul>
                 {preview.note_operations > 1 && (
                   <p className="muted small">Cada taxa da nota é dividida entre os lançamentos na proporção do valor de cada um.</p>
+                )}
+                {existing && brokerage[existing.name] && form.date >= brokerage[existing.name].since && (
+                  <p className="muted small">
+                    Mais a corretagem de {existing.name}: {money(brokerage[existing.name].per_order)} por ordem
+                    {Number(brokerage[existing.name].iss_pct) > 0 && ` + ISS de ${brokerage[existing.name].iss_pct.replace(".", ",")}%`}.
+                  </p>
                 )}
               </details>
             )}

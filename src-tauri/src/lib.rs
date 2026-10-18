@@ -14,7 +14,8 @@ use std::sync::Mutex;
 
 use carteira_core::corporate::CorporateEvent;
 use carteira_core::income::Income;
-use carteira_core::operations::{Operation, PricedOperation};
+use carteira_core::operations::{Brokerage, Operation, PricedOperation};
+use carteira_core::owned::{Improvement, OwnedAsset};
 use carteira_core::savings::{Savings, SavingsMove};
 use carteira_ledger::Event;
 use carteira_storage::{
@@ -579,6 +580,87 @@ fn restore_savings_move(id: String, state: State<AppState>) -> Result<SavingsMov
     with_vault(&state, |v| v.restore_savings_move(&id))
 }
 
+/// Bens com as obras e o custo de hoje (compra + obras).
+#[derive(Serialize)]
+struct OwnedRow {
+    item: OwnedAsset,
+    works: Vec<Improvement>,
+    cost: rust_decimal::Decimal,
+}
+
+#[tauri::command]
+fn list_owned(state: State<AppState>) -> Result<Vec<OwnedRow>, String> {
+    with_vault(&state, |v| {
+        let works = v.list_improvements()?;
+        let day = today();
+        Ok(v.list_owned()?
+            .into_iter()
+            .map(|item| {
+                let mine: Vec<Improvement> = works
+                    .iter()
+                    .filter(|w| w.owned_id == item.id)
+                    .cloned()
+                    .collect();
+                let total: rust_decimal::Decimal = mine.iter().map(|w| w.amount).sum();
+                let cost = item
+                    .cost_on(&mine, day.max(item.bought_on))
+                    .unwrap_or(item.price + total);
+                OwnedRow {
+                    item,
+                    works: mine,
+                    cost,
+                }
+            })
+            .collect())
+    })
+}
+
+#[tauri::command]
+fn create_owned(item: OwnedAsset, state: State<AppState>) -> Result<OwnedAsset, String> {
+    with_vault(&state, |v| v.create_owned(item))
+}
+
+#[tauri::command]
+fn update_owned(item: OwnedAsset, state: State<AppState>) -> Result<OwnedAsset, String> {
+    with_vault(&state, |v| v.update_owned(item))
+}
+
+#[tauri::command]
+fn remove_owned(id: String, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_owned(&id))
+}
+
+#[tauri::command]
+fn create_improvement(item: Improvement, state: State<AppState>) -> Result<Improvement, String> {
+    with_vault(&state, |v| v.create_improvement(item))
+}
+
+#[tauri::command]
+fn update_improvement(item: Improvement, state: State<AppState>) -> Result<Improvement, String> {
+    with_vault(&state, |v| v.update_improvement(item))
+}
+
+#[tauri::command]
+fn remove_improvement(id: String, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| v.remove_improvement(&id))
+}
+
+#[tauri::command]
+fn brokerage_table(
+    state: State<AppState>,
+) -> Result<std::collections::BTreeMap<String, Brokerage>, String> {
+    with_vault(&state, |v| v.brokerage_table())
+}
+
+#[tauri::command]
+fn set_brokerage(
+    account: String,
+    brokerage: Brokerage,
+    state: State<AppState>,
+) -> Result<(), String> {
+    with_vault(&state, |v| v.set_brokerage(&account, brokerage))
+}
+
 #[tauri::command]
 fn corporate_events(state: State<AppState>) -> Result<views::EventsView, String> {
     with_vault_str(&state, |v| views::corporate_events(v))
@@ -820,6 +902,15 @@ pub fn run() {
             update_savings_move,
             remove_savings_move,
             restore_savings_move,
+            list_owned,
+            create_owned,
+            update_owned,
+            remove_owned,
+            create_improvement,
+            update_improvement,
+            remove_improvement,
+            brokerage_table,
+            set_brokerage,
             preview_event,
             create_event,
             update_event,

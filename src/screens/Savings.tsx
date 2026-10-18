@@ -23,13 +23,17 @@ const KINDS: { id: SavingsKind; title: string; text: string; example: string }[]
   { id: "FGTS", title: "FGTS", text: "Saldo total do FGTS, como aparece no app do FGTS.", example: "Um só, com o total de todas as contas" },
   { id: "CONTA", title: "Conta corrente", text: "Dinheiro parado na conta, sem rendimento.", example: "Ex.: Itaú, Bradesco" },
   { id: "BENEFICIO", title: "Cartão benefício", text: "Saldo de vale-refeição ou alimentação.", example: "Ex.: Swile, Alelo, VR" },
+  { id: "RENDA_FIXA", title: "Renda fixa", text: "CDB, LCI, LCA ou Tesouro Direto, pelo saldo do extrato.", example: "Ex.: CDB do Itaú, Tesouro Selic na Nomad" },
 ];
+
+const PRODUCTS = ["CDB", "LCI", "LCA", "Tesouro Selic", "Tesouro IPCA+", "Tesouro Prefixado", "Debênture", "CRI", "CRA"];
 
 const ISSUERS: Record<SavingsKind, string[]> = {
   COFRINHO: ["Nubank", "Mercado Pago", "99Pay", "PicPay", "Inter", "C6 Bank", "PagBank", "Itaú"],
   FGTS: ["Caixa"],
   CONTA: ["Itaú", "Bradesco", "Banco do Brasil", "Caixa", "Santander", "Nubank", "Inter"],
   BENEFICIO: ["Swile", "Alelo", "VR", "Ticket", "Pluxee", "Caju", "Flash"],
+  RENDA_FIXA: ["Itaú", "XP", "BTG", "Rico", "Nubank", "Inter", "Tesouro Direto"],
 };
 
 const NAME_HINT: Record<SavingsKind, string> = {
@@ -37,6 +41,7 @@ const NAME_HINT: Record<SavingsKind, string> = {
   FGTS: "",
   CONTA: "Ex.: Conta conjunta (em branco: mostra só o banco)",
   BENEFICIO: "Ex.: Refeição",
+  RENDA_FIXA: "Ex.: CDB 2027 (em branco: mostra o produto)",
 };
 
 const MOVE_LABEL: Record<SavingsMoveKind, string> = { DEPOSITO: "Depósito", RESGATE: "Resgate", SALDO: "Saldo informado" };
@@ -51,6 +56,10 @@ type NewForm = {
   /** "AAAA-MM", como no campo de mês. */
   since: string;
   until: string;
+  /** Renda fixa. */
+  product: string;
+  rateDesc: string;
+  maturity: string;
 };
 const thisMonth = () => {
   const d = new Date();
@@ -65,6 +74,9 @@ const EMPTY_NEW = (): NewForm => ({
   taxFree: false,
   since: thisMonth(),
   until: "",
+  product: "",
+  rateDesc: "",
+  maturity: "",
 });
 /** "2024-09-01" → "09/2024". */
 const monthLabel = (d: string) => `${d.slice(5, 7)}/${d.slice(0, 4)}`;
@@ -73,11 +85,16 @@ type MoveForm = { id: string; savingsId: string; kind: SavingsMoveKind; date: st
 
 const cash = (v: string) => toCashMask(v, 2, "BRL").text;
 
+/** Cofrinho e renda fixa: entram na carteira, com depósitos e resgates. */
+const invests = (k: SavingsKind | null | undefined) => k === "COFRINHO" || k === "RENDA_FIXA";
+
 /** Nome para mensagens: o próprio, ou o tipo e o banco. */
 const titleOf = (it: SavingsItem) =>
   it.savings.name && it.savings.name !== it.kind_label
     ? it.savings.name
-    : `${it.kind_label} ${it.savings.kind === "FGTS" ? "" : it.savings.account}`.trim();
+    : it.savings.fixed?.product
+      ? `${it.savings.fixed.product} ${it.savings.account}`
+      : `${it.kind_label} ${it.savings.kind === "FGTS" ? "" : it.savings.account}`.trim();
 
 export default function Savings({ onChanged }: { onChanged: () => void }) {
   const [view, setView] = useState<SavingsView | null>(null);
@@ -125,10 +142,12 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   // Um cadastro antigo repetido continua podendo ser alterado.
   const original = all.find((it) => it.savings.id === form?.id)?.savings;
   const kept = !!original && original.kind === form?.kind && bankOf(original.kind, original.account) === bankOf(form.kind, form.account);
-  const duplicate = !!form?.kind && !isCofrinho && !kept && all.some(sameSlot);
+  // Renda fixa: quantos títulos quiser, em qualquer banco.
+  const isFixed = form?.kind === "RENDA_FIXA";
+  const duplicate = !!form?.kind && !isCofrinho && !isFixed && !kept && all.some(sameSlot);
   // Conta, FGTS e benefício não têm nome (só os cadastros antigos que já tinham).
   const hadName = !!form?.id && !unnamed.some((it) => it.savings.id === form.id);
-  const showName = isCofrinho || hadName;
+  const showName = isCofrinho || isFixed || hadName;
 
   async function saveSavings(e: React.FormEvent) {
     e.preventDefault();
@@ -145,6 +164,10 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       note: null,
       since: form.since ? `${form.since}-01` : null,
       until: form.until ? `${form.until}-01` : null,
+      fixed:
+        form.kind === "RENDA_FIXA"
+          ? { product: form.product.trim(), rate: form.rateDesc.trim() || null, maturity: form.maturity || null }
+          : null,
     };
     setBusy(true);
     try {
@@ -153,7 +176,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
         changed("Alteração salva.");
       } else {
         await savingsApi.create(item);
-        changed(`${item.name} cadastrado. Informe o saldo de cada mês em Evolução › Patrimônio, clicando na célula.`);
+        changed(`${item.name || item.fixed?.product || "Saldo"} cadastrado. Informe o saldo de cada mês em Evolução › Patrimônio, clicando na célula.`);
       }
       setForm(null);
     } catch (err) {
@@ -256,6 +279,9 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       taxFree: s.tax_free,
       since: s.since?.slice(0, 7) ?? thisMonth(),
       until: s.until?.slice(0, 7) ?? "",
+      product: s.fixed?.product ?? "",
+      rateDesc: s.fixed?.rate ?? "",
+      maturity: s.fixed?.maturity ?? "",
     });
     setSaved(null);
     window.scrollTo({ top: 0 });
@@ -270,7 +296,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       <form className="savings-move op-form" onSubmit={saveMove}>
         <strong>{move.id ? `Alterar ${MOVE_LABEL[move.kind].toLowerCase()}` : MOVE_LABEL[move.kind]}</strong>
         <div className="grid">
-          {move.id && it.savings.kind === "COFRINHO" && (
+          {move.id && invests(it.savings.kind) && (
             <label>
               Tipo
               <select value={move.kind} onChange={(e) => setMove({ ...move, kind: e.target.value as SavingsMoveKind })}>
@@ -290,7 +316,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
             {move.kind === "SALDO" ? "Saldo que o app do banco mostra" : move.kind === "DEPOSITO" ? "Valor depositado" : "Valor que caiu na conta"}
             <CashInput value={move.amount} decimals={2} currency="BRL" onChange={(v) => setMove({ ...move, amount: v })} required />
           </label>
-          {move.kind === "RESGATE" && it.savings.kind === "COFRINHO" && (
+          {move.kind === "RESGATE" && invests(it.savings.kind) && (
             <>
               <label>
                 IR retido (opcional)
@@ -303,7 +329,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
             </>
           )}
         </div>
-        {move.kind === "RESGATE" && it.savings.kind === "COFRINHO" && (
+        {move.kind === "RESGATE" && invests(it.savings.kind) && (
           <p className="muted small">Se o banco não mostrar o IR e o IOF, deixe em branco.</p>
         )}
         <div className="actions">
@@ -344,12 +370,13 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               <>
                 O que vale é o saldo que o banco mostra: informe o saldo de cada mês clicando no mês, em Evolução › Patrimônio. O app não estima nada
                 entre um saldo e outro. No cofrinho, lance também os depósitos e resgates, para o rendimento não contar dinheiro novo; se o saldo informado
-                ficar muito longe do esperado, o app avisa, porque provavelmente faltou lançar um deles. Cofrinhos entram na carteira e na rentabilidade;
-                FGTS, conta corrente e cartões benefício entram só no patrimônio. O saldo de 31/12 de cada um aparece em Impostos, para Bens e Direitos.
+                ficar muito longe do esperado, o app avisa, porque provavelmente faltou lançar um deles. Na renda fixa (CDB, LCI, LCA, Tesouro) é igual:
+                a aplicação é um depósito, o resgate ou vencimento é um resgate, e o saldo do mês vem do extrato da corretora. Cofrinhos e renda fixa
+                entram na carteira e na rentabilidade; FGTS, conta corrente e cartões benefício entram só no patrimônio. O saldo de 31/12 de cada um aparece em Impostos, para Bens e Direitos.
               </>
             }
           >
-            Cofrinhos, FGTS, conta corrente e cartões benefício, pelo saldo que você vê no app do banco.
+            Cofrinhos, renda fixa, FGTS, conta corrente e cartões benefício, pelo saldo que você vê no app do banco.
           </Intro>
         </div>
         {!form && (
@@ -388,7 +415,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               <div className="grid">
                 {form.kind !== "FGTS" && (
                 <label>
-                  {form.kind === "BENEFICIO" ? "Empresa do cartão" : "Banco"}
+                  {form.kind === "BENEFICIO" ? "Empresa do cartão" : form.kind === "RENDA_FIXA" ? "Banco ou corretora" : "Banco"}
                   <input list="saldos-bancos" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} required />
                   <datalist id="saldos-bancos">
                     {accountNames.map((a) => (
@@ -396,6 +423,27 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     ))}
                   </datalist>
                 </label>
+                )}
+                {isFixed && (
+                  <>
+                    <label>
+                      Produto
+                      <input list="saldos-produtos" value={form.product} onChange={(e) => setForm({ ...form, product: e.target.value })} required />
+                      <datalist id="saldos-produtos">
+                        {PRODUCTS.map((p) => (
+                          <option key={p} value={p} />
+                        ))}
+                      </datalist>
+                    </label>
+                    <label>
+                      Taxa (opcional, só para lembrar)
+                      <input value={form.rateDesc} placeholder="Ex.: 110% do CDI, IPCA + 6%" onChange={(e) => setForm({ ...form, rateDesc: e.target.value })} />
+                    </label>
+                    <label>
+                      Vencimento (opcional)
+                      <input type="date" value={form.maturity} onChange={(e) => setForm({ ...form, maturity: e.target.value })} />
+                    </label>
+                  </>
                 )}
                 {showName && (
                   <label>
@@ -439,7 +487,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               {form.kind === "FGTS"
                 ? "Já existe um FGTS cadastrado."
                 : `Já existe um cadastro de ${KINDS.find((k) => k.id === form.kind)?.title.toLowerCase()} ${form.account.trim()}.`}{" "}
-              O app guarda os dados de uma pessoa; para outra pessoa, use outro login do Windows.
+              O app guarda os dados de uma pessoa; para outra pessoa, crie outro perfil na tela de entrada.
             </p>
           )}
           {error && <p className="error">{error}</p>}
@@ -462,7 +510,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       {view && items.length > 0 && (
         <div className="savings-totals">
           <div>
-            <span className="muted small">Cofrinhos (investimento)</span>
+            <span className="muted small">Cofrinhos e renda fixa (investimento)</span>
             <strong>{money(view.total_investments)}</strong>
           </div>
           <div>
@@ -481,7 +529,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           {items.map((it) => {
             const s = it.savings;
             const lastCheck = it.checks[it.checks.length - 1];
-            const isCofrinho = s.kind === "COFRINHO";
+            const isCofrinho = invests(s.kind);
             return (
               <div className="card savings-card" key={s.id}>
                 <div className="savings-head">
@@ -495,10 +543,20 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                         </>
                       ) : s.kind === "FGTS" ? (
                         it.kind_label
+                      ) : s.fixed ? (
+                        <>
+                          {s.fixed.product}
+                          <span className="muted"> · {s.account}</span>
+                        </>
                       ) : (
                         s.account || it.kind_label
                       )}
                     </h3>
+                    {s.fixed && (s.fixed.rate || s.fixed.maturity) && (
+                      <p className="muted small">
+                        {[s.fixed.rate, s.fixed.maturity && `vence em ${date(s.fixed.maturity)}`].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
                     <p className="muted small">
                       {s.since && `Desde ${monthLabel(s.since)}`}
                       {s.until && ` · encerrada em ${monthLabel(s.until)}`}

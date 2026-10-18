@@ -465,6 +465,59 @@ fn snapshot(holdings: &BTreeMap<String, Holding>) -> Vec<YearEndPosition> {
         .collect()
 }
 
+/// Repete a posição do último ano com dados em cada ano seguinte, até `last`.
+fn fill_to(
+    mut years: BTreeMap<i32, Vec<YearEndPosition>>,
+    last: i32,
+) -> BTreeMap<i32, Vec<YearEndPosition>> {
+    if let Some((&y, list)) = years.iter().next_back() {
+        let list = list.clone();
+        for year in y + 1..=last {
+            years.insert(year, list.clone());
+        }
+    }
+    years
+}
+
+/// Fundos de investimento em 31/12, pelo custo de aquisição (valor aplicado):
+/// o resgate e o come-cotas tiram cotas ao custo médio. O IR é do banco, mas a
+/// posição vai em Bens e Direitos.
+fn fund_year_end(
+    priced: &[PricedOperation],
+    until: NaiveDate,
+) -> BTreeMap<i32, Vec<YearEndPosition>> {
+    let mut ops: Vec<&PricedOperation> = priced
+        .iter()
+        .filter(|p| crate::fund::is_fund(&p.operation.asset) && p.operation.date <= until)
+        .collect();
+    ops.sort_by_key(|p| (p.operation.date, p.operation.side.day_order()));
+    let mut holdings: BTreeMap<String, Holding> = BTreeMap::new();
+    let mut year_end = BTreeMap::new();
+    let mut last_year: Option<i32> = None;
+    for p in ops {
+        let o = &p.operation;
+        if let Some(y) = last_year {
+            for year in y..o.date.year() {
+                year_end.insert(year, snapshot(&holdings));
+            }
+        }
+        last_year = Some(o.date.year());
+        let h = holdings.entry(o.asset.clone()).or_default();
+        match o.side {
+            Side::Compra => h.buy(o.quantity, p.gross),
+            Side::Venda => {
+                h.take(o.quantity);
+            }
+            Side::Ajuste => h.buy(o.quantity, Decimal::ZERO),
+            Side::Transferencia => {}
+        }
+    }
+    if let Some(y) = last_year {
+        year_end.insert(y, snapshot(&holdings));
+    }
+    year_end
+}
+
 /// Apuração mensal da B3 até `until` (inclusive), com a memória de cálculo.
 pub fn b3_months(priced: &[PricedOperation], kind_of: KindOf, until: NaiveDate) -> B3Report {
     let run = run_b3(priced, kind_of);
@@ -785,9 +838,16 @@ pub fn annual(
             .collect::<Vec<_>>(),
         kind_of,
     );
-    let mut positions = b3.year_end;
-    for (year, list) in year_end {
-        positions.entry(year).or_default().extend(list);
+    // Cada origem (B3, exterior, fundos) repete a última posição até o ano
+    // de `until`, para uma não sumir quando só a outra teve operações.
+    let mut positions = fill_to(b3.year_end, until.year());
+    for source in [
+        fill_to(year_end, until.year()),
+        fill_to(fund_year_end(priced, until), until.year()),
+    ] {
+        for (year, list) in source {
+            positions.entry(year).or_default().extend(list);
+        }
     }
     // Anos sem operação herdam a posição do ano anterior.
     if let (Some(&first), Some(&last)) = (positions.keys().next(), positions.keys().last()) {
@@ -1142,5 +1202,61 @@ mod tests {
             (dec!(2), dec!(1000), Some(dec!(200)))
         );
         assert_eq!(r.positions[&2026][0].quantity, dec!(1));
+    }
+
+    #[test]
+    fn fundos_em_bens_e_direitos_pelo_valor_aplicado() {
+        let fundo = "00.000.000/0001-91";
+        let ops = vec![
+            op(
+                "Banco X",
+                fundo,
+                d(2024, 2, 1),
+                Side::Compra,
+                dec!(100),
+                dec!(10),
+                dec!(0),
+            ),
+            op(
+                "Banco X",
+                fundo,
+                d(2024, 8, 1),
+                Side::Compra,
+                dec!(100),
+                dec!(12),
+                dec!(0),
+            ),
+            // Resgate de metade: sai metade do custo (2.200 / 2).
+            op(
+                "Banco X",
+                fundo,
+                d(2025, 3, 1),
+                Side::Venda,
+                dec!(100),
+                dec!(13),
+                dec!(0),
+            ),
+            // Uma ação comprada só em 2026 não apaga o fundo de 2026.
+            op(
+                "Corretora",
+                "TEST3",
+                d(2026, 1, 5),
+                Side::Compra,
+                dec!(10),
+                dec!(20),
+                dec!(0),
+            ),
+        ];
+        let r = annual(&ops, &kinds, &Fx, d(2026, 12, 31));
+        let cost = |year: i32| {
+            r.positions[&year]
+                .iter()
+                .find(|p| p.asset == fundo)
+                .map(|p| (p.quantity, p.cost_brl))
+        };
+        assert_eq!(cost(2024), Some((dec!(200), dec!(2200))));
+        assert_eq!(cost(2025), Some((dec!(100), dec!(1100))));
+        assert_eq!(cost(2026), Some((dec!(100), dec!(1100))));
+        assert_eq!(r.positions[&2026].len(), 2);
     }
 }
