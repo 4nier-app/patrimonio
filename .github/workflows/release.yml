@@ -1,0 +1,52 @@
+name: Publicar versão
+
+# Ao criar uma etiqueta (tag) v*, gera os instaladores de Windows, Mac e
+# Linux e os anexa a um rascunho de versão no GitHub. O rascunho só fica
+# visível depois de publicado à mão na página Releases.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  instaladores:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: "--bundles nsis"
+          - os: ubuntu-22.04
+            args: "--bundles appimage,deb"
+          - os: macos-latest
+            args: "--target universal-apple-darwin --bundles dmg"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependências do sistema (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "4Nier Patrimônio Auditável __VERSION__"
+          releaseBody: "O que mudou: veja o CHANGELOG.md. Windows: arquivo -setup.exe. Mac: arquivo .dmg (na primeira vez, botão direito › Abrir). Linux: .deb ou .AppImage."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

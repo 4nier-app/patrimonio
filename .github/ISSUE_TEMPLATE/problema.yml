@@ -1,0 +1,77 @@
+name: Reportar problema
+description: Algo não funcionou ou um valor parece errado.
+title: "[Problema] "
+labels: ["problema"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por ajudar a melhorar o 4Nier.
+
+        **Nunca anexe notas de corretagem, extratos, planilhas ou prints com os seus dados.** Este relato fica público. Descreva o caso com valores fictícios (por exemplo: "comprei 100 ações a R$ 10,00").
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do aplicativo
+      description: Aparece no rodapé da tela de senha, ou no nome do instalador.
+      placeholder: "0.15.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: sistema
+    attributes:
+      label: Sistema
+      options:
+        - Windows 10
+        - Windows 11
+        - Mac
+        - Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Onde aconteceu
+      options:
+        - Instalação ou abertura do aplicativo
+        - Senha, perfis ou cópia de segurança
+        - Lançamentos (incluir, editar, remover)
+        - Importar nota de corretagem (PDF)
+        - Importar planilha (CSV)
+        - Carteira ou Rentabilidade
+        - Evolução, Contas e reservas ou Bens
+        - Impostos ou DARF
+        - Cotações, PTAX, fundos ou Tesouro
+        - Outro
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: O que você fez
+      description: Passo a passo, com valores fictícios.
+      placeholder: |
+        1. Em Lançamentos, incluí uma compra de 100 ABCD3 a R$ 10,00 em 02/03/2026.
+        2. Abri a Carteira.
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que esperava e o que aconteceu
+      placeholder: "Esperava preço médio de R$ 10,03 (com taxas), mas apareceu R$ 0,00."
+    validations:
+      required: true
+  - type: textarea
+    id: mensagem
+    attributes:
+      label: Mensagem de erro (se houver)
+      description: Copie o texto da mensagem. Confira antes se não tem nome, CPF ou valores reais.
+      render: text
+  - type: checkboxes
+    id: privacidade
+    attributes:
+      label: Privacidade
+      options:
+        - label: Conferi que este relato não tem nome, CPF, número de conta, nota ou extrato meus.
+          required: true
