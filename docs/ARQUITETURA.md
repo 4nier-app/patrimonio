@@ -345,7 +345,7 @@ interface BrokerModule {
 
 ## 16. Decisões
 1. Licença: **GPL-3.0-or-later**.
-2. Repositório: **marcelo-fournier/carteira-auditavel**, privado durante os primeiros testes.
+2. Repositório: **marcelo-fournier/4nier-patrimonio** (chamado carteira-auditavel enquanto era privado).
 3. PTAX: **venda de fechamento** do Banco Central (padrão da Receita para ativos no exterior, Lei 14.754/2023, art. 15).
 4. Plataforma prioritária para testes: **Windows**.
 5. Corretoras iniciais: Itaú e Nomad, mais CSV genérico. Outras via módulos.

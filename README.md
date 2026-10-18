@@ -4,7 +4,7 @@ Controle de investimentos B3 + exterior com rentabilidade auditável, 100% local
 
 ![Painel do 4Nier com dados fictícios](docs/img/painel.webp)
 
-**[Baixar a versão mais recente](https://github.com/marcelo-fournier/carteira-auditavel/releases/latest)** · para Windows, Mac e Linux · grátis e de código aberto
+**[Baixar a versão mais recente](https://github.com/marcelo-fournier/4nier-patrimonio/releases/latest)** · para Windows, Mac e Linux · grátis e de código aberto
 
 Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 
@@ -31,7 +31,7 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 ## Instalação
 
 Baixe o arquivo do seu sistema na página
-[Releases](https://github.com/marcelo-fournier/carteira-auditavel/releases/latest).
+[Releases](https://github.com/marcelo-fournier/4nier-patrimonio/releases/latest).
 O aplicativo ainda não tem assinatura digital paga, então o sistema avisa na
 primeira vez:
 
@@ -41,7 +41,7 @@ primeira vez:
   na primeira vez, clique com o botão direito no app → **Abrir**.
 - **Linux:** `.deb` (Ubuntu, Debian) ou `.AppImage` (marque como executável).
 
-Encontrou um erro? [Reporte aqui](https://github.com/marcelo-fournier/carteira-auditavel/issues/new?template=problema.yml),
+Encontrou um erro? [Reporte aqui](https://github.com/marcelo-fournier/4nier-patrimonio/issues/new?template=problema.yml),
 sempre com valores fictícios.
 
 ## Como funciona
