@@ -281,6 +281,27 @@ async fn export_backup(app: tauri::AppHandle) -> Result<Option<BackupInfo>, Stri
     with_vault(&state, |v| v.export_backup(&path)).map(Some)
 }
 
+/// Pergunta onde salvar o modelo de planilha e grava. `false` se cancelar.
+#[tauri::command]
+async fn save_csv_template(app: tauri::AppHandle, content: String) -> Result<bool, String> {
+    let mut dialog = app
+        .dialog()
+        .file()
+        .set_title("Salvar modelo de planilha")
+        .set_file_name("modelo-lancamentos.csv")
+        .add_filter("Planilha CSV", &["csv"]);
+    if let Ok(docs) = app.path().document_dir() {
+        dialog = dialog.set_directory(docs);
+    }
+    let Some(path) = dialog.blocking_save_file() else {
+        return Ok(false);
+    };
+    let path = path.into_path().map_err(|e| e.to_string())?;
+    // Com a marca BOM, o Excel abre os acentos certos.
+    std::fs::write(path, format!("\u{feff}{content}")).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
 /// Pergunta qual backup restaurar e mostra o que há nele (sem a senha).
 #[tauri::command]
 async fn pick_backup(app: tauri::AppHandle) -> Result<Option<BackupSummary>, String> {
@@ -412,6 +433,23 @@ async fn update_fund_catalog(app: tauri::AppHandle) -> Result<market::UpdateLine
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Baixa a lista e os preços do Tesouro Direto (no máximo uma vez por dia).
+#[tauri::command]
+async fn update_tesouro(app: tauri::AppHandle) -> Result<market::UpdateLine, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        market::update_tesouro(&state.vault, &market::Internet, today())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Títulos do Tesouro Direto conhecidos, para escolher no lançamento.
+#[tauri::command]
+fn list_tesouro(state: State<AppState>) -> Result<Vec<Asset>, String> {
+    with_vault(&state, |v| v.assets_of_kind(carteira_core::tesouro::KIND))
 }
 
 /// Página do ativo: posição, lançamentos e preço médio.
@@ -882,6 +920,8 @@ pub fn run() {
             day_moves,
             name_fund,
             update_fund_catalog,
+            update_tesouro,
+            list_tesouro,
             list_accounts,
             list_operations,
             preview_operation,
@@ -938,6 +978,7 @@ pub fn run() {
             send_recovery_email,
             backup_status,
             export_backup,
+            save_csv_template,
             pick_backup,
             restore_backup,
             open_data_folder,

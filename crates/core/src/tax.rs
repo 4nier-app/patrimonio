@@ -488,7 +488,7 @@ fn fund_year_end(
 ) -> BTreeMap<i32, Vec<YearEndPosition>> {
     let mut ops: Vec<&PricedOperation> = priced
         .iter()
-        .filter(|p| crate::fund::is_fund(&p.operation.asset) && p.operation.date <= until)
+        .filter(|p| crate::fund::by_statement(&p.operation.asset) && p.operation.date <= until)
         .collect();
     ops.sort_by_key(|p| (p.operation.date, p.operation.side.day_order()));
     let mut holdings: BTreeMap<String, Holding> = BTreeMap::new();

@@ -18,7 +18,7 @@ use carteira_core::crypto;
 use carteira_core::fund;
 use carteira_core::model::{Side, BRL};
 use carteira_core::operations::Operation;
-use carteira_providers::{cotahist, cvm, nasdaq, ptax, sgs, yahoo, ProviderError};
+use carteira_providers::{cotahist, cvm, nasdaq, ptax, sgs, tesouro, yahoo, ProviderError};
 use carteira_storage::{Asset, NewFxRate, NewQuote, Vault};
 use chrono::{Datelike, Duration, NaiveDate};
 use rust_decimal::Decimal;
@@ -56,6 +56,11 @@ pub trait Fetcher {
         wanted: &BTreeSet<String>,
     ) -> Result<Vec<cvm::DailyQuota>, ProviderError>;
     fn fund_catalog(&self) -> Result<Vec<cvm::FundEntry>, ProviderError>;
+    /// Preços do Tesouro Direto, só dos títulos pedidos.
+    fn tesouro(
+        &self,
+        wanted: &dyn Fn(&str, NaiveDate) -> bool,
+    ) -> Result<tesouro::Data, ProviderError>;
 }
 
 /// De onde vem cada índice de comparação.
@@ -152,6 +157,12 @@ impl Fetcher for Internet {
     }
     fn fund_catalog(&self) -> Result<Vec<cvm::FundEntry>, ProviderError> {
         cvm::fetch_catalog()
+    }
+    fn tesouro(
+        &self,
+        wanted: &dyn Fn(&str, NaiveDate) -> bool,
+    ) -> Result<tesouro::Data, ProviderError> {
+        tesouro::fetch(wanted)
     }
 }
 
@@ -311,6 +322,9 @@ pub fn update_all(
         ops.into_iter().partition(|o| crypto::is_crypto(&o.asset));
     let (fund_ops, ops): (Vec<Operation>, Vec<Operation>) =
         ops.into_iter().partition(|o| fund::is_fund(&o.asset));
+    let (tesouro_ops, ops): (Vec<Operation>, Vec<Operation>) = ops
+        .into_iter()
+        .partition(|o| carteira_core::tesouro::is_tesouro(&o.asset));
     let (b3_ops, us_ops): (Vec<Operation>, Vec<Operation>) =
         ops.into_iter().partition(|o| o.currency == BRL);
     let held = tickers_by_month(&b3_ops, today);
@@ -685,6 +699,11 @@ pub fn update_all(
         report.push(update_funds(vault, fetcher, &fund_ops, today)?);
     }
 
+    // 5c. Tesouro Direto: preço diário pelos dados abertos do Tesouro.
+    if !tesouro_ops.is_empty() {
+        report.push(update_tesouro(vault, fetcher, today)?);
+    }
+
     // 6. Índices de comparação (CDI, IPCA, Ibovespa, IVVB11) desde a primeira operação.
     if let Some(first) = ops_dates.iter().min().copied() {
         report.push(update_indexes(vault, fetcher, first, today)?);
@@ -692,7 +711,12 @@ pub fn update_all(
 
     // Sem ativos na carteira não há cotação a buscar; diz isso em vez de
     // simplesmente omitir as linhas.
-    if plan.is_empty() && us_ops.is_empty() && crypto_ops.is_empty() && fund_ops.is_empty() {
+    if plan.is_empty()
+        && us_ops.is_empty()
+        && crypto_ops.is_empty()
+        && fund_ops.is_empty()
+        && tesouro_ops.is_empty()
+    {
         report.push(UpdateLine {
             source: "Cotações".into(),
             ok: true,
@@ -898,6 +922,113 @@ fn update_funds(
     })
 }
 
+/// Tesouro Direto: um arquivo com todos os títulos e todos os dias. Baixado
+/// no máximo uma vez por dia; grava a lista de títulos (para escolher no
+/// lançamento) e os preços dos títulos da carteira desde 2002.
+pub fn update_tesouro(
+    vault: Shared,
+    fetcher: &dyn Fetcher,
+    today: NaiveDate,
+) -> Result<UpdateLine, String> {
+    use carteira_core::tesouro as td;
+    let source = "Tesouro Direto (preço diário)".to_string();
+    let (held, done, count) = with(vault, |v| {
+        let held: BTreeSet<String> = v
+            .list_operations()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(|o| o.asset)
+            .filter(|a| td::is_tesouro(a))
+            .collect();
+        let key = format!(
+            "{today}|{}",
+            held.iter().cloned().collect::<Vec<_>>().join(",")
+        );
+        let done = v
+            .last_successful_update(tesouro::SOURCE, Some(&key))
+            .map_err(|e| e.to_string())?
+            .is_some();
+        let count = v.asset_count_in(td::KIND).map_err(|e| e.to_string())?;
+        Ok((held, done, count))
+    })?;
+    if done && count > 0 {
+        return Ok(UpdateLine {
+            source,
+            ok: true,
+            message: format!("em dia: {} título(s) na carteira", held.len()),
+        });
+    }
+    let key = format!(
+        "{today}|{}",
+        held.iter().cloned().collect::<Vec<_>>().join(",")
+    );
+    let wanted = |kind: &str, maturity: NaiveDate| held.contains(&td::ticker(kind, maturity));
+    match fetcher.tesouro(&wanted) {
+        Ok(data) => {
+            // Título sem preço há mais de um mês já venceu ou saiu de venda.
+            let assets: Vec<Asset> = data
+                .titles
+                .iter()
+                .map(|t| {
+                    let mut name = td::display_name(&t.kind, t.maturity);
+                    if t.maturity <= today || (today - t.last_date).num_days() > 31 {
+                        name.push_str(" (vencido)");
+                    }
+                    Asset {
+                        ticker: td::ticker(&t.kind, t.maturity),
+                        name: format!("{name} · vence {}", t.maturity.format("%d/%m/%Y")),
+                        kind: td::KIND.into(),
+                        market: td::KIND.into(),
+                        currency: BRL.into(),
+                        isin: None,
+                        source: tesouro::SOURCE.into(),
+                    }
+                })
+                .collect();
+            let quotes: Vec<NewQuote> = data
+                .prices
+                .iter()
+                .map(|p| NewQuote {
+                    ticker: td::ticker(&p.kind, p.maturity),
+                    date: p.date,
+                    close: p.price,
+                    source: tesouro::SOURCE.into(),
+                })
+                .collect();
+            let msg = format!(
+                "{} preços de {} título(s); {} títulos na lista, atualizado em {}",
+                quotes.len(),
+                held.len(),
+                assets.len(),
+                chrono::Local::now().format("%d/%m/%Y às %H:%M")
+            );
+            with(vault, |v| {
+                v.upsert_assets(&assets).map_err(|e| e.to_string())?;
+                v.save_quotes(&quotes).map_err(|e| e.to_string())?;
+                v.record_quote_update(tesouro::SOURCE, Some(&key), true, quotes.len() as i64, &msg)
+                    .map_err(|e| e.to_string())
+            })?;
+            Ok(UpdateLine {
+                source,
+                ok: true,
+                message: msg,
+            })
+        }
+        Err(e) => {
+            let msg = describe(&e);
+            with(vault, |v| {
+                v.record_quote_update(tesouro::SOURCE, Some(&key), false, 0, &msg)
+                    .map_err(|e| e.to_string())
+            })?;
+            Ok(UpdateLine {
+                source,
+                ok: false,
+                message: msg,
+            })
+        }
+    }
+}
+
 /// Catálogo de fundos da CVM (nome e CNPJ), para achar o fundo pelo nome
 /// do extrato. Baixado na primeira busca e renovado a cada 30 dias.
 pub fn update_fund_catalog(
@@ -1077,6 +1208,7 @@ mod tests {
         yahoo_calls: RefCell<Vec<(String, NaiveDate)>>,
         ptax_calls: RefCell<Vec<(NaiveDate, NaiveDate)>>,
         cvm_calls: RefCell<Vec<String>>,
+        tesouro_calls: std::cell::Cell<u32>,
     }
 
     fn fake(b3_up: bool) -> Fake {
@@ -1086,6 +1218,7 @@ mod tests {
             yahoo_calls: RefCell::default(),
             ptax_calls: RefCell::default(),
             cvm_calls: RefCell::default(),
+            tesouro_calls: std::cell::Cell::new(0),
         }
     }
 
@@ -1215,6 +1348,36 @@ mod tests {
                 })
                 .collect())
         }
+        fn tesouro(
+            &self,
+            wanted: &dyn Fn(&str, NaiveDate) -> bool,
+        ) -> Result<tesouro::Data, ProviderError> {
+            self.tesouro_calls.set(self.tesouro_calls.get() + 1);
+            let m = NaiveDate::from_ymd_opt(2035, 5, 15).unwrap();
+            let kind = "Tesouro IPCA+";
+            let day = |n| NaiveDate::from_ymd_opt(2026, 1, n).unwrap();
+            let days = [day(5), day(6)];
+            Ok(tesouro::Data {
+                titles: vec![tesouro::Title {
+                    kind: kind.into(),
+                    maturity: m,
+                    last_date: days[1],
+                }],
+                prices: if wanted(kind, m) {
+                    days.iter()
+                        .zip([Decimal::from(2000), Decimal::new(201055, 2)])
+                        .map(|(&date, price)| tesouro::Price {
+                            kind: kind.into(),
+                            maturity: m,
+                            date,
+                            price,
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                },
+            })
+        }
     }
 
     fn setup(dir: &std::path::Path) -> Mutex<Option<Vault>> {
@@ -1305,6 +1468,58 @@ mod tests {
             .unwrap()
             .latest("BTC")
             .is_some());
+    }
+
+    #[test]
+    fn tesouro_busca_preco_uma_vez_por_dia() {
+        use rust_decimal_macros::dec;
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = setup(tmp.path());
+        let ticker = "TD:NTN-B-P:20350515";
+        {
+            let mut g = vault.lock().unwrap();
+            let v = g.as_mut().unwrap();
+            v.create_operation(Operation {
+                id: String::new(),
+                account: "Banco".into(),
+                asset: ticker.into(),
+                date: NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(),
+                side: Side::Compra,
+                quantity: dec!(0.5),
+                price: dec!(2000),
+                manual_fees: None,
+                note: None,
+                currency: "BRL".into(),
+                from_account: None,
+                residue: None,
+                ir: None,
+                iof: None,
+            })
+            .unwrap();
+        }
+        let today = NaiveDate::from_ymd_opt(2026, 1, 7).unwrap();
+        let f = fake(true);
+        let report = update_all(&vault, &f, today).unwrap();
+        assert!(
+            report
+                .iter()
+                .any(|l| l.source.starts_with("Tesouro") && l.ok),
+            "{report:?}"
+        );
+        update_all(&vault, &f, today).unwrap();
+        assert_eq!(f.tesouro_calls.get(), 1, "uma vez por dia");
+        let g = vault.lock().unwrap();
+        let v = g.as_ref().unwrap();
+        let table = v.price_table(&[ticker.into()]).unwrap();
+        assert_eq!(table.latest(ticker).unwrap().close, dec!(2010.55));
+        let a = v.get_asset(ticker).unwrap().unwrap();
+        assert_eq!(a.name, "Tesouro IPCA+ 2035 · vence 15/05/2035");
+        // Título do Tesouro não passa pela B3 nem pelo Yahoo.
+        assert!(!f
+            .yahoo_calls
+            .borrow()
+            .iter()
+            .any(|(s, _)| s.contains("TD:")));
     }
 
     #[test]

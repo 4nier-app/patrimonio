@@ -216,6 +216,7 @@ fn group_of(kind: Option<&str>, currency: &str, account: &str) -> (&'static str,
     match kind {
         Some("FUNDO") => ("fundos", format!("Fundos · {account}")),
         Some("CRIPTO") => ("cripto", "Criptomoedas".into()),
+        Some("TESOURO") => ("rf", "Renda fixa".into()),
         _ if currency == USD => ("exterior", "Ações e ETFs no exterior".into()),
         Some("FII") => ("fii", "Fundos imobiliários (FIIs)".into()),
         _ => ("b3", "Ações e ETFs na B3".into()),
@@ -745,6 +746,7 @@ mod tests {
         assert_eq!(group_of(Some("ETF"), USD, "").0, "exterior");
         assert_eq!(group_of(Some("CRIPTO"), USD, "").0, "cripto");
         assert_eq!(group_of(Some("FII"), BRL, "").0, "fii");
+        assert_eq!(group_of(Some("TESOURO"), BRL, "").0, "rf");
         assert_eq!(group_of(Some("ACAO"), BRL, "").0, "b3");
         assert_eq!(group_of(None, BRL, "").0, "b3");
     }

@@ -16,6 +16,7 @@ pub mod http;
 pub mod nasdaq;
 pub mod ptax;
 pub mod sgs;
+pub mod tesouro;
 pub mod yahoo;
 
 #[derive(Debug, thiserror::Error)]

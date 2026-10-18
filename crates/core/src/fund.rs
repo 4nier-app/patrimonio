@@ -59,10 +59,16 @@ pub fn ticker_of(text: &str) -> Option<String> {
         .map(|d| format_cnpj(&d))
 }
 
-/// Fundos e cofrinhos: o banco retém IR e IOF no resgate, sem taxas da B3,
-/// sem DARF e fora da apuração do exterior.
+/// Fundos, Tesouro Direto e cofrinhos: o banco retém IR e IOF no resgate,
+/// sem taxas da B3, sem DARF e fora da apuração do exterior.
 pub fn bank_withholds(ticker: &str) -> bool {
-    is_fund(ticker) || crate::savings::is_savings(ticker)
+    is_fund(ticker) || crate::tesouro::is_tesouro(ticker) || crate::savings::is_savings(ticker)
+}
+
+/// Fundos e Tesouro Direto: lançados pelo extrato, em cotas ou títulos, com
+/// o IR e o IOF do resgate informados no lançamento.
+pub fn by_statement(ticker: &str) -> bool {
+    is_fund(ticker) || crate::tesouro::is_tesouro(ticker)
 }
 
 /// O código é de um fundo (CNPJ formatado)?

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { assetApi, errorMessage, market, type Asset, type DayMove, type DayView, type PortfolioView } from "../api";
-import { isFund } from "../currency";
+import { byName } from "../currency";
 import { useSort } from "../components/useSort";
 import { date, money, tone } from "../format";
 import { AssetName } from "./Portfolio";
@@ -19,6 +19,7 @@ function priceText(m: DayMove): string {
 
 function when(m: DayMove): string {
   if (m.venue === "FUNDO") return m.quote_date ? `cota de ${date(m.quote_date)}` : "sem cota";
+  if (m.venue === "TESOURO") return m.quote_date ? `preço de ${date(m.quote_date)}` : "sem preço";
   if (m.offline) return "sem conexão";
   const t = m.price_time ? new Date(m.price_time * 1000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
   if (m.venue === "B3") return `${t} · atraso ~15 min`;
@@ -59,7 +60,7 @@ function Today({ refresh, onOpen }: { refresh: number; onOpen: (asset: string) =
   const { sorted, header } = useSort(
     items,
     {
-      ativo: (m) => (isFund(m.asset) && m.name ? m.name : m.asset),
+      ativo: (m) => (byName(m.asset) && m.name ? m.name : m.asset),
       variacao: (m) => m.change,
       resultado: (m) => m.result_brl,
       posicao: (m) => m.value_brl,
@@ -280,7 +281,7 @@ export default function Broker({ refresh, onOpen }: { refresh: number; onOpen: (
           <div className="broker-chips">
             {recent.map((r) => (
               <button key={r.ticker} className="chip" onClick={() => onOpen(r.ticker)} title={r.name}>
-                {isFund(r.ticker) && r.name ? r.name : r.ticker}
+                {byName(r.ticker) && r.name ? r.name : r.ticker}
               </button>
             ))}
           </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Intro from "../components/Intro";
 import { errorMessage, market, type PortfolioView } from "../api";
-import { isFund, isSavings } from "../currency";
+import { isFund, isSavings, byName } from "../currency";
 import { useSort } from "../components/useSort";
 import { averagePrice, date, formatDateTime, money, percent, price, quantity, tone } from "../format";
 
@@ -20,11 +20,11 @@ export function AssetName({ asset, name }: { asset: string; name?: string }) {
       </>
     );
   }
-  if (isFund(asset) && name) {
+  if (byName(asset) && name) {
     return (
       <>
         <strong>{name}</strong>
-        <div className="muted small">CNPJ {asset}</div>
+        <div className="muted small">{isFund(asset) ? `CNPJ ${asset}` : "Tesouro Direto"}</div>
       </>
     );
   }
@@ -52,7 +52,7 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
   const allOpen = useMemo(() => view?.positions.filter((p) => Number(p.quantity) !== 0) ?? [], [view]);
   const allClosed = useMemo(() => view?.positions.filter((p) => Number(p.quantity) === 0) ?? [], [view]);
   const num = (v: string | null | undefined) => (v == null ? null : Number(v));
-  const label = (a: string) => (view?.names[a] && (isSavings(a) || isFund(a)) ? view.names[a] : a);
+  const label = (a: string) => (view?.names[a] && (isSavings(a) || byName(a)) ? view.names[a] : a);
   const openSort = useSort(
     allOpen,
     {

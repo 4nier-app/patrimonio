@@ -6,7 +6,33 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.14.0] - Não lançada
+## [0.15.0] - Não lançada
+
+### Adicionado
+- **Tesouro Direto com preço automático**: em Lançamentos › Incluir e editar ›
+  Tesouro Direto, escolha o título na lista oficial e informe a quantidade de
+  títulos e o preço do dia (na venda ou vencimento, também o IR e o IOF). O
+  preço diário vem dos dados abertos do Tesouro Transparente, baixados no
+  máximo uma vez por dia, e entra na Carteira, na Rentabilidade, na Evolução
+  (grupo Renda fixa) e em Impostos (custo em 31/12). Sem taxas da B3 e sem
+  DARF: o imposto já é retido.
+- **Importar planilha (CSV)** em Lançamentos › Importar planilha: uma linha por
+  compra ou venda (data, conta, ativo, operação, quantidade, preço; taxas,
+  moeda, IR, IOF e observação opcionais). Aceita o CSV do Excel em português
+  (ponto e vírgula, vírgula decimal) e o padrão internacional. Mostra as
+  linhas com problema, agrupa por conta e dia, e não importa a mesma planilha
+  duas vezes. "Baixar modelo" salva uma planilha de exemplo.
+- **Instaladores para Linux e Mac**: o CI gera AppImage e .deb para Linux, e
+  um .dmg para Mac (Intel e Apple Silicon). O de Mac roda só quando pedido à
+  mão enquanto o repositório for privado. Os instaladores não têm assinatura
+  paga: no Mac, abra com clique direito › Abrir na primeira vez.
+
+### Alterado
+- Renda fixa em Contas e reservas fica para CDB, LCI, LCA e outros títulos
+  pelo saldo do extrato; o Tesouro Direto com preço automático é lançado em
+  Lançamentos.
+
+## [0.14.0] - 2026-10-18
 
 ### Adicionado
 - **Renda fixa (CDB, LCI, LCA, Tesouro Direto)** em Evolução › Contas e
@@ -33,7 +59,7 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - A mensagem de cadastro repetido agora indica criar outro perfil na tela de
   entrada (antes falava em outro login do Windows).
 
-## [0.13.0] - Não lançada
+## [0.13.0] - 2026-10-18
 
 ### Alterado
 - **O app guarda os dados de uma pessoa**: um FGTS só, e uma conta corrente

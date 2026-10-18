@@ -298,10 +298,30 @@ impl Vault {
         let q = query.trim().to_uppercase();
         let mut stmt = self.conn.prepare(
             "SELECT ticker, name, kind, market, currency, isin, source FROM assets
-             WHERE ticker LIKE ?1 || '%' OR upper(name) LIKE '%' || ?1 || '%'
+             WHERE (ticker LIKE ?1 || '%' OR upper(name) LIKE '%' || ?1 || '%') AND kind <> 'TESOURO'
              ORDER BY (ticker LIKE ?1 || '%') DESC, length(ticker), ticker LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![q, limit], |r| {
+            Ok(Asset {
+                ticker: r.get(0)?,
+                name: r.get(1)?,
+                kind: r.get(2)?,
+                market: r.get(3)?,
+                currency: r.get(4)?,
+                isin: r.get(5)?,
+                source: r.get(6)?,
+            })
+        })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Todos os ativos de um tipo (ex.: os títulos do Tesouro), por nome.
+    pub fn assets_of_kind(&self, kind: &str) -> Result<Vec<Asset>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT ticker, name, kind, market, currency, isin, source FROM assets
+             WHERE kind = ?1 ORDER BY name",
+        )?;
+        let rows = stmt.query_map([kind], |r| {
             Ok(Asset {
                 ticker: r.get(0)?,
                 name: r.get(1)?,
@@ -367,6 +387,25 @@ impl Vault {
                  ON CONFLICT (ticker) DO UPDATE SET kind = excluded.kind, market = excluded.market,
                    currency = excluded.currency",
                 params![ticker, carteira_core::fund::KIND, now_iso()],
+            )?;
+            return Ok(());
+        }
+        if carteira_core::tesouro::is_tesouro(ticker) {
+            if currency != BRL {
+                return Err(bad(
+                    "título do Tesouro Direto entra numa conta em reais (o banco ou a corretora onde ele está)",
+                ));
+            }
+            if carteira_core::tesouro::maturity_of(ticker).is_none() {
+                return Err(bad(
+                    "título do Tesouro Direto inválido; escolha o título na lista",
+                ));
+            }
+            self.conn.execute(
+                "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at)
+                 VALUES (?1, '', ?2, ?2, 'BRL', 'MANUAL', ?3)
+                 ON CONFLICT (ticker) DO NOTHING",
+                params![ticker, carteira_core::tesouro::KIND, now_iso()],
             )?;
             return Ok(());
         }
@@ -463,7 +502,7 @@ impl Vault {
                 op.asset
             )));
         }
-        if !fund {
+        if !carteira_core::fund::by_statement(&op.asset) {
             op.ir = None;
             op.iof = None;
         }

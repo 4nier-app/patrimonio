@@ -81,9 +81,20 @@ export function isSavings(ticker: string): boolean {
   return ticker.startsWith("RF:");
 }
 
+/** Título do Tesouro Direto: código interno "TD:…", mostrado pelo nome. */
+export function isTesouro(ticker: string): boolean {
+  return ticker.startsWith("TD:");
+}
+
+/** Mostrado pelo nome, não pelo código: fundo (CNPJ) e Tesouro ("TD:…"). */
+export function byName(ticker: string): boolean {
+  return isFund(ticker) || isTesouro(ticker);
+}
+
 export function assetLabel(asset: string, names?: Record<string, string>): string {
   const name = names?.[asset];
   if (isSavings(asset)) return name ?? "Cofrinho";
+  if (isTesouro(asset)) return (name ?? asset).split(" · ")[0];
   if (!isFund(asset) || !name) return asset;
   return name.length > 32 ? `${name.slice(0, 31)}…` : name;
 }

@@ -17,7 +17,7 @@ import {
 import Chart, { axisStyle, base, usePalette } from "../charts/Chart";
 import CashInput from "../components/CashInput";
 import { useSort } from "../components/useSort";
-import { assetLabel, isFund, normalizeTicker } from "../currency";
+import { assetLabel, normalizeTicker, byName } from "../currency";
 import { date, money, monthLabel, parseDecimalInput, percent, price, quantity, toCashMask, type Currency } from "../format";
 import {
   KIND_LABEL,
@@ -230,7 +230,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
   const assetSort = useSort(
     assets,
     {
-      ativo: (a) => (isFund(a.asset) && names[a.asset] ? names[a.asset] : a.asset),
+      ativo: (a) => (byName(a.asset) && names[a.asset] ? names[a.asset] : a.asset),
       liquido: (a) => a.net,
       pagamentos: (a) => a.count,
       ultimo: (a) => a.last,
@@ -543,7 +543,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
                             {date(i.pay_date)}
                             {i.ex_date && <div className="muted small">data com {date(i.ex_date)}</div>}
                           </td>
-                          <td>{isFund(i.asset) ? assetLabel(i.asset, names) : i.asset}</td>
+                          <td>{byName(i.asset) ? assetLabel(i.asset, names) : i.asset}</td>
                           <td>{KIND_LABEL[i.kind]}</td>
                           <td>{i.account}</td>
                           <td className="num" title={r.quantity ? `${quantity(r.quantity)} cotas na data com` : "Sem posição na data"}>
