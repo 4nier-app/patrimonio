@@ -113,7 +113,8 @@ fn invalid(e: impl ToString) -> VaultError {
 }
 
 /// Rótulo autenticado junto com a chave, para que a cópia da senha não possa
-/// ser trocada pela da recuperação.
+/// ser trocada pela da recuperação. Não mude estes textos com o nome do
+/// projeto: cofres já criados deixariam de abrir.
 const AAD_SENHA: &[u8] = b"carteira-auditavel/senha";
 const AAD_RECUPERACAO: &[u8] = b"carteira-auditavel/recuperacao";
 
