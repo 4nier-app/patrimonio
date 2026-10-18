@@ -34,6 +34,9 @@ async function sha256(text: string): Promise<string> {
 
 const tickerOf = (asset: string) => fundTicker(asset) ?? normalizeTicker(asset);
 
+/** Contas das linhas de exemplo de CSV_TEMPLATE. */
+const EXAMPLE_ACCOUNTS = ["corretora exemplo", "exterior exemplo"];
+
 export default function ImportCsv({ onImported }: { onImported: () => void }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [file, setFile] = useState<string | null>(null);
@@ -119,7 +122,7 @@ export default function ImportCsv({ onImported }: { onImported: () => void }) {
 
   async function template() {
     try {
-      if (await notesApi.saveCsvTemplate(CSV_TEMPLATE)) setMessage({ ok: true, text: "Modelo salvo. Abra no Excel, troque as linhas de exemplo pelas suas e salve como CSV." });
+      if (await notesApi.saveCsvTemplate(CSV_TEMPLATE)) setMessage({ ok: true, text: "Modelo salvo. Abra no Excel, apague as linhas de exemplo, preencha com os seus lançamentos e salve como CSV." });
     } catch (e) {
       setMessage({ ok: false, text: errorMessage(e) });
     }
@@ -148,6 +151,7 @@ export default function ImportCsv({ onImported }: { onImported: () => void }) {
           Baixar modelo
         </button>
       </div>
+      <p className="muted small">No modelo, apague as linhas de exemplo antes de importar.</p>
 
       {message && <p className={message.ok ? "ok" : "error"}>{message.text}</p>}
 
@@ -165,6 +169,13 @@ export default function ImportCsv({ onImported }: { onImported: () => void }) {
             {errors.length > 20 && <li>e mais {errors.length - 20}.</li>}
           </ul>
         </div>
+      )}
+
+      {groups.some((g) => EXAMPLE_ACCOUNTS.includes(g.account.toLowerCase())) && (
+        <p className="banner warning small">
+          Esta planilha ainda tem as linhas de exemplo do modelo (contas "Corretora Exemplo" ou "Exterior Exemplo"). Apague essas linhas antes de
+          importar.
+        </p>
       )}
 
       {groups.length > 0 && (

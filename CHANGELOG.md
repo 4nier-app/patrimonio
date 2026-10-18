@@ -6,7 +6,23 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.15.0] - Não lançada
+## [0.15.1] - Não lançada
+
+### Adicionado
+- Página de apresentação do projeto (`docs/index.html`, para o GitHub Pages)
+  com telas de dados fictícios, como instalar em cada sistema e avisos.
+- Formulários "Reportar problema" e "Sugerir melhoria" no GitHub, com lembrete
+  para nunca anexar dados pessoais.
+- Publicação de versões: ao criar a etiqueta `v*`, o GitHub gera os
+  instaladores de Windows, Mac e Linux num rascunho em Releases.
+
+### Alterado
+- Importar planilha: aviso para apagar as linhas de exemplo do modelo antes de
+  importar, e alerta quando a planilha ainda as contém.
+- Exemplo neutro no nome do perfil, na tela de entrada.
+- README atualizado com o que o aplicativo faz e como instalar.
+
+## [0.15.0] - 2026-10-18
 
 ### Adicionado
 - **Tesouro Direto com preço automático**: em Lançamentos › Incluir e editar ›

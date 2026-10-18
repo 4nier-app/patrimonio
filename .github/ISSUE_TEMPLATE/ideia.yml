@@ -1,0 +1,19 @@
+name: Sugerir melhoria
+description: Uma ideia para deixar o aplicativo mais útil.
+title: "[Ideia] "
+labels: ["ideia"]
+body:
+  - type: markdown
+    attributes:
+      value: "Este relato fica público: não inclua dados pessoais, notas ou extratos."
+  - type: textarea
+    id: ideia
+    attributes:
+      label: O que você gostaria de fazer no aplicativo
+      placeholder: "Gostaria de importar as notas da corretora X."
+    validations:
+      required: true
+  - type: textarea
+    id: hoje
+    attributes:
+      label: Como você faz isso hoje

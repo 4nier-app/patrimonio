@@ -148,7 +148,7 @@ export default function Login({
                     autoFocus
                     value={profileName}
                     maxLength={40}
-                    placeholder="Ex.: Marcelo, Esposa"
+                    placeholder="Ex.: Ana, João"
                     onChange={(e) => setProfileName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {

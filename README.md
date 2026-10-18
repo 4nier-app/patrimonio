@@ -2,30 +2,47 @@
 
 Controle de investimentos B3 + exterior com rentabilidade auditável, 100% local e gratuito.
 
-> **Status:** em desenvolvimento (versão 0.1, fundação). Ainda não controla
-> operações; esta versão traz o cofre criptografado, o histórico de auditoria e
-> o cálculo das taxas da B3.
+![Painel do 4Nier com dados fictícios](docs/img/painel.webp)
 
-## Por que existe
+**[Baixar a versão mais recente](https://github.com/marcelo-fournier/carteira-auditavel/releases/latest)** · para Windows, Mac e Linux · grátis e de código aberto
 
+Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
+
+## O que faz
+
+- **Carteira consolidada em reais:** ações, FIIs, ETFs e BDRs da B3, fundos,
+  Tesouro Direto, renda fixa, corretoras do exterior e cripto, com FGTS, conta
+  corrente e bens no patrimônio.
 - **Rentabilidade pelo tempo real de exposição:** o capital conta a partir da
   data exata da compra e deixa de contar na data exata da venda (Modified Dietz
-  diário por mês, encadeado no ano).
-- **Nada é caixa-preta:** cada número mostra a operação, a cotação, o câmbio
-  (PTAX), as taxas e a fórmula usada, com os valores substituídos.
-- **Brasil + exterior** consolidados em reais, com a variação cambial separada.
+  diário por mês, encadeado no ano). Comparação com CDI, IPCA, Ibovespa,
+  S&P 500 e dólar.
+- **Nada é caixa-preta:** cada número pode mostrar a operação, a cotação, o
+  câmbio (PTAX), as taxas e a fórmula usada, com os valores substituídos.
+- **Imposto de renda:** apuração mensal da B3 (isenção de R$ 20 mil, day trade,
+  FIIs, prejuízo a compensar) com aviso de DARF; ganho anual no exterior e em
+  cripto pela Lei 14.754; posições em 31/12 para Bens e Direitos.
+- **Menos digitação:** importa notas em PDF no padrão SINACOR e confirmações da
+  Nomad, ou uma planilha CSV. Cotações, PTAX, cotas de fundos (CVM) e preços do
+  Tesouro são buscados automaticamente.
 - **Seus dados ficam com você:** tudo roda localmente, num banco criptografado
   pela sua senha. Nenhum servidor, nenhuma conta, nenhum custo.
 
-## Instalação (Windows)
+## Instalação
 
-Enquanto não há versão publicada, o instalador de teste é gerado
-automaticamente a cada alteração: na aba **Actions** do GitHub, abra a execução
-mais recente do CI e baixe o artefato `instalador-windows`.
+Baixe o arquivo do seu sistema na página
+[Releases](https://github.com/marcelo-fournier/carteira-auditavel/releases/latest).
+O aplicativo ainda não tem assinatura digital paga, então o sistema avisa na
+primeira vez:
 
-Na primeira execução, o Windows pode mostrar "O Windows protegeu o computador",
-porque o instalador ainda não tem assinatura digital. Clique em **Mais
-informações → Executar assim mesmo**.
+- **Windows 10/11 (64 bits):** arquivo `-setup.exe`. Em "O Windows protegeu o
+  computador", clique em **Mais informações → Executar assim mesmo**.
+- **Mac (Intel e Apple Silicon):** arquivo `.dmg`. Arraste para Aplicativos e,
+  na primeira vez, clique com o botão direito no app → **Abrir**.
+- **Linux:** `.deb` (Ubuntu, Debian) ou `.AppImage` (marque como executável).
+
+Encontrou um erro? [Reporte aqui](https://github.com/marcelo-fournier/carteira-auditavel/issues/new?template=problema.yml),
+sempre com valores fictícios.
 
 ## Como funciona
 
@@ -55,9 +72,10 @@ npm run tauri build      # gera o instalador
 Estrutura:
 
 ```
-crates/core      regras de cálculo (taxas B3; rentabilidade vem a seguir)
+crates/core      regras de cálculo (taxas, rentabilidade, impostos)
 crates/ledger    log de eventos com cadeia de hash
 crates/storage   cofre criptografado, migrações, histórico do sistema
+crates/providers cotações, PTAX, índices, fundos (CVM) e Tesouro
 src-tauri        ponte entre o núcleo e a interface
 src              interface React
 ```
@@ -65,7 +83,7 @@ src              interface React
 ## Privacidade
 
 Notas de corretagem e extratos reais **nunca** entram neste repositório, nem
-anonimizados. Os testes usam apenas notas fictícias em `fixtures/sinteticas/`,
+anonimizados. As telas em `docs/img/` usam dados fictícios. Os testes usam apenas notas fictícias em `fixtures/sinteticas/`,
 e o CI recusa qualquer PDF ou planilha fora dessa pasta.
 
 ## Aviso
