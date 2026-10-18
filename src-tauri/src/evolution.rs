@@ -815,20 +815,20 @@ mod tests {
         .unwrap();
         // Conta aberta desde 2025, ainda sem saldo: aparece vazia. Conta
         // encerrada em 2025: some em 2026.
-        let outra = |name: &str, since, until| Savings {
+        let outra = |bank: &str, since, until| Savings {
             id: String::new(),
             kind: SavingsKind::Conta,
-            account: "Banco Y".into(),
-            name: name.into(),
+            account: bank.into(),
+            name: String::new(),
             rate_pct: Decimal::ZERO,
             tax_free: false,
             note: None,
             since: Some(since),
             until,
         };
-        v.create_savings(outra("Reserva", d(2025, 6, 1), None))
+        v.create_savings(outra("Banco Y", d(2025, 6, 1), None))
             .unwrap();
-        v.create_savings(outra("Velha", d(2025, 1, 1), Some(d(2025, 12, 1))))
+        v.create_savings(outra("Banco Z", d(2025, 1, 1), Some(d(2025, 12, 1))))
             .unwrap();
 
         let view = evolution(&v, Some(2026), d(2026, 3, 4)).unwrap();
@@ -874,13 +874,13 @@ mod tests {
         let g = conta.gain.unwrap();
         assert_eq!((g.value, g.base), (dec!(150), dec!(500)));
         assert_eq!(conta.since.unwrap().value, dec!(150));
-        // A "Reserva" aparece vazia; a "Velha", encerrada, não aparece.
+        // O Banco Y aparece vazio; o Banco Z, encerrado, não aparece.
         let names: Vec<_> = view.groups[1]
             .rows
             .iter()
             .map(|r| r.name.as_str())
             .collect();
-        assert_eq!(names, vec!["Conta", "Reserva"]);
+        assert_eq!(names, vec!["Banco X", "Banco Y"]);
         assert!(view.groups[1].rows[1].values.iter().all(Option::is_none));
         // Antes do "desde" não se informa saldo.
         assert!(view.groups[1].rows[1].outside.iter().all(|o| !o));

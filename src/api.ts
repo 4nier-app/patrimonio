@@ -8,7 +8,12 @@ export type VaultStatus = {
   unlocked: boolean;
   app_version: string;
   data_dir: string;
+  /** Perfil atual (cada pessoa da família tem o próprio cofre). */
+  profile: string;
+  profiles: Profile[];
 };
+
+export type Profile = { id: string; name: string; exists: boolean };
 
 export type Action = "CRIADA" | "ALTERADA" | "REMOVIDA";
 
@@ -49,6 +54,10 @@ export type VersionEntry = { version: string; installed_at: string; changelog: s
 
 export const api = {
   vaultStatus: () => invoke<VaultStatus>("vault_status"),
+  selectProfile: (id: string) => invoke<void>("select_profile", { id }),
+  createProfile: (name: string) => invoke<void>("create_profile", { name }),
+  renameProfile: (id: string, name: string) => invoke<void>("rename_profile", { id, name }),
+  removeProfile: (id: string) => invoke<void>("remove_profile", { id }),
   /** Cria o cofre e devolve a chave de recuperação gerada. */
   createVault: (password: string, confirmation: string, email: string) =>
     invoke<string>("create_vault", { password, confirmation, email }),
