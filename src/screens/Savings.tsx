@@ -23,10 +23,10 @@ const KINDS: { id: SavingsKind; title: string; text: string; example: string }[]
   { id: "FGTS", title: "FGTS", text: "Saldo total do FGTS, como aparece no app do FGTS.", example: "Um só, com o total de todas as contas" },
   { id: "CONTA", title: "Conta corrente", text: "Dinheiro parado na conta, sem rendimento.", example: "Ex.: Itaú, Bradesco" },
   { id: "BENEFICIO", title: "Cartão benefício", text: "Saldo de vale-refeição ou alimentação.", example: "Ex.: Swile, Alelo, VR" },
-  { id: "RENDA_FIXA", title: "Renda fixa", text: "CDB, LCI, LCA ou Tesouro Direto, pelo saldo do extrato.", example: "Ex.: CDB do Itaú, Tesouro Selic na Nomad" },
+  { id: "RENDA_FIXA", title: "Renda fixa", text: "CDB, LCI, LCA e outros títulos, pelo saldo do extrato.", example: "Tesouro Direto com preço automático: Lançamentos › Tesouro Direto" },
 ];
 
-const PRODUCTS = ["CDB", "LCI", "LCA", "Tesouro Selic", "Tesouro IPCA+", "Tesouro Prefixado", "Debênture", "CRI", "CRA"];
+const PRODUCTS = ["CDB", "LCI", "LCA", "RDB", "LC", "Debênture", "CRI", "CRA", "Tesouro (pelo saldo do extrato)"];
 
 const ISSUERS: Record<SavingsKind, string[]> = {
   COFRINHO: ["Nubank", "Mercado Pago", "99Pay", "PicPay", "Inter", "C6 Bank", "PagBank", "Itaú"],

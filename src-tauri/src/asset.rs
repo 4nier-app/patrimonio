@@ -29,11 +29,22 @@ pub enum Venue {
     Cripto,
     /// Fundos: uma cota por dia, pela CVM.
     Fundo,
+    /// Tesouro Direto: um preço por dia, pelo Tesouro.
+    Tesouro,
+}
+
+impl Venue {
+    /// Um preço por dia, sem gráfico intradiário.
+    fn daily(self) -> bool {
+        matches!(self, Venue::Fundo | Venue::Tesouro)
+    }
 }
 
 fn venue_of(ticker: &str, currency: &str) -> Venue {
     if fund::is_fund(ticker) {
         Venue::Fundo
+    } else if carteira_core::tesouro::is_tesouro(ticker) {
+        Venue::Tesouro
     } else if crypto::is_crypto(ticker) {
         Venue::Cripto
     } else if currency == USD {
@@ -203,7 +214,7 @@ fn yahoo_symbol(detail: &AssetDetail) -> String {
         Venue::B3 => yahoo::b3_symbol(&detail.ticker),
         Venue::Us => yahoo::us_symbol(&detail.ticker),
         Venue::Cripto => crypto::yahoo_symbol(&detail.ticker),
-        Venue::Fundo => detail.ticker.clone(),
+        Venue::Fundo | Venue::Tesouro => detail.ticker.clone(),
     }
 }
 
@@ -242,7 +253,7 @@ pub fn chart(
         source: "cofre".into(),
         offline,
     };
-    if detail.venue == Venue::Fundo {
+    if detail.venue.daily() {
         return stored(None);
     }
     let fetched = if detail.venue == Venue::Cripto && intraday {
@@ -369,8 +380,8 @@ pub fn day_moves(inputs: Vec<DayInput>, net: &(dyn ChartNet + Sync)) -> DayView 
     let fetch = |i: &DayInput| -> DayMove {
         let d = &i.detail;
         let qty = i.quantity.to_f64().unwrap_or_default();
-        let (price, previous_close, price_time, quote_date, offline) = if d.venue == Venue::Fundo {
-            // Fundos: a última cota contra a anterior.
+        let (price, previous_close, price_time, quote_date, offline) = if d.venue.daily() {
+            // Fundos e Tesouro: o último preço contra o anterior.
             let n = d.history.len();
             let last = d.history.last();
             let prev = n.checked_sub(2).and_then(|k| d.history.get(k));

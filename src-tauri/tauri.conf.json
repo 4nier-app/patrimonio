@@ -40,6 +40,7 @@
     "windows": {
       "nsis": { "languages": ["PortugueseBR"], "installMode": "currentUser" },
       "wix": { "language": "pt-BR" }
-    }
+    },
+    "macOS": { "signingIdentity": "-", "minimumSystemVersion": "10.15" }
   }
 }

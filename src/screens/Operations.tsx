@@ -27,7 +27,7 @@ import {
   quantity,
   toCashMask,
 } from "../format";
-import { currencyOfNewAccount, fundTicker, isFund, normalizeTicker } from "../currency";
+import { currencyOfNewAccount, fundTicker, isFund, isTesouro, normalizeTicker } from "../currency";
 import CashInput from "../components/CashInput";
 import BrokerageBox from "../components/BrokerageBox";
 
@@ -54,6 +54,8 @@ type Form = {
   iof: string;
   /** Fundo fora do catálogo da CVM: nome digitado. */
   fundName: string;
+  /** Título do Tesouro Direto: compra e venda em títulos, com o preço do dia. */
+  tesouro: boolean;
 };
 
 function todayIso(): string {
@@ -80,6 +82,7 @@ const EMPTY: Form = {
   ir: "",
   iof: "",
   fundName: "",
+  tesouro: false,
 };
 
 const COME_COTAS = "Come-cotas";
@@ -145,12 +148,12 @@ function toOperation(f: Form, currency: Currency): Operation | string {
   const q = parseDecimalInput(f.quantity, usd);
   if (!q) return "Quantidade inválida.";
   const p = transfer ? "0" : parseDecimalInput(f.price);
-  if (!p) return f.fund ? "Valor da cota inválido." : "Preço inválido.";
+  if (!p) return f.fund ? "Valor da cota inválido." : f.tesouro ? "Preço do título inválido." : "Preço inválido.";
   let ir: string | null = null;
   let iof: string | null = null;
-  if (f.fund && f.side === "VENDA") {
+  if ((f.fund || f.tesouro) && f.side === "VENDA") {
     // Come-cotas: o núcleo põe todo o valor das cotas como IR.
-    if (!f.comeCotas) {
+    if (!f.comeCotas || f.tesouro) {
       if (f.ir.trim()) {
         ir = parseDecimalInput(f.ir);
         if (ir == null) return "IR inválido.";
@@ -162,7 +165,7 @@ function toOperation(f: Form, currency: Currency): Operation | string {
     }
   }
   let fees: string | null = null;
-  if (f.manual && !transfer && !f.fund) {
+  if (f.manual && !transfer && !f.fund && !f.tesouro) {
     fees = parseDecimalInput(f.fees);
     if (fees == null) return "Taxa inválida.";
   }
@@ -172,6 +175,7 @@ function toOperation(f: Form, currency: Currency): Operation | string {
     if (residue == null) return "Resíduo inválido.";
   }
   if (!f.date) return "Informe a data.";
+  if (f.tesouro && !isTesouro(f.asset)) return "Escolha o título na lista.";
   return {
     id: f.id,
     account: f.account,
@@ -238,6 +242,26 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
       .catch((e) => setCatalog(`Não consegui baixar a lista de fundos da CVM: ${errorMessage(e)}. Você ainda pode lançar pelo CNPJ.`));
   }, [form.fund]);
 
+  // Títulos do Tesouro: a lista vem do arquivo do Tesouro, baixado no máximo
+  // uma vez por dia (só quando se lança Tesouro ou há título na carteira).
+  const [titles, setTitles] = useState<Asset[]>([]);
+  const [titlesMsg, setTitlesMsg] = useState<string | null>(null);
+  useEffect(() => {
+    market.listTesouro().then(setTitles).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!form.tesouro) return;
+    if (!titles.length) setTitlesMsg("Baixando a lista de títulos do Tesouro Direto…");
+    market
+      .updateTesouro()
+      .then((line) => {
+        setTitlesMsg(line.ok ? null : `Não consegui baixar a lista do Tesouro: ${line.message}.`);
+        return market.listTesouro().then(setTitles);
+      })
+      .catch((e) => setTitlesMsg(`Não consegui baixar a lista do Tesouro: ${errorMessage(e)}.`));
+  }, [form.tesouro]);
+  const titleName = (t: string) => titles.find((a) => a.ticker === t)?.name;
+
   // Sugestões do catálogo enquanto digita o código (ou o nome do fundo).
   useEffect(() => {
     if (form.asset.trim().length < 2) {
@@ -253,7 +277,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
   const existing = accounts.find((a) => a.name === form.account.trim());
   // Conta existente: a moeda dela. Conta nova: pelo nome da corretora
   // (Nomad → dólar) ou, se o nome não disser, pelo ativo.
-  const currency: Currency = form.fund ? "BRL" : existing?.currency ?? currencyOfNewAccount(form.account, form.asset, suggestions);
+  const currency: Currency = form.fund || form.tesouro ? "BRL" : existing?.currency ?? currencyOfNewAccount(form.account, form.asset, suggestions);
   const fundCode = form.fund ? fundTicker(form.asset) : null;
   const fundInfo = fundCode ? suggestions.find((a) => a.ticker === fundCode) : undefined;
   const [knownFund, setKnownFund] = useState<Asset | null>(null);
@@ -329,7 +353,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
         await market.create(draft);
         setMessage("Lançamento incluído.");
       }
-      const next: Form = { ...EMPTY, account: form.account, date: form.date, fund: form.fund, priceDecimals: priceDecimals(currency) };
+      const next: Form = { ...EMPTY, account: form.account, date: form.date, fund: form.fund, tesouro: form.tesouro, priceDecimals: priceDecimals(currency) };
       // Na inclusão, a próxima já vem com o mesmo ativo e operação (notas e
       // extratos costumam ter várias linhas iguais); só os valores são limpos.
       if (!form.id) Object.assign(next, { asset: form.asset, side: form.side, comeCotas: form.comeCotas, manual: form.manual, fromAccount: form.fromAccount });
@@ -372,6 +396,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
       ir: o.ir && !comeCotas ? toCashMask(o.ir, 2, cur).text : "",
       iof: o.iof ? toCashMask(o.iof, 2, cur).text : "",
       fundName: "",
+      tesouro: isTesouro(o.asset),
     });
     setReason("");
     setMessage(null);
@@ -463,8 +488,15 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             {p.operation.from_account && <div className="muted small">vindo de {p.operation.from_account}</div>}
           </td>
           <td>
-            <strong>{isFund(p.operation.asset) ? names[p.operation.asset] || p.operation.asset : p.operation.asset}</strong>
+            <strong>
+              {isFund(p.operation.asset)
+                ? names[p.operation.asset] || p.operation.asset
+                : isTesouro(p.operation.asset)
+                  ? (titleName(p.operation.asset) ?? p.operation.asset).split(" · ")[0]
+                  : p.operation.asset}
+            </strong>
             {isFund(p.operation.asset) && names[p.operation.asset] && <div className="muted small">{p.operation.asset}</div>}
+            {isTesouro(p.operation.asset) && <div className="muted small">Tesouro Direto</div>}
             {p.operation.note && p.operation.note !== COME_COTAS && <div className="muted small">{p.operation.note}</div>}
           </td>
           <td>
@@ -557,7 +589,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
           <div className="op-kind" role="tablist">
             <button
               type="button"
-              className={form.fund ? "secondary" : ""}
+              className={form.fund || form.tesouro ? "secondary" : ""}
               onClick={() => setForm((f) => ({ ...EMPTY, account: f.account, date: f.date }))}
             >
               Ações, FIIs, ETFs, exterior ou cripto
@@ -569,12 +601,20 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             >
               Fundo de investimento
             </button>
+            <button
+              type="button"
+              className={form.tesouro ? "" : "secondary"}
+              onClick={() => setForm((f) => ({ ...EMPTY, account: f.account, date: f.date, tesouro: true }))}
+            >
+              Tesouro Direto
+            </button>
           </div>
         )}
         {form.fund && catalog && <p className="muted small">{catalog}</p>}
+        {form.tesouro && titlesMsg && <p className="muted small">{titlesMsg}</p>}
         <div className="grid">
           <label>
-            {form.fund ? "Banco ou corretora (conta)" : "Corretora (conta)"}
+            {form.fund || form.tesouro ? "Banco ou corretora (conta)" : "Corretora (conta)"}
             <input list="contas" value={form.account} onChange={(e) => set("account", e.target.value)} placeholder="Ex.: Itaú" required />
             <datalist id="contas">
               {accounts.map((a) => (
@@ -585,7 +625,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             </datalist>
           </label>
           <label>
-            {form.fund ? "Data" : "Data do pregão"}
+            {form.fund || form.tesouro ? "Data" : "Data do pregão"}
             <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} required />
           </label>
           {form.fund ? (
@@ -604,6 +644,14 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
                 <option value="COMPRA">Aplicação</option>
                 <option value="VENDA">Resgate</option>
                 <option value="COME">Come-cotas (IR semestral)</option>
+              </select>
+            </label>
+          ) : form.tesouro ? (
+            <label>
+              Operação
+              <select value={form.side} onChange={(e) => set("side", e.target.value as Side)}>
+                <option value="COMPRA">Compra</option>
+                <option value="VENDA">Venda ou vencimento</option>
               </select>
             </label>
           ) : (
@@ -631,7 +679,21 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
               </select>
             </label>
           )}
-          {form.fund ? (
+          {form.tesouro ? (
+            <label className="wide">
+              Título
+              <select value={form.asset} onChange={(e) => set("asset", e.target.value)} required>
+                <option value="">{titles.length ? "Escolha o título" : "Lista do Tesouro ainda não baixada"}</option>
+                {[...titles]
+                  .sort((a, b) => Number(a.name.includes("(vencido)")) - Number(b.name.includes("(vencido)")) || a.name.localeCompare(b.name))
+                  .map((a) => (
+                    <option key={a.ticker} value={a.ticker}>
+                      {a.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ) : form.fund ? (
             <label className="wide">
               Fundo (nome como no extrato, ou CNPJ)
               <input
@@ -682,7 +744,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             </label>
           )}
           <label>
-            {transfer ? "Quantidade transferida" : form.fund ? "Quantidade de cotas" : "Quantidade"}
+            {transfer ? "Quantidade transferida" : form.fund ? "Quantidade de cotas" : form.tesouro ? "Quantidade de títulos" : "Quantidade"}
             <NumberInput kind="quantity" value={form.quantity} onChange={(v) => set("quantity", v)} usd={currency === "USD"} required />
           </label>
           {transfer ? (
@@ -704,7 +766,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             </label>
           ) : (
             <label>
-              Preço unitário
+              {form.tesouro ? "Preço unitário do título" : "Preço unitário"}
               <input
                 inputMode="numeric"
                 value={form.price}
@@ -741,7 +803,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
           </p>
         )}
 
-        {form.fund && form.side === "VENDA" && !form.comeCotas && (
+        {((form.fund && !form.comeCotas) || form.tesouro) && form.side === "VENDA" && (
           <div className="grid">
             <label>
               IR descontado
@@ -762,7 +824,15 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
           </p>
         )}
 
-        {existing && existing.currency === "BRL" && !form.fund && !coin && !transfer && (
+        {form.tesouro && (
+          <p className="muted small">
+            Lance como no extrato do Tesouro ou da corretora: a quantidade de títulos (ex.: 0,52) e o preço unitário do dia. Na venda ou
+            no vencimento, informe o IR e o IOF descontados. O preço diário para a Carteira vem do site do Tesouro Direto. Tesouro não
+            paga taxa da B3 e não entra no DARF: o imposto já é retido.
+          </p>
+        )}
+
+        {existing && existing.currency === "BRL" && !form.fund && !form.tesouro && !coin && !transfer && (
           <BrokerageBox
             key={existing.name}
             account={existing.name}
@@ -774,7 +844,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             }}
           />
         )}
-        {!transfer && !form.fund && (
+        {!transfer && !form.fund && !form.tesouro && (
           <label className="inline">
             <input type="checkbox" checked={form.manual} onChange={(e) => set("manual", e.target.checked)} />
             {currency === "USD" || coin
@@ -782,7 +852,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
               : "Informar as taxas à mão (substitui o cálculo automático)"}
           </label>
         )}
-        {form.manual && !transfer && !form.fund && (
+        {form.manual && !transfer && !form.fund && !form.tesouro && (
           <label className="short">
             Taxas deste lançamento
             <CashInput value={form.fees} decimals={2} currency={currency} onChange={(v) => set("fees", v)} />
@@ -797,7 +867,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
         {preview && !preview.valid && !transfer && (
           <div className="preview">
             <div>
-              {form.fund ? (
+              {form.fund || form.tesouro ? (
                 <>
                   Valor bruto: <strong>{money(preview.gross, currency)}</strong>
                   {form.side === "VENDA" && (

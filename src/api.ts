@@ -207,6 +207,8 @@ export const market = {
   searchFunds: (query: string) => invoke<Asset[]>("search_funds", { query }),
   nameFund: (ticker: string, name: string) => invoke<void>("name_fund", { ticker, name }),
   updateFundCatalog: () => invoke<UpdateLine>("update_fund_catalog"),
+  updateTesouro: () => invoke<UpdateLine>("update_tesouro"),
+  listTesouro: () => invoke<Asset[]>("list_tesouro"),
   listAccounts: () => invoke<Account[]>("list_accounts"),
   listOperations: () => invoke<PricedOperation[]>("list_operations"),
   preview: (operation: Operation) => invoke<Preview>("preview_operation", { operation }),
@@ -237,6 +239,7 @@ export const notesApi = {
   status: (hashes: string[]) => invoke<NoteStatus[]>("note_status", { hashes }),
   resolveNames: (items: [string, string][]) => invoke<string[][]>("resolve_b3_names", { items }),
   importNote: (note: NoteImport) => invoke<number>("import_note", { note }),
+  saveCsvTemplate: (content: string) => invoke<boolean>("save_csv_template", { content }),
 };
 
 // ---------- painel (etapa 3) ----------
@@ -442,7 +445,7 @@ export const taxApi = {
 
 // ---------- página do ativo ----------
 
-export type Venue = "B3" | "US" | "CRIPTO" | "FUNDO";
+export type Venue = "B3" | "US" | "CRIPTO" | "FUNDO" | "TESOURO";
 export type AverageStep = { date: string; quantity: Dec; average_price: Dec };
 export type DailyClose = { date: string; close: Dec; source: string };
 export type AssetDetail = {

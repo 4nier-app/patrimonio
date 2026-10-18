@@ -29,6 +29,7 @@ const KIND_LABEL: Record<string, string> = {
   ETF: "ETF",
   BDR: "BDR",
   FUNDO: "Fundo de investimento",
+  TESOURO: "Tesouro Direto",
   CRIPTO: "Criptomoeda",
 };
 
@@ -43,6 +44,8 @@ function delayNote(d: AssetDetail): string {
       return "Cotação dos EUA quase em tempo real durante o pregão americano.";
     case "CRIPTO":
       return "Cotação em tempo real (Coinbase), em dólar.";
+    case "TESOURO":
+      return "Título do Tesouro Direto: um preço por dia útil, publicado pelo Tesouro (preço de recompra, o valor do extrato).";
     default:
       return "Fundos têm uma cota por dia, informada pelo fundo à CVM (normalmente no dia útil seguinte).";
   }
@@ -87,7 +90,7 @@ export default function AssetPage({
         setDetail(d);
         loaded.current?.(d);
         // Fundo não tem gráfico do dia: começa em 1 ano.
-        if (d.venue === "FUNDO") setPeriod((x) => (x === "1d" || x === "5d" ? "1y" : x));
+        if (d.venue === "FUNDO" || d.venue === "TESOURO") setPeriod((x) => (x === "1d" || x === "5d" ? "1y" : x));
       })
       .catch((e) => setError(errorMessage(e)));
   }, [ticker, refresh]);
@@ -151,7 +154,9 @@ export default function AssetPage({
     const up = p.series[2];
     const down = p.neg;
     const decimals = cur === "USD" || detail.venue === "FUNDO" ? 4 : 2;
-    const fund = detail.venue === "FUNDO";
+    // Fundo e Tesouro: um preço por dia.
+    const fund = detail.venue === "FUNDO" || detail.venue === "TESOURO";
+    const unit = detail.venue === "TESOURO" ? "Preço" : "Cota";
     const fullLabel = (t: number) => {
       const iso = new Date((t + off) * 1000).toISOString();
       const d = `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
@@ -212,7 +217,7 @@ export default function AssetPage({
           const var_ = prev ? c.close / prev - 1 : null;
           const avgHere = intraday ? avgNow : avg[i];
           const rows: [string, string][] = lineOnly
-            ? [[fund ? "Cota" : "Fechamento", fmt(c.close)]]
+            ? [[fund ? unit : "Fechamento", fmt(c.close)]]
             : [
                 ["Abertura", fmt(c.open)],
                 ["Máxima", fmt(c.high)],
@@ -363,9 +368,10 @@ export default function AssetPage({
     };
   })();
 
-  const fund = detail?.venue === "FUNDO";
+  const td = detail?.venue === "TESOURO";
+  const fund = detail?.venue === "FUNDO" || td;
   const title = detail ? (fund ? detail.name || detail.ticker : detail.ticker) : ticker;
-  const subtitle = detail ? (fund ? `CNPJ ${detail.ticker}` : detail.name) : "";
+  const subtitle = detail ? (td ? "Tesouro Direto" : fund ? `CNPJ ${detail.ticker}` : detail.name) : "";
 
   return (
     <section className="asset-page">
@@ -441,7 +447,9 @@ export default function AssetPage({
           <p className="muted chart-empty">
             {loading || !chart
               ? "Carregando o gráfico…"
-              : fund && !detail?.history.length
+              : td && !detail?.history.length
+                ? "Os preços do Tesouro são baixados só para os títulos que você lança em Lançamentos. Lance uma compra deste título para ver o gráfico."
+                : fund && !detail?.history.length
                 ? "As cotas de um fundo são baixadas da CVM só para os fundos que você lança em Lançamentos. Lance uma aplicação neste fundo para ver o gráfico."
                 : "Sem preços para este período."}
           </p>
@@ -473,11 +481,11 @@ export default function AssetPage({
       {pos && (
         <div className="cards">
           <div className="card stat">
-            <span className="muted">{fund ? "Cotas" : "Quantidade"}</span>
+            <span className="muted">{td ? "Títulos" : fund ? "Cotas" : "Quantidade"}</span>
             <strong>{quantity(pos.quantity)}</strong>
           </div>
           <div className="card stat">
-            <span className="muted">{fund ? "Valor médio da cota" : "Preço médio"}</span>
+            <span className="muted">{fund && !td ? "Valor médio da cota" : "Preço médio"}</span>
             <strong title={`Valor exato: ${pos.average_price}`}>
               {fund ? price(pos.average_price, cur) : averagePrice(pos.average_price, cur)}
             </strong>
@@ -554,8 +562,8 @@ export default function AssetPage({
                   <th>Data</th>
                   <th>Conta</th>
                   <th>Operação</th>
-                  <th className="num">{fund ? "Cotas" : "Qtd."}</th>
-                  <th className="num">{fund ? "Valor da cota" : "Preço"}</th>
+                  <th className="num">{td ? "Títulos" : fund ? "Cotas" : "Qtd."}</th>
+                  <th className="num">{fund && !td ? "Valor da cota" : "Preço"}</th>
                   <th className="num">Valor</th>
                   <th className="num">{fund ? "IR/IOF" : "Taxas"}</th>
                 </tr>

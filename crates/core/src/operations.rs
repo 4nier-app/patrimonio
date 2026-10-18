@@ -59,7 +59,7 @@ impl Operation {
     /// Valor da operação: quantidade × preço, arredondado ao centavo. Nos
     /// fundos o administrador trunca no centavo, como nos extratos.
     pub fn gross(&self) -> Decimal {
-        let strategy = if crate::fund::is_fund(&self.asset) {
+        let strategy = if crate::fund::by_statement(&self.asset) {
             RoundingStrategy::ToZero
         } else {
             RoundingStrategy::MidpointAwayFromZero

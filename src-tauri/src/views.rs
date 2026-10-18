@@ -486,6 +486,7 @@ fn kind_label(kind: Option<&str>, currency: &str) -> &'static str {
         (_, Some("CRIPTO")) => "Criptomoedas",
         (_, Some("FUNDO")) => "Fundos de investimento",
         (_, Some("RENDA_FIXA")) => "Renda fixa",
+        (_, Some("TESOURO")) => "Tesouro Direto",
         (true, Some("ACAO")) => "Ações",
         (true, Some("FII")) => "FIIs",
         (true, Some("ETF")) => "ETFs",
