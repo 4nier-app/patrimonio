@@ -73,7 +73,7 @@ const FEE_LABELS: [string, string][] = [
   ["Taxa de termo\\s*/\\s*op[çc][õo]es", "Taxa de termo/opções"],
   ["Taxa A\\.N\\.A\\.", "Taxa A.N.A."],
   ["Emolumentos", "Emolumentos"],
-  ["Taxa de transfer[êe]ncia de ativos", "Taxa de transferência de ativos"],
+  ["Taxa de transf(?:er[êe]ncia|\\.)\\s*de ativos", "Taxa de transferência de ativos"],
   ["(?<!Total )Corretagem", "Corretagem"],
   ["(?<!Total )Clearing", "Clearing"],
   ["Execu[çc][ãa]o", "Execução"],
@@ -114,8 +114,11 @@ function parseLine(raw: string): NoteLine | "unsupported" | null {
   const tokens = title.split(" ");
   let ticker: string | null = null;
   let lookup: NoteLine["lookup"];
-  if (/^[A-Z]{4}\d{1,2}F?$/.test(tokens[0])) {
-    ticker = tokens[0].replace(/^([A-Z]{4}\d{1,2})F$/, "$1");
+  // O código costuma vir no início ("ABCD3 ON NM"), mas a XP o põe depois do
+  // nome de pregão ("FII EXEMPLO ABCD11 CI").
+  const code = tokens.find((t) => /^[A-Z]{4}\d{1,2}F?$/.test(t));
+  if (code) {
+    ticker = code.replace(/^([A-Z]{4}\d{1,2})F$/, "$1");
   } else {
     const k = tokens.findIndex((t) => CLASSES.test(t));
     if (k > 0) lookup = { name: tokens.slice(0, k).join(" "), cls: tokens[k] };

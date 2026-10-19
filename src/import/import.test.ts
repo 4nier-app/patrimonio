@@ -75,6 +75,24 @@ const sinacorRepetido = [
   ],
 ];
 
+// Layout da XP: código depois do nome de pregão e "Taxa de Transf. de Ativos".
+const sinacorXp = [
+  [
+    "NOTA DE NEGOCIAÇÃO",
+    "Nr. nota  Folha  Data pregão",
+    "888  1  06/07/2026",
+    "XP INVESTIMENTOS CORRETORA DE CÂMBIO, TÍTULOS E VALORES MOBILIÁRIOS S.A.",
+    "Negócios realizados",
+    "1-BOVESPA  C VISTA  FII TESTE REN  TEST11  CI  @  200  5,00  1.000,00 D",
+    "Resumo dos Negócios  Resumo Financeiro",
+    "Compras à vista  1.000,00 Valor líquido das operações  1.000,00 D",
+    "Valor das operações  1.000,00  Taxa de liquidação  0,22 D",
+    "Emolumentos  0,05 D",
+    "Taxa de Transf. de Ativos  0,02 D",
+    "Líquido para 08/07/2026  1.000,29 D",
+  ],
+];
+
 describe("números", () => {
   it("lê os formatos brasileiro e americano", () => {
     expect(brNumber("R$ 1.234,56")).toBe("1234.56");
@@ -134,6 +152,14 @@ describe("nota SINACOR", () => {
     expect(n.check.ok).toBe(true);
     expect(n.lines).toHaveLength(1);
     expect(n.lines[0].fees).toBe("0.29");
+  });
+
+  it("lê nota da XP com o código depois do nome", () => {
+    const [n] = readNotes(sinacorXp);
+    expect(n.broker).toBe("XP");
+    expect(n.lines[0].ticker).toBe("TEST11");
+    expect(n.totalFees).toBe("0.29");
+    expect(n.check.ok).toBe(true);
   });
 
   it("acusa quando o líquido não bate", () => {
