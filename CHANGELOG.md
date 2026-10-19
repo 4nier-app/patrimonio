@@ -6,7 +6,14 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.15.1] - Não lançada
+## [0.15.2] - Não lançada
+
+### Corrigido
+- Notas da XP: o código do ativo vem depois do nome de pregão e a taxa aparece
+  como "Taxa de Transf. de Ativos". Antes a nota não fechava os totais e não
+  podia ser importada.
+
+## [0.15.1] - 2026-10-19
 
 ### Adicionado
 - Página de apresentação do projeto (`docs/index.html`, para o GitHub Pages)
