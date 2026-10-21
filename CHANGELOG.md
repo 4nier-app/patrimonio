@@ -12,7 +12,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Painel: o gráfico de evolução mostra o total de cada barra, resumido, em
   cima dela, e todos os meses no eixo, sem pular nenhum.
 - Painel: os bens (imóveis e veículos) aparecem como item próprio ao lado de
-  Investimentos, FGTS e Dinheiro.
+  Investimentos, FGTS e Dinheiro. As variações "no mês" e "no ano" passam a
+  ser calculadas sem os bens.
 - Evolução: com bens cadastrados, a linha "Total sem bens" traz as
   porcentagens e a variação do mês; o "Total geral (com bens)" mostra só os
   valores, porque os bens entram pelo custo.

@@ -13,7 +13,7 @@ import {
 import Chart, { axisStyle, base, usePalette, type Palette } from "../charts/Chart";
 import { date, money, monthLabel, percent, tone } from "../format";
 import { Cards, compact, FirstSteps, type Go } from "./Dashboard";
-import { columnLabel } from "./Evolution";
+import { columnLabel, withoutOwned } from "./Evolution";
 import YearPager from "../components/YearPager";
 
 /** Abas e seções que o Painel abre. */
@@ -141,9 +141,14 @@ export default function Panel({
   const part = (id: string) => num(groups.find((g) => g.id === id)?.total[today]);
   // Fim do último mês fechado (ou 31/12 do ano anterior): base da variação no mês.
   const prevIdx = year.columns.reduce((last, c, i) => (c.kind === "MONTH" || c.kind === "BASE" ? i : last), -1);
-  const prev = prevIdx >= 0 && prevIdx < today ? num(year.total[prevIdx]) : null;
-  const yearGain = year.total_gain ? Number(year.total_gain.value) : null;
-  const yearBase = year.total_gain ? Number(year.total_gain.base) : null;
+  // Variações sem os bens: eles entram pelo custo e só achatariam a %.
+  const noOwned = withoutOwned(year);
+  const liquid = noOwned?.values ?? year.total;
+  const liquidGain = noOwned ? noOwned.gain : year.total_gain;
+  const liquidNow = num(liquid[today]);
+  const prev = prevIdx >= 0 && prevIdx < today ? num(liquid[prevIdx]) : null;
+  const yearGain = liquidGain ? Number(liquidGain.value) : null;
+  const yearBase = liquidGain ? Number(liquidGain.base) : null;
   const income = year.investments_gain ? Number(year.investments_gain.value) : null;
   const incomeBase = year.investments_gain ? Number(year.investments_gain.base) : null;
   const thisYear = new Date().getFullYear();
@@ -193,8 +198,8 @@ export default function Panel({
           <span className="muted">Patrimônio total hoje</span>
           <strong>{total == null ? "sem cotação" : money(total.toFixed(2))}</strong>
           <div className="panel-changes">
-            <Change label="no mês" value={total != null && prev != null ? total - prev : null} base={prev} />
-            <Change label={`em ${thisYear}`} value={yearGain} base={yearBase} />
+            <Change label={noOwned ? "no mês, sem bens" : "no mês"} value={liquidNow != null && prev != null ? liquidNow - prev : null} base={prev} />
+            <Change label={noOwned ? `em ${thisYear}, sem bens` : `em ${thisYear}`} value={yearGain} base={yearBase} />
           </div>
         </div>
         <div className="panel-split">

@@ -126,7 +126,7 @@ function FlowRow({ label, hint, values }: { label: string; hint: string; values:
 
 /** Diferença para a coluna anterior. */
 /** Total geral sem os bens (imóveis e veículos), que entram pelo custo. */
-function withoutOwned(view: EvolutionView): { values: (Dec | null)[]; gain: EvolutionGain | null } | null {
+export function withoutOwned(view: EvolutionView): { values: (Dec | null)[]; gain: EvolutionGain | null } | null {
   const owned = view.groups.filter((g) => g.id === "bens");
   if (!owned.length) return null;
   const values = view.total.map((t, i) => {
