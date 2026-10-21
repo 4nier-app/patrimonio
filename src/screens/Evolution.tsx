@@ -75,6 +75,8 @@ function displayOrder(cols: EvolutionColumn[]): number[] {
 const consecutive = (n: number): Pair[] => Array.from({ length: n }, (_, i) => (i > 0 ? [i - 1, i] : null));
 
 const Pairs = createContext<Pair[]>([]);
+/** Índice da coluna "Hoje", que fica destacada. */
+const Today = createContext(-1);
 
 function change(values: (Dec | null)[], pair: Pair): string | null {
   if (!pair) return null;
@@ -101,20 +103,21 @@ function Cell({
   /** Saldo: clicar abre o campo para informar o valor nessa data. */
   onEdit?: () => void;
 }) {
+  const pairs = useContext(Pairs);
+  const hl = useContext(Today) === i ? " today" : "";
   const v = values[i];
-  const edit = onEdit ? { className: "num evo-cell editable", onClick: onEdit, title: `${v == null ? "" : `${money(v)} · `}clique para informar o saldo` } : null;
+  const edit = onEdit ? { className: `num evo-cell editable${hl}`, onClick: onEdit, title: `${v == null ? "" : `${money(v)} · `}clique para informar o saldo` } : null;
   if (v == null)
     return edit ? (
       <td {...edit}>
         <span className="evo-add">+</span>
       </td>
     ) : (
-      <td className="num evo-cell">{missing && <span className="ret-missing">sem cotação</span>}</td>
+      <td className={`num evo-cell${hl}`}>{missing && <span className="ret-missing">sem cotação</span>}</td>
     );
-  const pairs = useContext(Pairs);
   const pct = noRate ? null : change(values, pairs[i] ?? (i > 0 ? [i - 1, i] : null));
   return (
-    <td className={edit?.className ?? "num evo-cell"} title={edit?.title ?? money(v)} onClick={onEdit}>
+    <td className={edit?.className ?? `num evo-cell${hl}`} title={edit?.title ?? money(v)} onClick={onEdit}>
       <span className={strong ? "evo-val strong" : "evo-val"}>{short(v)}</span>
       {pct != null && <span className={`evo-pct ${tone(pct)}`}>{percent(pct)}</span>}
     </td>
@@ -142,10 +145,13 @@ function FlowRow({
   hint,
   values,
   total,
+  highlight,
 }: {
   label: string;
   hint: string;
   values: (string | null)[];
+  /** Posição na tela da coluna "Hoje". */
+  highlight: number;
   /** Valores coluna a coluna para o total do período (sem repetir dias). */
   total: (string | null)[];
 }) {
@@ -157,7 +163,7 @@ function FlowRow({
         {label}
       </th>
       {values.map((v, i) => (
-        <td key={i} className="num evo-cell" title={v == null ? undefined : money(v)}>
+        <td key={i} className={`num evo-cell${i === highlight ? " today" : ""}`} title={v == null ? undefined : money(v)}>
           {v != null && <span className={`evo-val ${tone(v)}`}>{short(v)}</span>}
         </td>
       ))}
@@ -286,160 +292,162 @@ export default function Evolution() {
 
   return (
     <Pairs.Provider value={pairs}>
-      <section className="evolution">
-        {head}
-        {view.incomplete && (
-          <p className="warning">Falta cotação ou PTAX de algum ativo em alguma data. Use “↻ Atualizar cotações” no topo.</p>
-        )}
-        <div className="card evo-card">
-          <div className="evo-scroll">
-            <table className="evo-table">
-              <thead>
-                <tr>
-                  <th className="evo-name">Em R$</th>
-                  {shown.map(({ c }) => {
-                    const l = columnLabel(c);
+      <Today.Provider value={cols.findIndex((c) => c.kind === "TODAY")}>
+        <section className="evolution">
+          {head}
+          {view.incomplete && (
+            <p className="warning">Falta cotação ou PTAX de algum ativo em alguma data. Use “↻ Atualizar cotações” no topo.</p>
+          )}
+          <div className="card evo-card">
+            <div className="evo-scroll">
+              <table className="evo-table">
+                <thead>
+                  <tr>
+                    <th className="evo-name">Em R$</th>
+                    {shown.map(({ c }) => {
+                      const l = columnLabel(c);
+                      return (
+                        <th key={c.date} className={`num evo-col ${c.kind === "TODAY" ? "today" : ""}`} title={date(c.date)}>
+                          {l.top}
+                          {l.sub && <span className="evo-sub">{l.sub}</span>}
+                        </th>
+                      );
+                    })}
+                    <th className="num evo-col evo-gain">
+                      No período
+                      <span className="evo-sub">resultado</span>
+                    </th>
+                    <th className="num evo-col" title="Resultado desde a primeira compra, com todas as compras e vendas">
+                      Desde o início
+                      <span className="evo-sub">resultado</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.groups.map((g) => {
+                    const key = `${g.id}:${g.label}`;
+                    // FGTS é um saldo só: a própria linha faz as vezes do grupo.
+                    const single = g.id === "fgts" && g.rows.length === 1;
+                    const open = single || !collapsed.includes(key);
                     return (
-                      <th key={c.date} className={`num evo-col ${c.kind === "TODAY" ? "today" : ""}`} title={date(c.date)}>
-                        {l.top}
-                        {l.sub && <span className="evo-sub">{l.sub}</span>}
-                      </th>
-                    );
-                  })}
-                  <th className="num evo-col evo-gain">
-                    No período
-                    <span className="evo-sub">resultado</span>
-                  </th>
-                  <th className="num evo-col" title="Resultado desde a primeira compra, com todas as compras e vendas">
-                    Desde o início
-                    <span className="evo-sub">resultado</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {view.groups.map((g) => {
-                  const key = `${g.id}:${g.label}`;
-                  // FGTS é um saldo só: a própria linha faz as vezes do grupo.
-                  const single = g.id === "fgts" && g.rows.length === 1;
-                  const open = single || !collapsed.includes(key);
-                  return (
-                    <Fragment key={key}>
-                      {!single && (
-                        <tr className="evo-group clickable" onClick={() => toggle(key)}>
-                          <th scope="row">
-                            <span className="ret-caret">{open ? "▾" : "▸"}</span>
-                            {g.label}
-                          </th>
-                          {shown.map(({ c, i }) => (
-                            <Cell key={c.date} values={g.total} i={i} strong />
-                          ))}
-                          <Gain gain={g.gain} strong />
-                          <Gain gain={g.since} strong plain />
-                        </tr>
-                      )}
-                      {open &&
-                        g.rows.map((r) => (
-                          <tr key={`${key}:${r.asset ?? r.name}:${r.detail ?? ""}`} className={single ? "evo-row evo-group" : "evo-row"}>
-                            <th scope="row" title={r.detail ? `${r.name}\n${r.detail}` : r.name}>
-                              <span className="evo-asset">{r.name}</span>
-                              {r.detail && <span className="evo-detail">{r.detail}</span>}
+                      <Fragment key={key}>
+                        {!single && (
+                          <tr className="evo-group clickable" onClick={() => toggle(key)}>
+                            <th scope="row">
+                              <span className="ret-caret">{open ? "▾" : "▸"}</span>
+                              {g.label}
                             </th>
                             {shown.map(({ c, i }) => (
-                              <Cell
-                                key={c.date}
-                                values={r.values}
-                                i={i}
-                                missing={r.missing[i]}
-                                onEdit={
-                                  // 31/12 do ano anterior e "todos os anos" só mostram;
-                                  // o saldo se informa no mês dele, dentro do período do saldo.
-                                  r.savings_id && !r.outside?.[i] && (c.kind === "MONTH" || c.kind === "TODAY")
-                                    ? () =>
-                                        setEdit({
-                                          savingsId: r.savings_id!,
-                                          name: r.name,
-                                          date: c.date,
-                                          amount:
-                                            r.values[i] == null
-                                              ? ""
-                                              : Number(r.values[i]) === 0
-                                                ? cashZero(2)
-                                                : toCashMask(r.values[i]!, 2).text,
-                                          month: c.kind === "MONTH",
-                                        })
-                                    : undefined
-                                }
-                              />
+                              <Cell key={c.date} values={g.total} i={i} strong />
                             ))}
-                            <Gain gain={r.gain} />
-                            <Gain gain={r.since} plain />
+                            <Gain gain={g.gain} strong />
+                            <Gain gain={g.since} strong plain />
                           </tr>
+                        )}
+                        {open &&
+                          g.rows.map((r) => (
+                            <tr key={`${key}:${r.asset ?? r.name}:${r.detail ?? ""}`} className={single ? "evo-row evo-group" : "evo-row"}>
+                              <th scope="row" title={r.detail ? `${r.name}\n${r.detail}` : r.name}>
+                                <span className="evo-asset">{r.name}</span>
+                                {r.detail && <span className="evo-detail">{r.detail}</span>}
+                              </th>
+                              {shown.map(({ c, i }) => (
+                                <Cell
+                                  key={c.date}
+                                  values={r.values}
+                                  i={i}
+                                  missing={r.missing[i]}
+                                  onEdit={
+                                    // 31/12 do ano anterior e "todos os anos" só mostram;
+                                    // o saldo se informa no mês dele, dentro do período do saldo.
+                                    r.savings_id && !r.outside?.[i] && (c.kind === "MONTH" || c.kind === "TODAY")
+                                      ? () =>
+                                          setEdit({
+                                            savingsId: r.savings_id!,
+                                            name: r.name,
+                                            date: c.date,
+                                            amount:
+                                              r.values[i] == null
+                                                ? ""
+                                                : Number(r.values[i]) === 0
+                                                  ? cashZero(2)
+                                                  : toCashMask(r.values[i]!, 2).text,
+                                            month: c.kind === "MONTH",
+                                          })
+                                      : undefined
+                                  }
+                                />
+                              ))}
+                              <Gain gain={r.gain} />
+                              <Gain gain={r.since} plain />
+                            </tr>
+                          ))}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="evo-total">
+                    <th scope="row">Total investimentos</th>
+                    {shown.map(({ c, i }) => (
+                      <Cell key={c.date} values={view.investments} i={i} strong />
+                    ))}
+                    <Gain gain={view.investments_gain} strong />
+                    <Gain gain={view.investments_since} strong plain />
+                  </tr>
+                  <FlowRow highlight={order.findIndex((i) => cols[i].kind === "TODAY")} label="Rendimento" hint="Variação dos investimentos sem contar compras e vendas" values={inOrder(incomes(view, pairs))} total={incomes(view, steps)} />
+                  {noOwned ? (
+                    <>
+                      {/* Com bens, a variação vai no total sem eles: os bens entram pelo custo. */}
+                      <tr className="evo-total">
+                        <th scope="row" title="Total geral sem os imóveis e veículos">
+                          Total sem bens
+                        </th>
+                        {shown.map(({ c, i }) => (
+                          <Cell key={c.date} values={noOwned.values} i={i} strong />
                         ))}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="evo-total">
-                  <th scope="row">Total investimentos</th>
-                  {shown.map(({ c, i }) => (
-                    <Cell key={c.date} values={view.investments} i={i} strong />
-                  ))}
-                  <Gain gain={view.investments_gain} strong />
-                  <Gain gain={view.investments_since} strong plain />
-                </tr>
-                <FlowRow label="Rendimento" hint="Variação dos investimentos sem contar compras e vendas" values={inOrder(incomes(view, pairs))} total={incomes(view, steps)} />
-                {noOwned ? (
-                  <>
-                    {/* Com bens, a variação vai no total sem eles: os bens entram pelo custo. */}
-                    <tr className="evo-total">
-                      <th scope="row" title="Total geral sem os imóveis e veículos">
-                        Total sem bens
-                      </th>
-                      {shown.map(({ c, i }) => (
-                        <Cell key={c.date} values={noOwned.values} i={i} strong />
-                      ))}
-                      <Gain gain={noOwned.gain} strong />
-                      <td className="num evo-cell" />
-                    </tr>
-                    <FlowRow label="Variação (R$)" hint="Diferença do total sem bens para a coluna anterior" values={inOrder(diffs(noOwned.values, pairs))} total={diffs(noOwned.values, steps)} />
-                    <tr className="evo-total grand">
-                      <th scope="row">Total geral (com bens)</th>
-                      {shown.map(({ c, i }) => (
-                        <Cell key={c.date} values={view.total} i={i} strong noRate />
-                      ))}
-                      <td className="num evo-cell" />
-                      <td className="num evo-cell" />
-                    </tr>
-                  </>
-                ) : (
-                  <>
-                    <tr className="evo-total grand">
-                      <th scope="row">Total geral</th>
-                      {shown.map(({ c, i }) => (
-                        <Cell key={c.date} values={view.total} i={i} strong />
-                      ))}
-                      <Gain gain={view.total_gain} strong />
-                      <td className="num evo-cell" />
-                    </tr>
-                    <FlowRow label="Variação (R$)" hint="Diferença do total geral para a coluna anterior" values={inOrder(diffs(view.total, pairs))} total={diffs(view.total, steps)} />
-                  </>
-                )}
-              </tfoot>
-            </table>
+                        <Gain gain={noOwned.gain} strong />
+                        <td className="num evo-cell" />
+                      </tr>
+                      <FlowRow highlight={order.findIndex((i) => cols[i].kind === "TODAY")} label="Variação (R$)" hint="Diferença do total sem bens para a coluna anterior" values={inOrder(diffs(noOwned.values, pairs))} total={diffs(noOwned.values, steps)} />
+                      <tr className="evo-total grand">
+                        <th scope="row">Total geral (com bens)</th>
+                        {shown.map(({ c, i }) => (
+                          <Cell key={c.date} values={view.total} i={i} strong noRate />
+                        ))}
+                        <td className="num evo-cell" />
+                        <td className="num evo-cell" />
+                      </tr>
+                    </>
+                  ) : (
+                    <>
+                      <tr className="evo-total grand">
+                        <th scope="row">Total geral</th>
+                        {shown.map(({ c, i }) => (
+                          <Cell key={c.date} values={view.total} i={i} strong />
+                        ))}
+                        <Gain gain={view.total_gain} strong />
+                        <td className="num evo-cell" />
+                      </tr>
+                      <FlowRow highlight={order.findIndex((i) => cols[i].kind === "TODAY")} label="Variação (R$)" hint="Diferença do total geral para a coluna anterior" values={inOrder(diffs(view.total, pairs))} total={diffs(view.total, steps)} />
+                    </>
+                  )}
+                </tfoot>
+              </table>
+            </div>
           </div>
-        </div>
-        {edit && (
-          <BalanceDialog
-            edit={edit}
-            onClose={() => setEdit(null)}
-            onSaved={() => {
-              setEdit(null);
-              setReload((n) => n + 1);
-            }}
-          />
-        )}
-      </section>
+          {edit && (
+            <BalanceDialog
+              edit={edit}
+              onClose={() => setEdit(null)}
+              onSaved={() => {
+                setEdit(null);
+                setReload((n) => n + 1);
+              }}
+            />
+          )}
+        </section>
+      </Today.Provider>
     </Pairs.Provider>
   );
 }

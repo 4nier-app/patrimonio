@@ -20,6 +20,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Evolução: no ano corrente, a coluna "Ontem" vem depois de "Hoje", como na
   planilha. "Hoje" compara com o fim do mês anterior (o mesmo número do
   Painel) e "Ontem" mostra a evolução de ontem para hoje.
+- Evolução: a coluna "Hoje" fica em destaque, com fundo verde-claro, bordas
+  e números em negrito.
 
 ## [0.15.2] - 2026-10-19
 
