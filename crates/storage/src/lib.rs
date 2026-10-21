@@ -305,6 +305,40 @@ impl Vault {
         Ok(())
     }
 
+    /// Confere a senha do cofre aberto, sem mudar nada.
+    pub fn check_password(&self, password: &str) -> Result<()> {
+        let header = kdf::VaultHeader::read(&self.dir.join(VAULT_FILE))?;
+        match header.key_from_password(password)? {
+            Some(k) if *k == *self.data_key => Ok(()),
+            _ => Err(VaultError::WrongPassword),
+        }
+    }
+
+    /// Apaga de vez o cofre desta pasta: banco, cabeçalho, backups automáticos
+    /// e cópias guardadas na restauração. Pede a senha de novo. Backups que o
+    /// usuário salvou em outro lugar não são tocados.
+    pub fn erase(self, password: &str) -> Result<()> {
+        self.check_password(password)?;
+        let dir = self.dir.clone();
+        // Fecha o banco antes de apagar (no Windows o arquivo aberto não sai).
+        drop(self);
+        for name in [DB_FILE, VAULT_FILE] {
+            for suffix in ["", "-wal", "-shm", "-journal"] {
+                let f = dir.join(format!("{name}{suffix}"));
+                if f.exists() {
+                    std::fs::remove_file(&f)?;
+                }
+            }
+        }
+        for sub in [backup::AUTO_DIR, backup::PREVIOUS_DIR] {
+            let d = dir.join(sub);
+            if d.exists() {
+                std::fs::remove_dir_all(&d)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Gera uma chave de recuperação nova (a anterior deixa de valer) e guarda
     /// o e-mail para onde ela será enviada. Retorna a chave, que não é gravada.
     pub fn setup_recovery(&mut self, email: Option<&str>) -> Result<String> {
@@ -553,6 +587,23 @@ mod tests {
 
     fn create(dir: &Path) -> Vault {
         Vault::create_with_params(dir, SENHA, "0.1.0", KdfParams::fast_for_tests()).unwrap()
+    }
+
+    #[test]
+    fn apaga_o_cofre_so_com_a_senha() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = create(tmp.path());
+        drop(v.auto_backup(0, 3));
+        let v = Vault::open(tmp.path(), SENHA, "0.1.0").unwrap();
+        assert!(matches!(
+            v.check_password("senha-errada-123"),
+            Err(VaultError::WrongPassword)
+        ));
+        assert!(Vault::exists(tmp.path()));
+        v.erase(SENHA).unwrap();
+        assert!(!Vault::exists(tmp.path()));
+        assert!(!tmp.path().join(DB_FILE).exists());
+        assert!(!tmp.path().join("backups").exists());
     }
 
     #[test]

@@ -21,8 +21,8 @@ use crate::{
 
 pub const BACKUP_EXTENSION: &str = "cabackup";
 const APP_NAME: &str = "4Nier Patrimônio Auditável";
-const AUTO_DIR: &str = "backups";
-const PREVIOUS_DIR: &str = "anteriores";
+pub(crate) const AUTO_DIR: &str = "backups";
+pub(crate) const PREVIOUS_DIR: &str = "anteriores";
 
 #[derive(Serialize, Deserialize)]
 struct BackupFile {

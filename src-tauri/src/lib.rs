@@ -159,6 +159,27 @@ fn remove_profile(id: String, state: State<AppState>) -> Result<(), String> {
     switch_profile(&state, &profiles::initial(base))
 }
 
+/// Apaga o perfil aberto e todos os dados dele (pede a senha). Perfis extras
+/// saem da lista; o principal fica vazio, pronto para um cofre novo.
+#[tauri::command]
+fn erase_profile(password: String, state: State<AppState>) -> Result<(), String> {
+    // Senha errada: nada muda e o cofre continua aberto.
+    with_vault(&state, |v| v.check_password(&password))?;
+    let vault = state
+        .vault
+        .lock()
+        .map_err(|_| "estado interno indisponível".to_string())?
+        .take()
+        .ok_or_else(|| "o cofre está bloqueado".to_string())?;
+    vault.erase(&password).map_err(err)?;
+    let base = state.base_dir.clone();
+    let id = state.profile.lock().map(|p| p.clone()).unwrap_or_default();
+    if id != profiles::MAIN {
+        profiles::remove_empty(&base, &id, false)?;
+    }
+    switch_profile(&state, &profiles::initial(&base))
+}
+
 fn after_unlock(mut vault: Vault, state: &State<AppState>) -> Result<(), String> {
     vault
         .record_app_version(&changelog::section(APP_VERSION))
@@ -906,6 +927,7 @@ pub fn run() {
             create_profile,
             rename_profile,
             remove_profile,
+            erase_profile,
             create_vault,
             unlock,
             lock,

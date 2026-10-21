@@ -8,9 +8,9 @@ import RestoreBackup from "../components/RestoreBackup";
 
 type Msg = { ok: boolean; text: string } | null;
 
-type Props = { status: VaultStatus; onRestored: () => void; onChanged: () => void };
+type Props = { status: VaultStatus; onRestored: () => void; onChanged: () => void; onErased: () => void };
 
-export default function Security({ status, onRestored, onChanged }: Props) {
+export default function Security({ status, onRestored, onChanged, onErased }: Props) {
   return (
     <section>
       <h2>Segurança</h2>
@@ -23,6 +23,7 @@ export default function Security({ status, onRestored, onChanged }: Props) {
         <Recovery onChanged={onChanged} />
         <Backup onRestored={onRestored} />
         <ChangePassword />
+        <EraseProfile status={status} onErased={onErased} />
       </div>
     </section>
   );
@@ -216,6 +217,44 @@ function ChangePassword() {
       {message && <p className={message.ok ? "ok" : "error"}>{message.text}</p>}
       <button type="submit" disabled={!current || !next}>
         Trocar senha
+      </button>
+    </form>
+  );
+}
+
+/** Apaga o perfil aberto e todos os dados dele, depois de pedir a senha. */
+function EraseProfile({ status, onErased }: { status: VaultStatus; onErased: () => void }) {
+  const [password, setPassword] = useState("");
+  const [sure, setSure] = useState(false);
+  const [message, setMessage] = useState<Msg>(null);
+  const name = status.profiles.find((p) => p.id === status.profile)?.name ?? "este perfil";
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    try {
+      await api.eraseProfile(password);
+      onErased();
+    } catch (err) {
+      setMessage({ ok: false, text: errorMessage(err) });
+    }
+  }
+
+  return (
+    <form className="card stack danger-zone" onSubmit={submit}>
+      <h3>Apagar perfil e todos os dados</h3>
+      <p className="muted">
+        Apaga de vez os lançamentos, saldos, bens, a senha e os backups automáticos de <strong>{name}</strong> neste computador.
+        Backups que você salvou em outro lugar continuam onde estão. Não dá para desfazer.
+      </p>
+      <PasswordInput label="Senha deste perfil" value={password} onChange={setPassword} />
+      <label className="check">
+        <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} /> Entendo que os dados serão apagados e não
+        poderão ser recuperados.
+      </label>
+      {message && <p className={message.ok ? "ok" : "error"}>{message.text}</p>}
+      <button type="submit" className="danger" disabled={!password || !sure}>
+        Apagar tudo
       </button>
     </form>
   );

@@ -80,7 +80,31 @@ src-tauri        ponte entre o núcleo e a interface
 src              interface React
 ```
 
-## Privacidade
+## Privacidade e LGPD
+
+O aplicativo não coleta nenhum dado de quem usa. Não há cadastro, servidor,
+anúncio nem rastreador: tudo fica num banco criptografado no seu computador,
+protegido pela sua senha. Cada pessoa guarda os próprios dados para uso
+pessoal, e o autor do projeto não recebe dado de ninguém.
+
+**O que o aplicativo acessa na internet:** só dados públicos de mercado, para
+cotações e índices: B3, Banco Central (PTAX e índices), CVM (cotas de fundos),
+Tesouro Transparente, Yahoo Finance, Coinbase e Nasdaq Trader. Os pedidos levam
+apenas códigos de ativos, CNPJ de fundos e datas, nunca nome, CPF, quantidades
+ou valores. Esses sites veem só o endereço de internet do computador, como em
+qualquer acesso. A chave de recuperação vai pelo seu próprio programa de
+e-mail; o aplicativo não envia nada.
+
+**Como apagar seus dados:**
+- No aplicativo: Segurança › "Apagar perfil e todos os dados" (pede a senha).
+- No Windows, ao desinstalar: marque "Apagar também meus dados".
+- No Mac e no Linux, apague a pasta do aplicativo:
+  `~/Library/Application Support/io.github.marcelofournier.carteiraauditavel`
+  (Mac) ou `~/.local/share/io.github.marcelofournier.carteiraauditavel` (Linux).
+
+A página do projeto fica no GitHub Pages, que registra acessos conforme a
+[política de privacidade do GitHub](https://docs.github.com/pt/site-policy/privacy-policies/github-general-privacy-statement).
+Relatos de problema no GitHub são públicos: nunca anexe dados pessoais.
 
 Notas de corretagem e extratos reais **nunca** entram neste repositório, nem
 anonimizados. As telas em `docs/img/` usam dados fictícios. Os testes usam apenas notas fictícias em `fixtures/sinteticas/`,

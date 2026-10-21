@@ -291,6 +291,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           {!asset && tab === "seguranca" && current === "seguranca" && (
             <Security
               status={status}
+              onErased={onLocked}
               onChanged={onChanged}
               onRestored={() => {
                 setTab("carteira");

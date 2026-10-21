@@ -22,6 +22,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   Painel) e "Ontem" mostra a evolução de ontem para hoje.
 - Evolução: a coluna "Hoje" fica em destaque, com fundo verde-claro, bordas
   e números em negrito.
+- LGPD: botão "Apagar perfil e todos os dados" em Segurança (pede a senha);
+  ao desinstalar no Windows, a caixa "Apagar também meus dados" ficou mais
+  clara; aviso de privacidade na página e no README.
 - Backup: o nome sugerido passa a ser "4nier-patrimonio-AAAA-MM-DD". Backups
   antigos continuam abrindo normalmente.
 

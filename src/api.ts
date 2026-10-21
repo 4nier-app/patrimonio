@@ -58,6 +58,7 @@ export const api = {
   createProfile: (name: string) => invoke<void>("create_profile", { name }),
   renameProfile: (id: string, name: string) => invoke<void>("rename_profile", { id, name }),
   removeProfile: (id: string) => invoke<void>("remove_profile", { id }),
+  eraseProfile: (password: string) => invoke<void>("erase_profile", { password }),
   /** Cria o cofre e devolve a chave de recuperação gerada. */
   createVault: (password: string, confirmation: string, email: string) =>
     invoke<string>("create_vault", { password, confirmation, email }),
