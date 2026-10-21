@@ -6,7 +6,18 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.15.2] - Não lançada
+## [0.15.3] - Não lançada
+
+### Alterado
+- Painel: o gráfico de evolução mostra o total de cada barra, resumido, em
+  cima dela, e todos os meses no eixo, sem pular nenhum.
+- Painel: os bens (imóveis e veículos) aparecem como item próprio ao lado de
+  Investimentos, FGTS e Dinheiro.
+- Evolução: com bens cadastrados, a linha "Total sem bens" traz as
+  porcentagens e a variação do mês; o "Total geral (com bens)" mostra só os
+  valores, porque os bens entram pelo custo.
+
+## [0.15.2] - 2026-10-19
 
 ### Corrigido
 - Notas da XP: o código do ativo vem depois do nome de pregão e a taxa aparece

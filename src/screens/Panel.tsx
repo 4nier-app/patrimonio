@@ -202,6 +202,7 @@ export default function Panel({
             { label: "Investimentos", value: num(year.investments[today]) },
             { label: "FGTS", value: part("fgts") },
             { label: "Dinheiro", value: part("dinheiro") },
+            ...(groups.some((g) => g.id === "bens") ? [{ label: "Bens", value: part("bens") }] : []),
           ].map((x) => (
             <div key={x.label}>
               <span className="muted small">{x.label}</span>
@@ -285,18 +286,45 @@ function Evolution({ view, p }: { view: EvolutionView; p: Palette }) {
         valueFormatter: (v: number) => (v == null ? "—" : money(v.toFixed(2))),
       },
       legend: { ...(base(p).legend as object), type: "scroll", right: 0, data: groups.map((g) => g.label), pageTextStyle: { color: p.muted } },
-      xAxis: { type: "category", data: labels, ...axisStyle(p), splitLine: { show: false } },
+      xAxis: {
+        type: "category",
+        data: labels,
+        ...axisStyle(p),
+        // Todos os meses, sem pular nenhum.
+        axisLabel: { color: p.muted, interval: 0, hideOverlap: false },
+        splitLine: { show: false },
+      },
       yAxis: { type: "value", ...axisStyle(p), axisLabel: { color: p.muted, formatter: (v: number) => compact(v) } },
       grid: { left: 8, right: 16, top: 40, bottom: 8, containLabel: true },
-      series: groups.map((g) => ({
-        name: g.label,
-        type: "bar",
-        stack: "p",
-        barMaxWidth: 32,
-        color: colorOf(g.id, p),
-        itemStyle: { borderColor: p.surface, borderWidth: 1 },
-        data: g.total.map((v) => (v == null ? null : Number(v))),
-      })),
+      series: [
+        ...groups.map((g) => ({
+          name: g.label,
+          type: "bar",
+          stack: "p",
+          barMaxWidth: 32,
+          color: colorOf(g.id, p),
+          itemStyle: { borderColor: p.surface, borderWidth: 1 },
+          data: g.total.map((v) => (v == null ? null : Number(v))),
+        })),
+        // Total de cada barra, resumido, logo acima dela.
+        {
+          name: "Total",
+          type: "scatter",
+          symbolSize: 0,
+          silent: true,
+          tooltip: { show: false },
+          z: 10,
+          data: view.total.map((v) => (v == null ? null : Number(v))),
+          label: {
+            show: true,
+            position: "top",
+            distance: 4,
+            color: p.ink,
+            fontSize: 11,
+            formatter: (x: { value: number }) => compact(x.value).replace("R$ ", ""),
+          },
+        },
+      ],
     };
   }, [view, p]);
   return <Chart option={option} height={320} ariaLabel="Patrimônio no fim de cada período, por grupo" />;

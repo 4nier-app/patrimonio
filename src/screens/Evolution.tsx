@@ -56,12 +56,15 @@ function Cell({
   i,
   missing,
   strong,
+  noRate,
   onEdit,
 }: {
   values: (Dec | null)[];
   i: number;
   missing?: boolean;
   strong?: boolean;
+  /** Sem a % de variação (total com bens). */
+  noRate?: boolean;
   /** Saldo: clicar abre o campo para informar o valor nessa data. */
   onEdit?: () => void;
 }) {
@@ -75,7 +78,7 @@ function Cell({
     ) : (
       <td className="num evo-cell">{missing && <span className="ret-missing">sem cotação</span>}</td>
     );
-  const pct = change(values, i);
+  const pct = noRate ? null : change(values, i);
   return (
     <td className={edit?.className ?? "num evo-cell"} title={edit?.title ?? money(v)} onClick={onEdit}>
       <span className={strong ? "evo-val strong" : "evo-val"}>{short(v)}</span>
@@ -122,6 +125,24 @@ function FlowRow({ label, hint, values }: { label: string; hint: string; values:
 }
 
 /** Diferença para a coluna anterior. */
+/** Total geral sem os bens (imóveis e veículos), que entram pelo custo. */
+function withoutOwned(view: EvolutionView): { values: (Dec | null)[]; gain: EvolutionGain | null } | null {
+  const owned = view.groups.filter((g) => g.id === "bens");
+  if (!owned.length) return null;
+  const values = view.total.map((t, i) => {
+    if (t == null) return null;
+    const b = owned.reduce((s, g) => s + Number(g.total[i] ?? 0), 0);
+    return (Number(t) - b).toFixed(2);
+  });
+  const first = values[0];
+  const last = values[values.length - 1];
+  const gain =
+    first == null && last == null
+      ? null
+      : { value: (Number(last ?? 0) - Number(first ?? 0)).toFixed(2), base: first ?? "0" };
+  return { values, gain };
+}
+
 const diffs = (values: (Dec | null)[]): (string | null)[] =>
   values.map((v, i) => {
     if (i === 0) return null;
@@ -196,6 +217,7 @@ export default function Evolution() {
     );
 
   const cols = view.columns;
+  const noOwned = withoutOwned(view);
   const investDiffs = diffs(view.investments);
   const income = investDiffs.map((d, i) => {
     const n = view.new_money[i];
@@ -306,15 +328,42 @@ export default function Evolution() {
                 <Gain gain={view.investments_since} strong plain />
               </tr>
               <FlowRow label="Rendimento" hint="Variação dos investimentos sem contar compras e vendas" values={income} />
-              <tr className="evo-total grand">
-                <th scope="row">Total geral</th>
-                {cols.map((c, i) => (
-                  <Cell key={c.date} values={view.total} i={i} strong />
-                ))}
-                <Gain gain={view.total_gain} strong />
-                <td className="num evo-cell" />
-              </tr>
-              <FlowRow label="Variação (R$)" hint="Diferença do total geral para a coluna anterior" values={diffs(view.total)} />
+              {noOwned ? (
+                <>
+                  {/* Com bens, a variação vai no total sem eles: os bens entram pelo custo. */}
+                  <tr className="evo-total">
+                    <th scope="row" title="Total geral sem os imóveis e veículos">
+                      Total sem bens
+                    </th>
+                    {cols.map((c, i) => (
+                      <Cell key={c.date} values={noOwned.values} i={i} strong />
+                    ))}
+                    <Gain gain={noOwned.gain} strong />
+                    <td className="num evo-cell" />
+                  </tr>
+                  <FlowRow label="Variação (R$)" hint="Diferença do total sem bens para a coluna anterior" values={diffs(noOwned.values)} />
+                  <tr className="evo-total grand">
+                    <th scope="row">Total geral (com bens)</th>
+                    {cols.map((c, i) => (
+                      <Cell key={c.date} values={view.total} i={i} strong noRate />
+                    ))}
+                    <td className="num evo-cell" />
+                    <td className="num evo-cell" />
+                  </tr>
+                </>
+              ) : (
+                <>
+                  <tr className="evo-total grand">
+                    <th scope="row">Total geral</th>
+                    {cols.map((c, i) => (
+                      <Cell key={c.date} values={view.total} i={i} strong />
+                    ))}
+                    <Gain gain={view.total_gain} strong />
+                    <td className="num evo-cell" />
+                  </tr>
+                  <FlowRow label="Variação (R$)" hint="Diferença do total geral para a coluna anterior" values={diffs(view.total)} />
+                </>
+              )}
             </tfoot>
           </table>
         </div>
