@@ -17,6 +17,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Evolução: com bens cadastrados, a linha "Total sem bens" traz as
   porcentagens e a variação do mês; o "Total geral (com bens)" mostra só os
   valores, porque os bens entram pelo custo.
+- Evolução: no ano corrente, a coluna "Ontem" vem depois de "Hoje", como na
+  planilha. "Hoje" compara com o fim do mês anterior (o mesmo número do
+  Painel) e "Ontem" mostra a evolução de ontem para hoje.
 
 ## [0.15.2] - 2026-10-19
 
