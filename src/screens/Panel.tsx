@@ -295,8 +295,20 @@ function Evolution({ view, p }: { view: EvolutionView; p: Palette }) {
         type: "category",
         data: labels,
         ...axisStyle(p),
-        // Todos os meses, sem pular nenhum.
-        axisLabel: { color: p.muted, interval: 0, hideOverlap: false },
+        // Todos os meses, sem pular nenhum, com o total completo embaixo do mês.
+        axisLabel: {
+          color: p.muted,
+          interval: 0,
+          hideOverlap: false,
+          lineHeight: 17,
+          formatter: (label: string, i: number) => {
+            const v = view.total[i];
+            if (v == null) return label;
+            const total = Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return `${label}\n{total|${total}}`;
+          },
+          rich: { total: { color: p.ink, fontSize: 11, lineHeight: 17 } },
+        },
         splitLine: { show: false },
       },
       yAxis: { type: "value", ...axisStyle(p), axisLabel: { color: p.muted, formatter: (v: number) => compact(v) } },
@@ -311,24 +323,6 @@ function Evolution({ view, p }: { view: EvolutionView; p: Palette }) {
           itemStyle: { borderColor: p.surface, borderWidth: 1 },
           data: g.total.map((v) => (v == null ? null : Number(v))),
         })),
-        // Total de cada barra, resumido, logo acima dela.
-        {
-          name: "Total",
-          type: "scatter",
-          symbolSize: 0,
-          silent: true,
-          tooltip: { show: false },
-          z: 10,
-          data: view.total.map((v) => (v == null ? null : Number(v))),
-          label: {
-            show: true,
-            position: "top",
-            distance: 4,
-            color: p.ink,
-            fontSize: 11,
-            formatter: (x: { value: number }) => compact(x.value).replace("R$ ", ""),
-          },
-        },
       ],
     };
   }, [view, p]);

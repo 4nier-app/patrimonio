@@ -9,8 +9,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [0.15.3] - Não lançada
 
 ### Alterado
-- Painel: o gráfico de evolução mostra o total de cada barra, resumido, em
-  cima dela, e todos os meses no eixo, sem pular nenhum.
+- Painel: o gráfico de evolução mostra o total completo de cada barra, com
+  centavos, embaixo do mês, e todos os meses no eixo, sem pular nenhum.
 - Painel: os bens (imóveis e veículos) aparecem como item próprio ao lado de
   Investimentos, FGTS e Dinheiro. As variações "no mês" e "no ano" passam a
   ser calculadas sem os bens.
