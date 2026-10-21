@@ -74,6 +74,11 @@ export const api = {
   pickBackup: () => invoke<BackupSummary | null>("pick_backup"),
   restoreBackup: (path: string, password: string) => invoke<RestoreResult>("restore_backup", { path, password }),
   openDataFolder: () => invoke<void>("open_data_folder"),
+  /** Versão mais nova publicada no GitHub, ou null (sem novidade, sem internet ou aviso desligado). */
+  checkUpdate: () => invoke<{ version: string } | null>("check_update"),
+  updateNotice: () => invoke<boolean>("update_notice"),
+  setUpdateNotice: (on: boolean) => invoke<void>("set_update_notice", { on }),
+  openReleases: () => invoke<void>("open_releases"),
   unlock: (password: string) => invoke<void>("unlock", { password }),
   lock: () => invoke<void>("lock"),
   changePassword: (current: string, next: string, confirmation: string) =>

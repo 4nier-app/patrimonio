@@ -9,6 +9,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [0.15.3] - Não lançada
 
 ### Alterado
+- Aviso de nova versão: ao abrir, o aplicativo consulta no GitHub a versão
+  mais recente e, se houver uma nova, mostra um aviso com o botão "Baixar".
+  Só o número da versão é consultado; dá para desligar em Segurança.
 - Painel: o gráfico de evolução mostra o total completo de cada barra, com
   centavos, embaixo do mês, e todos os meses no eixo, sem pular nenhum.
 - Painel: os bens (imóveis e veículos) aparecem como item próprio ao lado de

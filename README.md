@@ -92,8 +92,10 @@ cotações e índices: B3, Banco Central (PTAX e índices), CVM (cotas de fundos
 Tesouro Transparente, Yahoo Finance, Coinbase e Nasdaq Trader. Os pedidos levam
 apenas códigos de ativos, CNPJ de fundos e datas, nunca nome, CPF, quantidades
 ou valores. Esses sites veem só o endereço de internet do computador, como em
-qualquer acesso. A chave de recuperação vai pelo seu próprio programa de
-e-mail; o aplicativo não envia nada.
+qualquer acesso. Ao abrir, o aplicativo também pergunta ao GitHub qual é a
+versão mais recente, para avisar se há atualização (dá para desligar em
+Segurança). A chave de recuperação vai pelo seu próprio programa de e-mail; o
+aplicativo não envia nada.
 
 **Como apagar seus dados:**
 - No aplicativo: Segurança › "Apagar perfil e todos os dados" (pede a senha).

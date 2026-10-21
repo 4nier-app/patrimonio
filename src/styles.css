@@ -211,6 +211,7 @@ tr.total-row td { background: var(--bg); }
 .summary dt { color: var(--muted); }
 .summary dd { margin: 0; }
 .banner { margin: 12px 24px 0; border-radius: 8px; }
+.banner.info { background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 8px 10px; }
 
 /* Etapa 3: painel */
 .dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }

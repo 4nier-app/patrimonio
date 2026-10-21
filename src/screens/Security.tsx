@@ -23,6 +23,7 @@ export default function Security({ status, onRestored, onChanged, onErased }: Pr
         <Recovery onChanged={onChanged} />
         <Backup onRestored={onRestored} />
         <ChangePassword />
+        <UpdateNotice />
         <EraseProfile status={status} onErased={onErased} />
       </div>
     </section>
@@ -219,6 +220,41 @@ function ChangePassword() {
         Trocar senha
       </button>
     </form>
+  );
+}
+
+/** Liga ou desliga o aviso de versão nova ao abrir o aplicativo. */
+function UpdateNotice() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [message, setMessage] = useState<Msg>(null);
+
+  useEffect(() => {
+    api.updateNotice().then(setOn).catch((e) => setMessage({ ok: false, text: errorMessage(e) }));
+  }, []);
+
+  async function change(next: boolean) {
+    setMessage(null);
+    try {
+      await api.setUpdateNotice(next);
+      setOn(next);
+    } catch (e) {
+      setMessage({ ok: false, text: errorMessage(e) });
+    }
+  }
+
+  return (
+    <div className="card stack">
+      <h3>Aviso de nova versão</h3>
+      <p className="muted">
+        Ao abrir, o aplicativo pergunta ao GitHub qual é a versão mais recente e avisa se houver uma nova. Só o número
+        da versão é consultado; nenhum dado seu é enviado.
+      </p>
+      <label className="check">
+        <input type="checkbox" checked={on ?? true} disabled={on == null} onChange={(e) => void change(e.target.checked)} />
+        Avisar quando houver versão nova
+      </label>
+      {message && <p className={message.ok ? "ok" : "error"}>{message.text}</p>}
+    </div>
   );
 }
 

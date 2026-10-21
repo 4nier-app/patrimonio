@@ -857,6 +857,54 @@ fn list_quote_updates(state: State<AppState>) -> Result<Vec<QuoteUpdate>, String
     with_vault(&state, |v| v.list_quote_updates(30))
 }
 
+/// Liga ou desliga o aviso de versão nova (ligado se nunca foi mexido).
+const SETTING_UPDATE_NOTICE: &str = "aviso.nova_versao";
+
+#[derive(Serialize)]
+struct UpdateInfo {
+    version: String,
+}
+
+/// Consulta no GitHub se há versão mais nova. Sem internet, ou com o aviso
+/// desligado, não avisa nada.
+#[tauri::command]
+async fn check_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        if !update_notice(state.clone())? {
+            return Ok(None);
+        }
+        let Ok(latest) = carteira_providers::github::latest_version() else {
+            return Ok(None);
+        };
+        Ok(carteira_providers::github::is_newer(&latest, APP_VERSION)
+            .then_some(UpdateInfo { version: latest }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn update_notice(state: State<AppState>) -> Result<bool, String> {
+    let value = with_vault(&state, |v| v.setting(SETTING_UPDATE_NOTICE))?;
+    Ok(value.as_deref() != Some("off"))
+}
+
+#[tauri::command]
+fn set_update_notice(on: bool, state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| {
+        v.set_setting(SETTING_UPDATE_NOTICE, if on { "on" } else { "off" })
+    })
+}
+
+/// Abre no navegador a página de download da versão mais recente.
+#[tauri::command]
+fn open_releases(app: tauri::AppHandle) -> Result<(), String> {
+    app.opener()
+        .open_url(carteira_providers::github::RELEASES_PAGE, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn update_quotes(app: tauri::AppHandle) -> Result<Vec<market::UpdateLine>, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -1004,6 +1052,10 @@ pub fn run() {
             pick_backup,
             restore_backup,
             open_data_folder,
+            check_update,
+            update_notice,
+            set_update_notice,
+            open_releases,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o aplicativo");

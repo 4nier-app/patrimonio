@@ -8,10 +8,12 @@
 //! - Banco Central (SGS): CDI e IPCA, para comparar com a carteira.
 //! - Nasdaq Trader: catálogo de ações e ETFs dos EUA.
 //! - CVM (dados abertos): cota diária e cadastro dos fundos de investimento.
+//! - GitHub: número da versão mais recente do aplicativo, para avisar de atualização.
 
 pub mod coinbase;
 pub mod cotahist;
 pub mod cvm;
+pub mod github;
 pub mod http;
 pub mod nasdaq;
 pub mod ptax;
