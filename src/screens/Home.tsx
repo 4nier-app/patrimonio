@@ -161,6 +161,15 @@ export default function Home({ status, onLocked, onChanged }: Props) {
     void updateQuotes();
   }, []);
 
+  // Avisa quando há versão mais nova publicada (pode ser desligado em Segurança).
+  const [newVersion, setNewVersion] = useState<string | null>(null);
+  useEffect(() => {
+    api
+      .checkUpdate()
+      .then((u) => setNewVersion(u?.version ?? null))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -209,6 +218,18 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             ))}
           </ul>
           <button className="link" onClick={() => setReport(null)} aria-label="Fechar">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {newVersion && (
+        <div className="banner info" role="status">
+          Nova versão {newVersion} do 4Nier disponível. Baixe e instale por cima; seus dados são mantidos.{" "}
+          <button className="link" onClick={() => void api.openReleases()}>
+            Baixar
+          </button>{" "}
+          <button className="link" onClick={() => setNewVersion(null)} aria-label="Fechar aviso">
             ✕
           </button>
         </div>
@@ -291,6 +312,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           {!asset && tab === "seguranca" && current === "seguranca" && (
             <Security
               status={status}
+              onErased={onLocked}
               onChanged={onChanged}
               onRestored={() => {
                 setTab("carteira");

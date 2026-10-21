@@ -38,7 +38,7 @@
     "shortDescription": "Controle de investimentos com rentabilidade auditável",
     "copyright": "GPL-3.0-or-later",
     "windows": {
-      "nsis": { "languages": ["PortugueseBR"], "installMode": "currentUser" },
+      "nsis": { "languages": ["PortugueseBR"], "customLanguageFiles": { "PortugueseBR": "nsis/PortugueseBR.nsh" }, "installMode": "currentUser" },
       "wix": { "language": "pt-BR" }
     },
     "macOS": { "signingIdentity": "-", "minimumSystemVersion": "10.15" }

@@ -13,7 +13,7 @@ import {
 import Chart, { axisStyle, base, usePalette, type Palette } from "../charts/Chart";
 import { date, money, monthLabel, percent, tone } from "../format";
 import { Cards, compact, FirstSteps, type Go } from "./Dashboard";
-import { columnLabel } from "./Evolution";
+import { columnLabel, withoutOwned } from "./Evolution";
 import YearPager from "../components/YearPager";
 
 /** Abas e seções que o Painel abre. */
@@ -141,9 +141,14 @@ export default function Panel({
   const part = (id: string) => num(groups.find((g) => g.id === id)?.total[today]);
   // Fim do último mês fechado (ou 31/12 do ano anterior): base da variação no mês.
   const prevIdx = year.columns.reduce((last, c, i) => (c.kind === "MONTH" || c.kind === "BASE" ? i : last), -1);
-  const prev = prevIdx >= 0 && prevIdx < today ? num(year.total[prevIdx]) : null;
-  const yearGain = year.total_gain ? Number(year.total_gain.value) : null;
-  const yearBase = year.total_gain ? Number(year.total_gain.base) : null;
+  // Variações sem os bens: eles entram pelo custo e só achatariam a %.
+  const noOwned = withoutOwned(year);
+  const liquid = noOwned?.values ?? year.total;
+  const liquidGain = noOwned ? noOwned.gain : year.total_gain;
+  const liquidNow = num(liquid[today]);
+  const prev = prevIdx >= 0 && prevIdx < today ? num(liquid[prevIdx]) : null;
+  const yearGain = liquidGain ? Number(liquidGain.value) : null;
+  const yearBase = liquidGain ? Number(liquidGain.base) : null;
   const income = year.investments_gain ? Number(year.investments_gain.value) : null;
   const incomeBase = year.investments_gain ? Number(year.investments_gain.base) : null;
   const thisYear = new Date().getFullYear();
@@ -193,8 +198,8 @@ export default function Panel({
           <span className="muted">Patrimônio total hoje</span>
           <strong>{total == null ? "sem cotação" : money(total.toFixed(2))}</strong>
           <div className="panel-changes">
-            <Change label="no mês" value={total != null && prev != null ? total - prev : null} base={prev} />
-            <Change label={`em ${thisYear}`} value={yearGain} base={yearBase} />
+            <Change label={noOwned ? "variação no mês, sem bens" : "variação no mês"} value={liquidNow != null && prev != null ? liquidNow - prev : null} base={prev} />
+            <Change label={noOwned ? `variação em ${thisYear}, sem bens` : `variação em ${thisYear}`} value={yearGain} base={yearBase} />
           </div>
         </div>
         <div className="panel-split">
@@ -202,6 +207,7 @@ export default function Panel({
             { label: "Investimentos", value: num(year.investments[today]) },
             { label: "FGTS", value: part("fgts") },
             { label: "Dinheiro", value: part("dinheiro") },
+            ...(groups.some((g) => g.id === "bens") ? [{ label: "Bens", value: part("bens") }] : []),
           ].map((x) => (
             <div key={x.label}>
               <span className="muted small">{x.label}</span>
@@ -213,12 +219,12 @@ export default function Panel({
 
       <div className="dash-cards">
         <div className="card stat static">
-          <span className="stat-label">Rendimento em {thisYear}</span>
+          <span className="stat-label">Rendimento dos investimentos em {thisYear}</span>
           <span className={`stat-value ${tone(income == null ? null : String(income))}`}>
             {income == null ? "sem cotação" : money(income.toFixed(2))}
           </span>
           <span className="stat-sub">
-            {income != null && incomeBase ? `${percent(String(income / incomeBase))} sobre o que estava investido` : "O que os investimentos renderam"}
+            {income != null && incomeBase ? `${percent(String(income / incomeBase))} sobre o que estava investido, sem contar aportes e resgates` : "O que os investimentos renderam"}
           </span>
         </div>
       </div>
@@ -285,18 +291,39 @@ function Evolution({ view, p }: { view: EvolutionView; p: Palette }) {
         valueFormatter: (v: number) => (v == null ? "—" : money(v.toFixed(2))),
       },
       legend: { ...(base(p).legend as object), type: "scroll", right: 0, data: groups.map((g) => g.label), pageTextStyle: { color: p.muted } },
-      xAxis: { type: "category", data: labels, ...axisStyle(p), splitLine: { show: false } },
+      xAxis: {
+        type: "category",
+        data: labels,
+        ...axisStyle(p),
+        // Todos os meses, sem pular nenhum, com o total completo embaixo do mês.
+        axisLabel: {
+          color: p.muted,
+          interval: 0,
+          hideOverlap: false,
+          lineHeight: 17,
+          formatter: (label: string, i: number) => {
+            const v = view.total[i];
+            if (v == null) return label;
+            const total = Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return `${label}\n{total|${total}}`;
+          },
+          rich: { total: { color: p.ink, fontSize: 11, lineHeight: 17 } },
+        },
+        splitLine: { show: false },
+      },
       yAxis: { type: "value", ...axisStyle(p), axisLabel: { color: p.muted, formatter: (v: number) => compact(v) } },
       grid: { left: 8, right: 16, top: 40, bottom: 8, containLabel: true },
-      series: groups.map((g) => ({
-        name: g.label,
-        type: "bar",
-        stack: "p",
-        barMaxWidth: 32,
-        color: colorOf(g.id, p),
-        itemStyle: { borderColor: p.surface, borderWidth: 1 },
-        data: g.total.map((v) => (v == null ? null : Number(v))),
-      })),
+      series: [
+        ...groups.map((g) => ({
+          name: g.label,
+          type: "bar",
+          stack: "p",
+          barMaxWidth: 32,
+          color: colorOf(g.id, p),
+          itemStyle: { borderColor: p.surface, borderWidth: 1 },
+          data: g.total.map((v) => (v == null ? null : Number(v))),
+        })),
+      ],
     };
   }, [view, p]);
   return <Chart option={option} height={320} ariaLabel="Patrimônio no fim de cada período, por grupo" />;

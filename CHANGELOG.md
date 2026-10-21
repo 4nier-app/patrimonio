@@ -6,7 +6,32 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.15.2] - Não lançada
+## [0.15.3] - Não lançada
+
+### Alterado
+- Aviso de nova versão: ao abrir, o aplicativo consulta no GitHub a versão
+  mais recente e, se houver uma nova, mostra um aviso com o botão "Baixar".
+  Só o número da versão é consultado; dá para desligar em Segurança.
+- Painel: o gráfico de evolução mostra o total completo de cada barra, com
+  centavos, embaixo do mês, e todos os meses no eixo, sem pular nenhum.
+- Painel: os bens (imóveis e veículos) aparecem como item próprio ao lado de
+  Investimentos, FGTS e Dinheiro. As variações "no mês" e "no ano" passam a
+  ser calculadas sem os bens.
+- Evolução: com bens cadastrados, a linha "Total sem bens" traz as
+  porcentagens e a variação do mês; o "Total geral (com bens)" mostra só os
+  valores, porque os bens entram pelo custo.
+- Evolução: no ano corrente, a coluna "Ontem" vem depois de "Hoje", como na
+  planilha. "Hoje" compara com o fim do mês anterior (o mesmo número do
+  Painel) e "Ontem" mostra a evolução de ontem para hoje.
+- Evolução: a coluna "Hoje" fica em destaque, com fundo verde-claro, bordas
+  e números em negrito.
+- LGPD: botão "Apagar perfil e todos os dados" em Segurança (pede a senha);
+  ao desinstalar no Windows, a caixa "Apagar também meus dados" ficou mais
+  clara; aviso de privacidade na página e no README.
+- Backup: o nome sugerido passa a ser "4nier-patrimonio-AAAA-MM-DD". Backups
+  antigos continuam abrindo normalmente.
+
+## [0.15.2] - 2026-10-19
 
 ### Corrigido
 - Notas da XP: o código do ativo vem depois do nome de pregão e a taxa aparece

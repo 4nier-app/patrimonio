@@ -211,6 +211,7 @@ tr.total-row td { background: var(--bg); }
 .summary dt { color: var(--muted); }
 .summary dd { margin: 0; }
 .banner { margin: 12px 24px 0; border-radius: 8px; }
+.banner.info { background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 8px 10px; }
 
 /* Etapa 3: painel */
 .dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -526,6 +527,9 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .evo-table td:last-child, .evo-table th:last-child { padding-right: 16px; }
 .evo-sub { display: block; font-size: 0.68rem; text-transform: none; letter-spacing: 0; font-weight: 400; }
 .evo-col.today { color: var(--accent); }
+/* Coluna "Hoje" em destaque, como a borda na planilha. */
+.evo-table th.today, .evo-table td.today { background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 2px 0 var(--accent), inset -2px 0 var(--accent); }
+.evo-table td.today .evo-val { font-weight: 600; }
 .evo-cell { white-space: nowrap; }
 .evo-val { display: block; }
 .evo-val.strong { font-weight: 600; }

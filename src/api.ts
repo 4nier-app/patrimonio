@@ -58,6 +58,7 @@ export const api = {
   createProfile: (name: string) => invoke<void>("create_profile", { name }),
   renameProfile: (id: string, name: string) => invoke<void>("rename_profile", { id, name }),
   removeProfile: (id: string) => invoke<void>("remove_profile", { id }),
+  eraseProfile: (password: string) => invoke<void>("erase_profile", { password }),
   /** Cria o cofre e devolve a chave de recuperação gerada. */
   createVault: (password: string, confirmation: string, email: string) =>
     invoke<string>("create_vault", { password, confirmation, email }),
@@ -73,6 +74,11 @@ export const api = {
   pickBackup: () => invoke<BackupSummary | null>("pick_backup"),
   restoreBackup: (path: string, password: string) => invoke<RestoreResult>("restore_backup", { path, password }),
   openDataFolder: () => invoke<void>("open_data_folder"),
+  /** Versão mais nova publicada no GitHub, ou null (sem novidade, sem internet ou aviso desligado). */
+  checkUpdate: () => invoke<{ version: string } | null>("check_update"),
+  updateNotice: () => invoke<boolean>("update_notice"),
+  setUpdateNotice: (on: boolean) => invoke<void>("set_update_notice", { on }),
+  openReleases: () => invoke<void>("open_releases"),
   unlock: (password: string) => invoke<void>("unlock", { password }),
   lock: () => invoke<void>("lock"),
   changePassword: (current: string, next: string, confirmation: string) =>
