@@ -198,8 +198,8 @@ export default function Panel({
           <span className="muted">Patrimônio total hoje</span>
           <strong>{total == null ? "sem cotação" : money(total.toFixed(2))}</strong>
           <div className="panel-changes">
-            <Change label={noOwned ? "no mês, sem bens" : "no mês"} value={liquidNow != null && prev != null ? liquidNow - prev : null} base={prev} />
-            <Change label={noOwned ? `em ${thisYear}, sem bens` : `em ${thisYear}`} value={yearGain} base={yearBase} />
+            <Change label={noOwned ? "variação no mês, sem bens" : "variação no mês"} value={liquidNow != null && prev != null ? liquidNow - prev : null} base={prev} />
+            <Change label={noOwned ? `variação em ${thisYear}, sem bens` : `variação em ${thisYear}`} value={yearGain} base={yearBase} />
           </div>
         </div>
         <div className="panel-split">
@@ -219,12 +219,12 @@ export default function Panel({
 
       <div className="dash-cards">
         <div className="card stat static">
-          <span className="stat-label">Rendimento em {thisYear}</span>
+          <span className="stat-label">Rendimento dos investimentos em {thisYear}</span>
           <span className={`stat-value ${tone(income == null ? null : String(income))}`}>
             {income == null ? "sem cotação" : money(income.toFixed(2))}
           </span>
           <span className="stat-sub">
-            {income != null && incomeBase ? `${percent(String(income / incomeBase))} sobre o que estava investido` : "O que os investimentos renderam"}
+            {income != null && incomeBase ? `${percent(String(income / incomeBase))} sobre o que estava investido, sem contar aportes e resgates` : "O que os investimentos renderam"}
           </span>
         </div>
       </div>
