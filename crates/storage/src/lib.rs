@@ -594,6 +594,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let mut v = create(tmp.path());
         drop(v.auto_backup(0, 3));
+        drop(v);
         let v = Vault::open(tmp.path(), SENHA, "0.1.0").unwrap();
         assert!(matches!(
             v.check_password("senha-errada-123"),
