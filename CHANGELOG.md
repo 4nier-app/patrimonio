@@ -22,6 +22,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   Painel) e "Ontem" mostra a evolução de ontem para hoje.
 - Evolução: a coluna "Hoje" fica em destaque, com fundo verde-claro, bordas
   e números em negrito.
+- Backup: o nome sugerido passa a ser "4nier-patrimonio-AAAA-MM-DD". Backups
+  antigos continuam abrindo normalmente.
 
 ## [0.15.2] - 2026-10-19
 

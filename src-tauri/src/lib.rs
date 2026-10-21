@@ -261,13 +261,13 @@ fn backup_status(state: State<AppState>) -> Result<BackupStatus, String> {
 #[tauri::command]
 async fn export_backup(app: tauri::AppHandle) -> Result<Option<BackupInfo>, String> {
     let name = format!(
-        "carteira-auditavel-{}.{BACKUP_EXTENSION}",
+        "4nier-patrimonio-{}.{BACKUP_EXTENSION}",
         chrono::Local::now().format("%Y-%m-%d")
     );
     let mut dialog = app
         .dialog()
         .file()
-        .set_title("Salvar backup da carteira")
+        .set_title("Salvar backup do patrimônio")
         .set_file_name(&name)
         .add_filter("Backup do 4Nier", &[BACKUP_EXTENSION]);
     if let Ok(docs) = app.path().document_dir() {
