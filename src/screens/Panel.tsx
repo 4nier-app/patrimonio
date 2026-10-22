@@ -4,6 +4,7 @@ import {
   dashboardApi,
   errorMessage,
   evolutionApi,
+  isResgate,
   type DashboardView,
   type Dec,
   type EvolutionGroup,
@@ -13,6 +14,7 @@ import {
 import Chart, { axisStyle, base, usePalette, type Palette } from "../charts/Chart";
 import { date, money, monthLabel, percent, tone } from "../format";
 import { Cards, compact, FirstSteps, type Go } from "./Dashboard";
+import { resgateNote } from "./Portfolio";
 import { columnLabel, withoutOwned } from "./Evolution";
 import YearPager from "../components/YearPager";
 
@@ -159,12 +161,25 @@ export default function Panel({
   const startIso = monthStart.toISOString().slice(0, 10);
   const stale = (dash.other_balances ?? []).filter((o) => !o.last_informed || o.last_informed < startIso);
 
+  // Corretoras em dólar pelo valor de resgate, com a conta de cada ativo no ⓘ.
+  const resgate = dash.positions.filter((p) => isResgate(p.value_fx));
+  const resgateAccounts = [...new Set(resgate.flatMap((p) => p.accounts))];
+  const resgateTip = resgate.map((p) => `${p.asset}: ${resgateNote(p)}`).join("\n\n");
+
   return (
     <section className="panel">
       <div className="dash-head">
         <div>
           <h2>Painel</h2>
-          <p className="muted">Seu patrimônio hoje e como ele chegou até aqui. Valores em reais; o que está em dólar vai pela PTAX.</p>
+          <p className="muted">
+            Seu patrimônio hoje e como ele chegou até aqui. Valores em reais; o que está em dólar vai pela PTAX
+            {resgateAccounts.length > 0 && (
+              <span title={resgateTip}>
+                , e {resgateAccounts.join(", ")} pelo valor de resgate (o que chegaria no Brasil) <span className="info-mark">ⓘ</span>
+              </span>
+            )}
+            .
+          </p>
         </div>
       </div>
 

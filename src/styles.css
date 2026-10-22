@@ -594,3 +594,4 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .event-kind:disabled { opacity: 0.5; cursor: default; border-color: var(--border); }
 .login-profile { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .login-profile .login-links { justify-content: flex-start; gap: 16px; }
+.info-mark { color: var(--accent); font-weight: 600; cursor: help; }

@@ -57,8 +57,10 @@ pub struct NewFxRate {
     pub source: String,
 }
 
-/// Par gravado em `fx_rates` para o dólar.
+/// Par gravado em `fx_rates` para o dólar (PTAX).
 pub const USD_BRL: &str = "USD/BRL";
+/// Dólar comercial (Yahoo), para o valor de resgate das contas em dólar.
+pub const USD_BRL_COMMERCIAL: &str = "USD/BRL COMERCIAL";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct QuoteUpdate {
@@ -873,6 +875,10 @@ impl Vault {
     // ---------- câmbio ----------
 
     pub fn save_fx_rates(&mut self, rates: &[NewFxRate]) -> Result<usize> {
+        self.save_fx_pair(USD_BRL, rates)
+    }
+
+    pub fn save_fx_pair(&mut self, pair: &str, rates: &[NewFxRate]) -> Result<usize> {
         let now = now_iso();
         let tx = self.conn.transaction()?;
         {
@@ -884,7 +890,7 @@ impl Vault {
             for r in rates {
                 stmt.execute(params![
                     r.date.to_string(),
-                    USD_BRL,
+                    pair,
                     r.buy.to_string(),
                     r.sell.to_string(),
                     r.source,
@@ -898,9 +904,13 @@ impl Vault {
 
     /// Datas do primeiro e do último boletim de câmbio gravados.
     pub fn fx_range(&self) -> Result<Option<(NaiveDate, NaiveDate)>> {
+        self.fx_pair_range(USD_BRL)
+    }
+
+    pub fn fx_pair_range(&self, pair: &str) -> Result<Option<(NaiveDate, NaiveDate)>> {
         let (a, b): (Option<String>, Option<String>) = self.conn.query_row(
             "SELECT min(rate_date), max(rate_date) FROM fx_rates WHERE pair = ?1",
-            [USD_BRL],
+            [pair],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
         match (a, b) {
@@ -911,10 +921,14 @@ impl Vault {
 
     /// PTAX venda de cada dia, para converter dólar em reais.
     pub fn fx_table(&self) -> Result<FxTable> {
+        self.fx_pair_table(USD_BRL)
+    }
+
+    pub fn fx_pair_table(&self, pair: &str) -> Result<FxTable> {
         let mut stmt = self.conn.prepare(
             "SELECT rate_date, sell, source FROM fx_rates WHERE pair = ?1 ORDER BY rate_date",
         )?;
-        let rows = stmt.query_map([USD_BRL], |r| {
+        let rows = stmt.query_map([pair], |r| {
             Ok(FxRate {
                 date: date(r.get(0)?, 0)?,
                 rate: dec(r.get(1)?, 1)?,

@@ -6,6 +6,7 @@ import { KIND_LABEL as INCOME_KIND, totals } from "../incomes";
 import Chart, { axisStyle, base, usePalette } from "../charts/Chart";
 import { averageLine, candleLabel, change, operationMarkers } from "../assetChart";
 import { averagePrice, date, money, percent, price, quantity, tone } from "../format";
+import { resgateNote } from "./Portfolio";
 
 const PERIODS: { id: ChartPeriod; label: string }[] = [
   { id: "1d", label: "Dia" },
@@ -502,6 +503,12 @@ export default function AssetPage({
               <span className="muted small">
                 cotação de {date(pos.quote.date)}
                 {cur === "USD" && pos.market_value_brl != null && ` · ${money(pos.market_value_brl)}`}
+                {cur === "USD" && resgateNote(pos) && (
+                  <span title={resgateNote(pos)!}>
+                    {" "}
+                    valor de resgate <span className="info-mark">ⓘ</span>
+                  </span>
+                )}
               </span>
             )}
           </div>

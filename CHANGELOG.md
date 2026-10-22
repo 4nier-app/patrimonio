@@ -6,7 +6,29 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.15.3] - Não lançada
+## [0.16.0] - Não lançada
+
+### Adicionado
+- Valor de resgate nas corretoras em dólar: em Lançamentos, cada corretora em
+  dólar tem o quadro "Custo para trazer ao Brasil", com a taxa de conversão
+  da corretora (na Nomad, 1,00%) e o IOF de 0,38%, fixo no aplicativo. Com a
+  taxa informada, o saldo dessa corretora passa a ser o que chegaria na sua
+  conta no Brasil: dólar comercial do dia (Yahoo) menos a taxa e o IOF. Vale
+  no Painel, na Evolução, na Carteira e na Rentabilidade. Em branco, continua
+  pela PTAX. Carteira física (cripto) não tem o quadro.
+- Carteira: quadro "Corretoras em dólar: quanto chegaria no Brasil", com o
+  saldo em dólar, o dólar usado, as taxas, o valor em reais e, embaixo, o
+  valor pela PTAX para o imposto de renda. O valor de cada ativo e as células
+  da Evolução mostram a conta num ⓘ.
+
+### Alterado
+- Impostos continuam pela PTAX de venda de cada data (Lei 14.754/2023), sem
+  descontar as taxas da corretora, com um aviso explicando a diferença.
+- Transferência de custódia entre contas passa a levar a quantidade para a
+  conta de destino, para cada parte usar o câmbio da sua corretora.
+- Ações do GitHub atualizadas (checkout e setup-node v5).
+
+## [0.15.3] - 2026-10-21
 
 ### Alterado
 - Aviso de nova versão: ao abrir, o aplicativo consulta no GitHub a versão

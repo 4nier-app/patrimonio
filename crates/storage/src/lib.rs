@@ -13,6 +13,7 @@ mod migrations;
 mod notes;
 mod owned;
 mod records;
+mod resgate;
 mod savings;
 
 use std::fs;
@@ -31,8 +32,9 @@ pub use kdf::KdfParams;
 pub use notes::{NoteImport, NoteStatus};
 pub use records::{
     normalize_ticker, Account, Asset, DarfPayment, FxTable, NewFxRate, NewQuote, PriceTable,
-    QuoteUpdate, USD_BRL,
+    QuoteUpdate, USD_BRL, USD_BRL_COMMERCIAL,
 };
+pub use resgate::{explain_value, fee_breakdown, total_pct, ValueFx, IOF_PCT, RESGATE};
 
 pub const DB_FILE: &str = "carteira.db";
 pub const VAULT_FILE: &str = "cofre.json";

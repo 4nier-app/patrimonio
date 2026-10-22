@@ -395,6 +395,9 @@ mod tests {
             gross: dec!(100) * price,
             fees: Decimal::ZERO,
             currency: BRL.into(),
+            account: String::new(),
+            from_account: None,
+            moved: Decimal::ZERO,
         };
         let trades = vec![t("a", d(3, 2), dec!(10)), t("b", d(4, 1), dec!(10))];
         let q = |date, close| Quote {

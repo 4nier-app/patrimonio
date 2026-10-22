@@ -101,7 +101,7 @@ pub fn detail(v: &Vault, ticker: &str, as_of: NaiveDate) -> Result<AssetDetail, 
         .or_else(|| mine.first().map(|p| p.operation.currency.clone()))
         .unwrap_or_else(|| "BRL".into());
     let table = v.price_table(std::slice::from_ref(&ticker)).map_err(s)?;
-    let fx = v.fx_table().map_err(s)?;
+    let fx = v.value_fx().map_err(s)?;
     let trades = trades_of(&mine);
     let position = positions_with_fx(&trades, &table, Some(&fx), as_of)
         .into_iter()
@@ -339,7 +339,7 @@ pub struct DayView {
     pub items: Vec<DayMove>,
     pub total_brl: Option<f64>,
     pub total_change: Option<f64>,
-    /// PTAX usada para converter os ativos em dólar.
+    /// PTAX usada para converter os ativos em dólar (sem valor de resgate).
     pub fx: Option<f64>,
 }
 
@@ -364,8 +364,9 @@ pub fn day_inputs(v: &Vault, today: NaiveDate) -> Result<Vec<DayInput>, String> 
             detail.name = view.names.get(&p.asset).cloned().unwrap_or_default();
         }
         out.push(DayInput {
+            // Mesmo câmbio da Carteira: PTAX ou valor de resgate da conta.
             fx: if detail.currency == USD {
-                fx
+                p.value_fx.as_ref().and_then(|f| f.rate.to_f64()).or(fx)
             } else {
                 Some(1.0)
             },

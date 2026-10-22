@@ -19,7 +19,7 @@ use carteira_core::fund;
 use carteira_core::model::{Side, BRL};
 use carteira_core::operations::Operation;
 use carteira_providers::{cotahist, cvm, nasdaq, ptax, sgs, tesouro, yahoo, ProviderError};
-use carteira_storage::{Asset, NewFxRate, NewQuote, Vault};
+use carteira_storage::{Asset, NewFxRate, NewQuote, Vault, USD_BRL_COMMERCIAL};
 use chrono::{Datelike, Duration, NaiveDate};
 use rust_decimal::Decimal;
 use serde::Serialize;
@@ -42,6 +42,14 @@ pub trait Fetcher {
         to: NaiveDate,
     ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError>;
     fn us_catalog(&self) -> Result<Vec<nasdaq::Listing>, ProviderError>;
+    /// Dólar comercial (reais por dólar), para o valor de resgate.
+    fn commercial_dollar(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError> {
+        self.yahoo(yahoo::USD_BRL_SYMBOL, from, to)
+    }
     fn ptax(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<ptax::Ptax>, ProviderError>;
     fn sgs(
         &self,
@@ -133,6 +141,13 @@ impl Fetcher for Internet {
         to: NaiveDate,
     ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError> {
         yahoo::fetch_closes(symbol, from, to)
+    }
+    fn commercial_dollar(
+        &self,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError> {
+        yahoo::fetch_closes_dp(yahoo::USD_BRL_SYMBOL, from, to, 4)
     }
     fn us_catalog(&self) -> Result<Vec<nasdaq::Listing>, ProviderError> {
         nasdaq::fetch_all()
@@ -265,6 +280,72 @@ fn describe(e: &ProviderError) -> String {
     match e {
         ProviderError::Network(_) => format!("sem acesso à fonte ({e})"),
         _ => e.to_string(),
+    }
+}
+
+/// Dólar comercial do Yahoo desde a primeira operação em dólar. O último dia
+/// gravado é buscado de novo, para trocar o valor do meio do dia pelo
+/// fechamento.
+fn update_commercial_dollar(
+    vault: Shared,
+    fetcher: &dyn Fetcher,
+    first: NaiveDate,
+    today: NaiveDate,
+) -> Result<UpdateLine, String> {
+    const LABEL: &str = "Dólar comercial (Yahoo)";
+    const SOURCE: &str = "YAHOO_DOLAR";
+    let range = with(vault, |v| {
+        v.fx_pair_range(USD_BRL_COMMERCIAL)
+            .map_err(|e| e.to_string())
+    })?;
+    let start = match range {
+        Some((lo, hi)) if lo <= first => hi,
+        _ => first - Duration::days(10),
+    };
+    match fetcher.commercial_dollar(start, today) {
+        Ok(closes) => {
+            let rows: Vec<NewFxRate> = closes
+                .iter()
+                .map(|(date, rate)| NewFxRate {
+                    date: *date,
+                    buy: *rate,
+                    sell: *rate,
+                    source: yahoo::SOURCE.into(),
+                })
+                .collect();
+            let msg = match rows.last() {
+                Some(r) => format!(
+                    "{} dia(s); último: {} em {}",
+                    rows.len(),
+                    r.sell,
+                    r.date.format("%d/%m/%Y")
+                ),
+                None => "em dia".into(),
+            };
+            with(vault, |v| {
+                v.save_fx_pair(USD_BRL_COMMERCIAL, &rows)
+                    .map_err(|e| e.to_string())?;
+                v.record_quote_update(SOURCE, None, true, rows.len() as i64, &msg)
+                    .map_err(|e| e.to_string())
+            })?;
+            Ok(UpdateLine {
+                source: LABEL.into(),
+                ok: true,
+                message: msg,
+            })
+        }
+        Err(e) => {
+            let msg = describe(&e);
+            with(vault, |v| {
+                v.record_quote_update(SOURCE, None, false, 0, &msg)
+                    .map_err(|e| e.to_string())
+            })?;
+            Ok(UpdateLine {
+                source: LABEL.into(),
+                ok: false,
+                message: msg,
+            })
+        }
     }
 }
 
@@ -686,6 +767,19 @@ pub fn update_all(
                     });
                 }
             }
+        }
+    }
+
+    // 4b. Dólar comercial, só se alguma corretora em dólar tem o custo para
+    // trazer ao Brasil informado (valor de resgate).
+    let wants_commercial = with(vault, |v| {
+        v.exit_costs()
+            .map(|c| !c.is_empty())
+            .map_err(|e| e.to_string())
+    })?;
+    if wants_commercial {
+        if let Some(first) = us_ops.iter().map(|o| o.date).min() {
+            report.push(update_commercial_dollar(vault, fetcher, first, today)?);
         }
     }
 
@@ -1690,6 +1784,70 @@ mod tests {
         );
         assert!(!report[0].ok);
         assert!(report.iter().any(|l| l.source.contains("Yahoo") && l.ok));
+    }
+
+    #[test]
+    fn valor_de_resgate_busca_dolar_comercial_e_impostos_ficam_na_ptax() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = setup(tmp.path());
+        let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
+        {
+            let mut g = vault.lock().unwrap();
+            let v = g.as_mut().unwrap();
+            v.create_operation(Operation {
+                id: String::new(),
+                account: "Exterior".into(),
+                asset: "brk.b".into(),
+                date: NaiveDate::from_ymd_opt(2026, 1, 20).unwrap(),
+                side: Side::Compra,
+                quantity: Decimal::from(2),
+                price: Decimal::from(400),
+                manual_fees: None,
+                note: None,
+                currency: "USD".into(),
+                from_account: None,
+                residue: None,
+                ir: None,
+                iof: None,
+            })
+            .unwrap();
+        }
+        let f = fake(true);
+        // Sem custo informado: não busca o dólar comercial.
+        let report = update_all(&vault, &f, today).unwrap();
+        assert!(!report
+            .iter()
+            .any(|l| l.source.starts_with("Dólar comercial")));
+        assert!(!f.yahoo_calls.borrow().iter().any(|(s, _)| s == "BRL=X"));
+
+        with(&vault, |v| {
+            v.set_exit_cost("Exterior", Some(Decimal::ONE))
+                .map_err(|e| e.to_string())
+        })
+        .unwrap();
+        let report = update_all(&vault, &f, today).unwrap();
+        assert!(
+            report
+                .iter()
+                .any(|l| l.source.starts_with("Dólar comercial") && l.ok),
+            "{report:?}"
+        );
+        let view = with(&vault, |v| crate::views::portfolio(v, today)).unwrap();
+        let p = view.positions.iter().find(|p| p.asset == "BRK.B").unwrap();
+        // Fake: cotação 99 e dólar comercial 99; PTAX 5.
+        let factor = (Decimal::ONE - Decimal::new(1, 2)) * (Decimal::ONE - Decimal::new(38, 4));
+        assert_eq!(
+            p.market_value_brl.unwrap().round_dp(6),
+            (Decimal::from(2 * 99 * 99) * factor).round_dp(6)
+        );
+        assert!(p.value_fx.as_ref().unwrap().source.starts_with("RESGATE"));
+        assert_eq!(p.fx.as_ref().unwrap().rate, Decimal::from(5));
+        let acc = &view.dollar_accounts[0];
+        assert_eq!(acc.account, "Exterior");
+        assert_eq!(acc.ptax_brl, Some(Decimal::from(2 * 99 * 5)));
+        assert_eq!(acc.total_pct, Some(Decimal::new(138, 2)));
+        // Custo das compras continua pela PTAX da data.
+        assert_eq!(p.cost_brl, Some(Decimal::from(800 * 5)));
     }
 
     #[test]

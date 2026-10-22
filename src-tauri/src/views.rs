@@ -200,6 +200,85 @@ pub struct PortfolioView {
     pub names: BTreeMap<String, String>,
     /// Tipo de cada ativo no catálogo (ACAO, FII, FUNDO, CRIPTO...).
     pub kinds: BTreeMap<String, String>,
+    /// Corretoras em dólar (sem criptomoedas): quanto chegaria no Brasil.
+    pub dollar_accounts: Vec<DollarAccount>,
+}
+
+/// Saldo de uma corretora em dólar e a conta do valor em reais: pelo valor
+/// de resgate (com o custo para trazer ao Brasil informado) ou pela PTAX.
+#[derive(Serialize)]
+pub struct DollarAccount {
+    pub account: String,
+    /// Saldo em dólar; vazio se faltar cotação de algum ativo.
+    pub usd: Option<Decimal>,
+    /// Taxa de conversão da corretora, em %; vazia = pela PTAX.
+    pub fee_pct: Option<Decimal>,
+    pub iof_pct: Decimal,
+    pub total_pct: Option<Decimal>,
+    /// Dólar comercial usado no valor de resgate.
+    pub commercial: Option<FxRate>,
+    /// Quando o dólar comercial foi atualizado.
+    pub commercial_updated: Option<String>,
+    /// Câmbio usado (valor de resgate ou PTAX) e o valor em reais.
+    pub value_fx: Option<FxRate>,
+    pub value_brl: Option<Decimal>,
+    /// PTAX e o valor em reais para o imposto de renda.
+    pub ptax: Option<FxRate>,
+    pub ptax_brl: Option<Decimal>,
+}
+
+fn dollar_accounts(
+    v: &Vault,
+    open: &[&Position],
+    fx: &carteira_storage::ValueFx,
+    as_of: NaiveDate,
+) -> Result<Vec<DollarAccount>, String> {
+    let mut out = Vec::new();
+    let updated = v.last_successful_update("YAHOO_DOLAR", None).map_err(s)?;
+    for a in v.list_accounts().map_err(s)? {
+        if a.currency == BRL {
+            continue;
+        }
+        let held: Vec<(&Position, Decimal)> = open
+            .iter()
+            .filter(|p| p.currency != BRL && !carteira_core::crypto::is_crypto(&p.asset))
+            .filter_map(|p| {
+                p.by_account
+                    .get(&a.name)
+                    .filter(|q| **q > Decimal::ZERO)
+                    .map(|q| (*p, *q))
+            })
+            .collect();
+        if held.is_empty() {
+            continue;
+        }
+        let usd = held
+            .iter()
+            .map(|(p, q)| p.quote.as_ref().map(|c| c.close * q))
+            .sum::<Option<Decimal>>()
+            .map(|u| u.round_dp(2));
+        let fee_pct = fx.fee(&a.name);
+        let value_fx = fx.value_rate(&a.name, as_of);
+        let ptax = fx.usd_brl_on_or_before(as_of);
+        out.push(DollarAccount {
+            usd,
+            fee_pct,
+            iof_pct: carteira_storage::IOF_PCT,
+            total_pct: fee_pct.map(carteira_storage::total_pct),
+            commercial: fee_pct.and(fx.commercial_on_or_before(as_of)),
+            commercial_updated: fee_pct.and(updated.clone()),
+            value_brl: usd
+                .zip(value_fx.as_ref())
+                .map(|(u, f)| (u * f.rate).round_dp(2)),
+            value_fx,
+            ptax_brl: usd
+                .zip(ptax.as_ref())
+                .map(|(u, f)| (u * f.rate).round_dp(2)),
+            ptax,
+            account: a.name,
+        });
+    }
+    Ok(out)
 }
 
 /// Código do ativo → nome ou tipo no catálogo.
@@ -227,7 +306,7 @@ fn catalog_info(v: &Vault, ops: &[PricedOperation]) -> Result<(ByAsset, ByAsset)
 pub fn portfolio(v: &Vault, as_of: NaiveDate) -> Result<PortfolioView, String> {
     let ops = priced(v)?;
     let table = prices_for(v, &ops)?;
-    let fx = v.fx_table().map_err(s)?;
+    let fx = v.value_fx().map_err(s)?;
     let trades = trades_of(&ops);
     let mut list = positions_with_fx(&trades, &table, Some(&fx), as_of);
     // Posições abertas primeiro (reais antes de dólar); depois as encerradas.
@@ -248,6 +327,7 @@ pub fn portfolio(v: &Vault, as_of: NaiveDate) -> Result<PortfolioView, String> {
     let realized = list.iter().map(|p| p.realized_brl).sum::<Option<Decimal>>();
     let has_usd = list.iter().any(|p| p.currency != BRL);
     let (names, kinds) = catalog_info(v, &ops)?;
+    let dollar_accounts = dollar_accounts(v, &open, &fx, as_of)?;
     let last_update = [
         carteira_providers::yahoo::SOURCE,
         carteira_providers::cotahist::SOURCE,
@@ -271,6 +351,7 @@ pub fn portfolio(v: &Vault, as_of: NaiveDate) -> Result<PortfolioView, String> {
         last_update,
         names,
         kinds,
+        dollar_accounts,
     })
 }
 
@@ -316,7 +397,7 @@ pub struct ReturnsView {
 pub fn returns(v: &Vault, as_of: NaiveDate) -> Result<ReturnsView, String> {
     let ops = priced(v)?;
     let table = prices_for(v, &ops)?;
-    let fx = v.fx_table().map_err(s)?;
+    let fx = v.value_fx().map_err(s)?;
     let trades = trades_of(&ops);
     let scope = |scope: Scope, asset: Option<String>, currency: &str| {
         let months = monthly_returns_in(&trades, &table, as_of, &scope, Conversion::ToBrl(&fx));
@@ -529,7 +610,7 @@ pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
 
     let ops = priced(v)?;
     let table = prices_for(v, &ops)?;
-    let fx = v.fx_table().map_err(s)?;
+    let fx = v.value_fx().map_err(s)?;
     let trades = trades_of(&ops);
 
     let months = monthly_returns_in(
@@ -562,7 +643,7 @@ pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
         })
         .collect();
 
-    let series = index_series(v, &fx)?;
+    let series = index_series(v, fx.ptax())?;
     let benchmarks: Vec<_> = series.iter().map(|s| compare(s, &months)).collect();
 
     // Cartões: desde o início, 12 meses e último mês.
@@ -712,7 +793,7 @@ pub fn dashboard_days(
     };
     let ops = priced(v)?;
     let table = prices_for(v, &ops)?;
-    let fx = v.fx_table().map_err(s)?;
+    let fx = v.value_fx().map_err(s)?;
     let trades = trades_of(&ops);
     let months = monthly_returns_in(
         &trades,
@@ -791,7 +872,7 @@ pub fn dashboard_days(
         })
         .collect();
 
-    let benchmarks: Vec<BenchmarkView> = index_series(v, &fx)?
+    let benchmarks: Vec<BenchmarkView> = index_series(v, fx.ptax())?
         .iter()
         .map(|sr| {
             let initial = if idx == 0 {

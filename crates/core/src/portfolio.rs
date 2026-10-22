@@ -44,8 +44,17 @@ pub struct Position {
     pub market_value_brl: Option<Decimal>,
     pub unrealized_brl: Option<Decimal>,
     pub realized_brl: Option<Decimal>,
-    /// PTAX usada no valor de mercado.
+    /// PTAX da data de avaliação (a dos impostos).
     pub fx: Option<FxRate>,
+    /// Câmbio usado no valor de mercado em reais: a PTAX ou, nas contas com
+    /// custo para trazer ao Brasil, o valor de resgate. Com mais de uma
+    /// conta, o da conta com mais quantidade.
+    pub value_fx: Option<FxRate>,
+    /// Contas com quantidade em aberto deste ativo.
+    pub accounts: Vec<String>,
+    /// Quantidade por conta, para avaliar cada parte pelo câmbio da conta.
+    #[serde(skip)]
+    pub by_account: BTreeMap<String, Decimal>,
 }
 
 /// Posições na moeda de cada ativo, sem conversão (ativos em dólar ficam
@@ -93,12 +102,16 @@ pub fn positions_with_fx(
             unrealized_brl: None,
             realized_brl: Some(Decimal::ZERO),
             fx: None,
+            value_fx: None,
+            accounts: Vec::new(),
+            by_account: BTreeMap::new(),
         });
         let r = rate(&t.currency, t.date);
         match t.side {
             // No evento, a quantidade pode cair (grupamento); o custo total só
             // cresce pelo custo atribuído às ações bonificadas.
             Side::Compra | Side::Ajuste => {
+                *p.by_account.entry(t.account.clone()).or_default() += t.quantity;
                 p.quantity += t.quantity;
                 p.cost += t.gross + t.fees;
                 p.cost_brl = p.cost_brl.zip(r).map(|(c, r)| c + (t.gross + t.fees) * r);
@@ -138,6 +151,16 @@ pub fn positions_with_fx(
                 p.cost -= cost_out;
                 p.cost_brl = p.cost_brl.zip(cost_out_brl).map(|(c, o)| c - o);
                 p.quantity -= out;
+                if t.side == Side::Transferencia {
+                    // Muda de conta e o resíduo sai da conta de origem.
+                    let from = t.from_account.as_deref().unwrap_or(&t.account);
+                    let available = p.by_account.get(from).copied().unwrap_or_default();
+                    let moved = t.moved.min(available).max(Decimal::ZERO);
+                    take_from_accounts(&mut p.by_account, from, moved + out);
+                    *p.by_account.entry(t.account.clone()).or_default() += moved;
+                } else {
+                    take_from_accounts(&mut p.by_account, &t.account, out);
+                }
             }
         }
         p.average_price = if p.quantity.is_zero() {
@@ -164,15 +187,72 @@ pub fn positions_with_fx(
         p.quote = prices.close_on_or_before(&p.asset, as_of);
         p.market_value = p.quote.as_ref().map(|q| q.close * p.quantity);
         p.unrealized = p.market_value.map(|v| v - p.cost);
+        p.by_account
+            .retain(|_, q| !crate::model::is_dust(*q) && *q > Decimal::ZERO);
+        p.accounts = p.by_account.keys().cloned().collect();
         if p.currency == BRL {
             p.market_value_brl = p.market_value;
         } else {
             p.fx = fx.and_then(|f| f.usd_brl_on_or_before(as_of));
-            p.market_value_brl = p.market_value.zip(p.fx.as_ref()).map(|(v, f)| v * f.rate);
+            let close = p.quote.as_ref().map(|q| q.close);
+            let (value, main) = value_in_brl(&p.by_account, p.quantity, close, fx, as_of);
+            p.market_value_brl = value;
+            p.value_fx = main;
         }
         p.unrealized_brl = p.market_value_brl.zip(p.cost_brl).map(|(v, c)| v - c);
     }
     map.into_values().collect()
+}
+
+/// Baixa uma saída da conta da operação; o que faltar sai das outras contas
+/// (venda lançada numa conta diferente da compra).
+fn take_from_accounts(by_account: &mut BTreeMap<String, Decimal>, account: &str, out: Decimal) {
+    let mut rest = out;
+    if let Some(q) = by_account.get_mut(account) {
+        let take = rest.min(*q);
+        *q -= take;
+        rest -= take;
+    }
+    for q in by_account.values_mut() {
+        if rest <= Decimal::ZERO {
+            break;
+        }
+        let take = rest.min(*q);
+        *q -= take;
+        rest -= take;
+    }
+}
+
+/// Valor em reais de uma posição em dólar: cada conta pelo câmbio dela.
+/// Devolve também o câmbio da conta com mais quantidade, para exibir.
+fn value_in_brl(
+    by_account: &BTreeMap<String, Decimal>,
+    quantity: Decimal,
+    close: Option<Decimal>,
+    fx: Option<&dyn FxSource>,
+    date: NaiveDate,
+) -> (Option<Decimal>, Option<FxRate>) {
+    let (Some(close), Some(fx)) = (close, fx) else {
+        return (None, None);
+    };
+    // Sem conta conhecida (lançamentos antigos em testes), tudo pela PTAX.
+    let parts: Vec<(&str, Decimal)> = if by_account.is_empty() {
+        vec![("", quantity)]
+    } else {
+        by_account.iter().map(|(a, q)| (a.as_str(), *q)).collect()
+    };
+    let main = parts
+        .iter()
+        .max_by_key(|(_, q)| *q)
+        .and_then(|(a, _)| fx.value_rate(a, date));
+    let mut total = Decimal::ZERO;
+    for (account, q) in parts {
+        let Some(r) = fx.value_rate(account, date) else {
+            return (None, main);
+        };
+        total += close * q * r.rate;
+    }
+    (Some(total), main)
 }
 
 #[cfg(test)]
@@ -218,6 +298,9 @@ mod tests {
             gross: q * p,
             fees,
             currency: "BRL".into(),
+            account: String::new(),
+            from_account: None,
+            moved: Decimal::ZERO,
         }
     }
 
@@ -225,6 +308,68 @@ mod tests {
         tr.asset = "TEST".into();
         tr.currency = "USD".into();
         tr
+    }
+
+    /// PTAX 5; a conta "Resgate" vale 4,90 por dólar.
+    struct ByAccount;
+    impl FxSource for ByAccount {
+        fn usd_brl_on_or_before(&self, date: NaiveDate) -> Option<FxRate> {
+            Some(FxRate {
+                date,
+                rate: dec!(5),
+                source: "PTAX".into(),
+            })
+        }
+        fn value_rate(&self, account: &str, date: NaiveDate) -> Option<FxRate> {
+            if account == "Resgate" {
+                Some(FxRate {
+                    date,
+                    rate: dec!(4.90),
+                    source: "RESGATE: teste".into(),
+                })
+            } else {
+                self.usd_brl_on_or_before(date)
+            }
+        }
+    }
+
+    #[test]
+    fn cada_conta_pelo_seu_cambio_e_transferencia_muda_a_conta() {
+        let mut buy = usd(t(4, Side::Compra, dec!(10), dec!(100), dec!(0)));
+        buy.account = "Antiga".into();
+        let mut other = usd(t(5, Side::Compra, dec!(2), dec!(100), dec!(0)));
+        other.account = "Resgate".into();
+        let as_of = NaiveDate::from_ymd_opt(2026, 5, 31).unwrap();
+        let p = positions_with_fx(
+            &[buy.clone(), other.clone()],
+            &One(dec!(100)),
+            Some(&ByAccount),
+            as_of,
+        )
+        .remove(0);
+        // 10 × 100 × 5 + 2 × 100 × 4,90.
+        assert_eq!(p.market_value_brl, Some(dec!(5980)));
+        assert_eq!(
+            p.value_fx.unwrap().rate,
+            dec!(5),
+            "a conta com mais quantidade"
+        );
+        assert_eq!(p.fx.unwrap().rate, dec!(5));
+
+        // Troca de custodiante: 9,9 passam para "Resgate" e 0,1 de resíduo sai.
+        let mut tr = usd(t(6, Side::Transferencia, dec!(0.1), dec!(0), dec!(0)));
+        tr.account = "Resgate".into();
+        tr.from_account = Some("Antiga".into());
+        tr.moved = dec!(9.9);
+        let p = positions_with_fx(&[buy, other, tr], &One(dec!(100)), Some(&ByAccount), as_of)
+            .remove(0);
+        assert_eq!(p.quantity, dec!(11.9));
+        assert_eq!(p.accounts, vec!["Resgate".to_string()]);
+        assert_eq!(
+            p.market_value_brl,
+            Some(dec!(11.9) * dec!(100) * dec!(4.90))
+        );
+        assert!(p.value_fx.unwrap().source.starts_with("RESGATE"));
     }
 
     #[test]

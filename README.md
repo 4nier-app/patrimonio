@@ -19,6 +19,11 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   S&P 500 e dólar.
 - **Nada é caixa-preta:** cada número pode mostrar a operação, a cotação, o
   câmbio (PTAX), as taxas e a fórmula usada, com os valores substituídos.
+- **Dólar como chegaria no Brasil:** informe o custo da sua corretora no
+  exterior para trazer o dinheiro (na Nomad, conversão de 1% + IOF de 0,38%)
+  e o saldo dela aparece pelo valor de resgate: dólar comercial menos as
+  taxas. Sem o custo, vale a PTAX. Os impostos sempre usam a PTAX, como manda
+  a Lei 14.754/2023.
 - **Imposto de renda:** apuração mensal da B3 (isenção de R$ 20 mil, day trade,
   FIIs, prejuízo a compensar) com aviso de DARF; ganho anual no exterior e em
   cripto pela Lei 14.754; posições em 31/12 para Bens e Direitos.
