@@ -15,7 +15,7 @@ function Brl({ v }: { v: string | null }) {
 export function resgateNote(p: Pick<Position, "market_value" | "market_value_brl" | "value_fx" | "fx">): string | null {
   if (!isResgate(p.value_fx) || p.market_value == null || p.market_value_brl == null) return null;
   let t = `${money(p.market_value, "USD")} × ${resgateHow(p.value_fx!)} = ${money(p.market_value_brl)} que chegariam no Brasil`;
-  if (p.fx) t += `\nPara o imposto de renda: × PTAX ${price(p.fx.rate)} (${date(p.fx.date)}) = ${money(String(Number(p.market_value) * Number(p.fx.rate)))}`;
+  if (p.fx) t += `\nPara o imposto de renda: × PTAX ${rate4(p.fx.rate)} (${date(p.fx.date)}) = ${money(String(Number(p.market_value) * Number(p.fx.rate)))}`;
   return t;
 }
 
@@ -29,6 +29,11 @@ function BrlValue({ p }: { p: Position }) {
       <div>valor de resgate</div>
     </div>
   );
+}
+
+/** Câmbio com 4 casas: "R$ 5,4350". */
+function rate4(v: string): string {
+  return `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
 }
 
 /** Corretoras em dólar: saldo, câmbio, taxas e quanto chegaria no Brasil. */
@@ -63,12 +68,12 @@ function DollarAccounts({ rows, onSaved }: { rows: DollarAccount[]; onSaved: () 
                     <td className="num">
                       {resgate && r.commercial ? (
                         <>
-                          × {price(r.commercial.rate)}
+                          × {rate4(r.commercial.rate)}
                           <div className="muted small">dólar comercial de {date(r.commercial.date)}</div>
                         </>
                       ) : r.value_fx ? (
                         <>
-                          × {price(r.value_fx.rate)}
+                          × {rate4(r.value_fx.rate)}
                           <div className="muted small">{resgate ? "PTAX (sem dólar comercial)" : `PTAX de ${date(r.value_fx.date)}`}</div>
                         </>
                       ) : (
@@ -96,7 +101,7 @@ function DollarAccounts({ rows, onSaved }: { rows: DollarAccount[]; onSaved: () 
                   {resgate && r.ptax && (
                     <tr>
                       <td colSpan={5} className="muted small" style={{ paddingTop: 0 }}>
-                        Para o imposto de renda: {money(r.usd, "USD")} × PTAX {price(r.ptax.rate)} ({date(r.ptax.date)}) = {money(r.ptax_brl)}
+                        Para o imposto de renda: {money(r.usd, "USD")} × PTAX {rate4(r.ptax.rate)} ({date(r.ptax.date)}) = {money(r.ptax_brl)}
                       </td>
                     </tr>
                   )}

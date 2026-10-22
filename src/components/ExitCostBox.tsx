@@ -42,7 +42,7 @@ export default function ExitCostBox({ account, current, onSaved, compact }: { ac
   if (fee == null)
     return (
       <p className="muted small">
-        {current ? (
+        {current && compact ? null : current ? (
           <>
             Custo para trazer ao Brasil: {pctText(totalPct(current))} (conversão {pctText(current)} + IOF {pctText(IOF_PCT)}).{" "}
           </>
