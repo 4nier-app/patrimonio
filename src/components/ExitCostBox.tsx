@@ -7,6 +7,15 @@ export function pctText(v: Dec | number): string {
   return `${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
+/** Máscara de calculadora para o percentual: só números, 2 casas ("100" → "1,00"). */
+export function pctTyping(raw: string): string {
+  const all = raw.replace(/\D/g, "");
+  const digits = all.replace(/^0+/, "").slice(0, 4);
+  if (!digits) return all ? "0,00" : "";
+  const padded = digits.padStart(3, "0");
+  return `${padded.slice(0, -2)},${padded.slice(-2)}`;
+}
+
 export function totalPct(fee: Dec): number {
   return Number(fee) + Number(IOF_PCT);
 }
@@ -19,7 +28,7 @@ export default function ExitCostBox({ account, current, onSaved, compact }: { ac
 
   function open() {
     setError(null);
-    setFee(current ? Number(current).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "");
+    setFee(current ? Number(current).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "");
   }
 
   async function save(clear = false) {
@@ -62,7 +71,7 @@ export default function ExitCostBox({ account, current, onSaved, compact }: { ac
       <div className="grid">
         <label>
           Taxa de conversão da corretora (%)
-          <input inputMode="decimal" value={fee} placeholder="Ex.: 1,00" autoFocus onChange={(e) => setFee(e.target.value)} />
+          <input inputMode="numeric" value={fee} placeholder="0,00" autoFocus onChange={(e) => setFee(pctTyping(e.target.value))} />
         </label>
         <label>
           IOF na volta ao Brasil (%)
