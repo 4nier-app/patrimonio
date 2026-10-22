@@ -91,10 +91,11 @@ struct QuoteSeries {
     volume: Vec<Option<f64>>,
 }
 
-/// O Yahoo devolve preços em ponto flutuante; a B3 negocia em centavos.
-fn to_cents(v: f64) -> Result<Decimal> {
+/// O Yahoo devolve preços em ponto flutuante; a B3 negocia em centavos e o
+/// câmbio usa 4 casas.
+fn to_dp(v: f64, dp: u32) -> Result<Decimal> {
     Decimal::from_str(&format!("{v:.6}"))
-        .map(|d| d.round_dp(2))
+        .map(|d| d.round_dp(dp))
         .map_err(|e| ProviderError::Format(format!("preço inválido {v}: {e}")))
 }
 
@@ -106,6 +107,11 @@ fn local_date(ts: i64, offset: i64) -> Result<NaiveDate> {
 
 /// Interpreta a resposta: fechamentos por dia, incluindo o último preço.
 pub fn parse_chart(json: &[u8]) -> Result<Vec<(NaiveDate, Decimal)>> {
+    parse_chart_dp(json, 2)
+}
+
+/// Como `parse_chart`, com `dp` casas decimais (câmbio usa 4).
+pub fn parse_chart_dp(json: &[u8], dp: u32) -> Result<Vec<(NaiveDate, Decimal)>> {
     let env: Envelope =
         serde_json::from_slice(json).map_err(|e| ProviderError::Format(e.to_string()))?;
     if let Some(err) = env.chart.error.filter(|e| !e.is_null()) {
@@ -127,7 +133,7 @@ pub fn parse_chart(json: &[u8]) -> Result<Vec<(NaiveDate, Decimal)>> {
     let mut out: Vec<(NaiveDate, Decimal)> = Vec::new();
     for (ts, close) in result.timestamp.iter().zip(closes) {
         if let Some(c) = close {
-            out.push((local_date(*ts, offset)?, to_cents(c)?));
+            out.push((local_date(*ts, offset)?, to_dp(c, dp)?));
         }
     }
     if let (Some(p), Some(t)) = (
@@ -135,7 +141,7 @@ pub fn parse_chart(json: &[u8]) -> Result<Vec<(NaiveDate, Decimal)>> {
         result.meta.regular_market_time,
     ) {
         let d = local_date(t, offset)?;
-        let p = to_cents(p)?;
+        let p = to_dp(p, dp)?;
         match out.last_mut() {
             Some(last) if last.0 == d => last.1 = p,
             Some(last) if last.0 > d => {}
@@ -151,11 +157,23 @@ pub fn fetch_closes(
     from: NaiveDate,
     to: NaiveDate,
 ) -> Result<Vec<(NaiveDate, Decimal)>> {
+    fetch_closes_dp(symbol, from, to, 2)
+}
+
+/// Dólar comercial (reais por dólar) no Yahoo.
+pub const USD_BRL_SYMBOL: &str = "BRL=X";
+
+pub fn fetch_closes_dp(
+    symbol: &str,
+    from: NaiveDate,
+    to: NaiveDate,
+    dp: u32,
+) -> Result<Vec<(NaiveDate, Decimal)>> {
     let template = chart_url(symbol, from, to);
     let mut last = ProviderError::Network("Yahoo indisponível".into());
     for host in HOSTS {
         match http::get_bytes(&template.replace("{host}", host)) {
-            Ok(body) => return parse_chart(&body),
+            Ok(body) => return parse_chart_dp(&body, dp),
             Err(e) => last = e,
         }
     }
@@ -262,6 +280,9 @@ mod tests {
         let closes = parse_chart(json).unwrap();
         let d = |day| NaiveDate::from_ymd_opt(2026, 3, day).unwrap();
         assert_eq!(closes, vec![(d(2), dec!(12.34)), (d(4), dec!(12.50))]);
+        let fx = br#"{"chart":{"result":[{"meta":{"gmtoffset":-10800},"timestamp":[1772456400],
+            "indicators":{"quote":[{"close":[5.037199974060059]}]}}],"error":null}}"#;
+        assert_eq!(parse_chart_dp(fx, 4).unwrap()[0].1, dec!(5.0372));
     }
 
     #[test]

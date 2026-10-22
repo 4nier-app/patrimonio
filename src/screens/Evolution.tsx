@@ -93,10 +93,13 @@ function Cell({
   strong,
   noRate,
   onEdit,
+  note,
 }: {
   values: (Dec | null)[];
   i: number;
   missing?: boolean;
+  /** Conta do valor de resgate (corretora em dólar), mostrada no ⓘ. */
+  note?: string | null;
   strong?: boolean;
   /** Sem a % de variação (total com bens). */
   noRate?: boolean;
@@ -117,8 +120,11 @@ function Cell({
     );
   const pct = noRate ? null : change(values, pairs[i] ?? (i > 0 ? [i - 1, i] : null));
   return (
-    <td className={edit?.className ?? `num evo-cell${hl}`} title={edit?.title ?? money(v)} onClick={onEdit}>
-      <span className={strong ? "evo-val strong" : "evo-val"}>{short(v)}</span>
+    <td className={edit?.className ?? `num evo-cell${hl}`} title={edit?.title ?? (note ? `${money(v)} · valor de resgate\n${note}` : money(v))} onClick={onEdit}>
+      <span className={strong ? "evo-val strong" : "evo-val"}>
+        {short(v)}
+        {note && <span className="info-mark"> ⓘ</span>}
+      </span>
       {pct != null && <span className={`evo-pct ${tone(pct)}`}>{percent(pct)}</span>}
     </td>
   );
@@ -254,7 +260,7 @@ export default function Evolution() {
         <Intro
           more={
             <>
-              Cada coluna é o patrimônio no fim do mês, em reais; o que está em dólar é convertido pela PTAX do dia.
+              Cada coluna é o patrimônio no fim do mês, em reais; o que está em dólar é convertido pela PTAX do dia. Nas corretoras em dólar com o custo para trazer ao Brasil informado, vale o valor de resgate: dólar comercial do dia menos a taxa de conversão e o IOF (passe o mouse no ⓘ para ver a conta).
               Abaixo de cada valor, a variação em relação à coluna anterior. Ativo vendido some das colunas seguintes, porque o dinheiro foi para
               outro lugar (outro ativo ou a conta corrente). A coluna “No período” mostra o resultado, descontando compras e vendas: um ativo
               vendido no meio do ano mostra o que rendeu até a venda. “Desde o início” faz a mesma conta desde a primeira compra de cada investimento. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
@@ -347,9 +353,10 @@ export default function Evolution() {
                         {open &&
                           g.rows.map((r) => (
                             <tr key={`${key}:${r.asset ?? r.name}:${r.detail ?? ""}`} className={single ? "evo-row evo-group" : "evo-row"}>
-                              <th scope="row" title={r.detail ? `${r.name}\n${r.detail}` : r.name}>
+                              <th scope="row" title={[r.name, r.detail, r.value_label].filter(Boolean).join("\n")}>
                                 <span className="evo-asset">{r.name}</span>
                                 {r.detail && <span className="evo-detail">{r.detail}</span>}
+                                {r.value_label && <span className="evo-detail">{r.value_label}</span>}
                               </th>
                               {shown.map(({ c, i }) => (
                                 <Cell
@@ -357,6 +364,7 @@ export default function Evolution() {
                                   values={r.values}
                                   i={i}
                                   missing={r.missing[i]}
+                                  note={r.notes?.[i]}
                                   onEdit={
                                     // 31/12 do ano anterior e "todos os anos" só mostram;
                                     // o saldo se informa no mês dele, dentro do período do saldo.

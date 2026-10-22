@@ -125,7 +125,7 @@ export default function Dashboard({ refresh }: { refresh: number }) {
           <h2>Análises da carteira</h2>
           <p className="muted">
             {memos ? "Clique num cartão para ver a memória de cálculo. " : ""}Comparação com índices, lucro e quedas dos investimentos. Valores
-            em reais; exterior pela PTAX.
+            em reais; exterior pela PTAX, ou pelo valor de resgate nas corretoras em dólar com o custo para trazer ao Brasil informado.
           </p>
         </div>
         <div className="period-pick">

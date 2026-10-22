@@ -154,13 +154,24 @@ pub struct PricedOperation {
 
 impl PricedOperation {
     /// Efeito na carteira. A transferência de custódia não compra nem vende:
-    /// só o resíduo, se houver, sai da posição sem valor e sem mexer no custo.
+    /// muda a quantidade de conta e o resíduo, se houver, sai da posição sem
+    /// valor e sem mexer no custo.
     pub fn trade(&self) -> Option<Trade> {
         let op = &self.operation;
         let quantity = match op.side {
-            Side::Transferencia => op.residue.filter(|r| *r > Decimal::ZERO)?,
+            Side::Transferencia => op
+                .residue
+                .filter(|r| *r > Decimal::ZERO)
+                .unwrap_or_default(),
             _ => op.quantity,
         };
+        let (from_account, moved) = match (op.side, &op.from_account) {
+            (Side::Transferencia, Some(from)) => (Some(from.clone()), op.quantity),
+            _ => (None, Decimal::ZERO),
+        };
+        if quantity.is_zero() && moved.is_zero() {
+            return None;
+        }
         Some(Trade {
             id: op.id.clone(),
             asset: op.asset.clone(),
@@ -175,6 +186,9 @@ impl PricedOperation {
             gross: self.gross,
             fees: self.fees,
             currency: op.currency.clone(),
+            account: op.account.clone(),
+            from_account,
+            moved,
         })
     }
 }
@@ -429,11 +443,16 @@ mod tests {
         assert_eq!(trades[1].quantity, dec!(0.00000012));
         assert_eq!(trades[1].cash_flow(), dec!(0));
 
+        assert_eq!(trades[1].moved, dec!(10.5));
+        assert_eq!(trades[1].from_account.as_deref(), Some("Exterior"));
+
         transf.residue = None;
         let (priced, _) = price_operations(&default_rules(), &[transf.clone()]).unwrap();
-        assert!(
-            trades_of(&priced).is_empty(),
-            "transferência sem resíduo não mexe na carteira"
+        let trades = trades_of(&priced);
+        assert_eq!(trades.len(), 1, "sem resíduo, só muda de conta");
+        assert_eq!(
+            (trades[0].quantity, trades[0].cash_flow()),
+            (dec!(0), dec!(0))
         );
         transf.from_account = Some("Exterior novo".into());
         assert!(validate(&transf).is_err());

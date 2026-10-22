@@ -54,6 +54,35 @@ fn fx_for(conv: Conversion, currency: &str, date: NaiveDate) -> Result<Option<Fx
     }
 }
 
+/// Câmbio para avaliar o saldo de uma conta (valor de resgate ou PTAX).
+fn value_fx_for(
+    conv: Conversion,
+    currency: &str,
+    account: &str,
+    date: NaiveDate,
+) -> Result<Option<FxRate>, ()> {
+    match conv {
+        Conversion::ToBrl(src) if currency != BRL => {
+            src.value_rate(account, date).map(Some).ok_or(())
+        }
+        _ => Ok(None),
+    }
+}
+
+/// "× PTAX 5,4200 (16/10/2026)" ou "× valor de resgate 5,3600 (...)".
+fn fx_label(f: &FxRate) -> String {
+    let what = if f.source.starts_with("RESGATE") {
+        "valor de resgate"
+    } else {
+        "PTAX"
+    };
+    format!(
+        " × {what} {} ({})",
+        number(f.rate, 4),
+        f.date.format("%d/%m/%Y")
+    )
+}
+
 /// "R$ 1.234,56" ou "US$ 1.234,56".
 pub fn money(v: Decimal, currency: &str) -> String {
     if currency == BRL {
@@ -84,6 +113,8 @@ pub enum Scope {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Holding {
     pub asset: String,
+    /// Conta (corretora) onde está a quantidade.
+    pub account: String,
     pub currency: String,
     pub quantity: Decimal,
     pub quote: Option<Quote>,
@@ -181,17 +212,51 @@ fn first_day_of_month(date: NaiveDate) -> NaiveDate {
     date.with_day(1).expect("dia 1 existe")
 }
 
-fn positions_before(trades: &[&Trade], date: NaiveDate) -> BTreeMap<String, Decimal> {
-    let mut map: BTreeMap<String, Decimal> = BTreeMap::new();
+/// Quantidade de cada ativo em cada conta antes da data.
+fn positions_before(trades: &[&Trade], date: NaiveDate) -> BTreeMap<(String, String), Decimal> {
+    let mut map: BTreeMap<(String, String), Decimal> = BTreeMap::new();
     for t in trades.iter().filter(|t| t.date < date) {
-        *map.entry(t.asset.clone()).or_default() += t.signed_quantity();
+        match &t.from_account {
+            // Transferência: a quantidade muda de conta; o resíduo sai da origem.
+            Some(from) => {
+                *map.entry((t.asset.clone(), from.clone())).or_default() -= t.moved + t.quantity;
+                *map.entry((t.asset.clone(), t.account.clone())).or_default() += t.moved;
+            }
+            None => {
+                *map.entry((t.asset.clone(), t.account.clone())).or_default() += t.signed_quantity()
+            }
+        }
+    }
+    // Venda lançada numa conta diferente da compra: o negativo sai das
+    // outras contas do mesmo ativo.
+    let negatives: Vec<((String, String), Decimal)> = map
+        .iter()
+        .filter(|(_, q)| **q < Decimal::ZERO)
+        .map(|(k, q)| (k.clone(), *q))
+        .collect();
+    for ((asset, account), q) in negatives {
+        let mut rest = -q;
+        for (_, other) in map
+            .iter_mut()
+            .filter(|((a, c), _)| *a == asset && *c != account)
+        {
+            if rest <= Decimal::ZERO {
+                break;
+            }
+            if *other > Decimal::ZERO {
+                let take = rest.min(*other);
+                *other -= take;
+                rest -= take;
+            }
+        }
+        map.insert((asset, account), -rest);
     }
     map.retain(|_, q| !crate::model::is_dust(*q));
     map
 }
 
 fn value_positions(
-    positions: &BTreeMap<String, Decimal>,
+    positions: &BTreeMap<(String, String), Decimal>,
     currencies: &BTreeMap<String, String>,
     date: NaiveDate,
     prices: &dyn PriceSource,
@@ -200,13 +265,13 @@ fn value_positions(
     let mut total = Some(Decimal::ZERO);
     let holdings = positions
         .iter()
-        .map(|(asset, quantity)| {
+        .map(|((asset, account), quantity)| {
             let currency = currencies
                 .get(asset)
                 .cloned()
                 .unwrap_or_else(|| BRL.to_string());
             let quote = prices.close_on_or_before(asset, date);
-            let fx = fx_for(conv, &currency, date);
+            let fx = value_fx_for(conv, &currency, account, date);
             let value = match (&quote, &fx) {
                 (Some(q), Ok(None)) => Some(q.close * quantity),
                 (Some(q), Ok(Some(f))) => Some(q.close * quantity * f.rate),
@@ -218,6 +283,7 @@ fn value_positions(
             };
             Holding {
                 asset: asset.clone(),
+                account: account.clone(),
                 currency,
                 quantity: *quantity,
                 quote,
@@ -242,11 +308,7 @@ fn describe_valuation(label: &str, v: &Valuation, out: &str) -> String {
         .iter()
         .map(|h| {
             let fx = match &h.fx {
-                Some(f) => format!(
-                    " × PTAX {} ({})",
-                    number(f.rate, 4),
-                    f.date.format("%d/%m/%Y")
-                ),
+                Some(f) => fx_label(f),
                 None if h.currency != out => " × PTAX indisponível".to_string(),
                 None => String::new(),
             };
@@ -370,6 +432,8 @@ fn month_result(
         .iter()
         .copied()
         .filter(|t| t.date >= month_start && t.date <= month_end)
+        // Só mudar de conta não é compra nem venda.
+        .filter(|t| !(t.side == Side::Transferencia && t.quantity.is_zero()))
         .collect();
     if at_start.is_empty() && in_month.is_empty() {
         return None;
@@ -662,6 +726,9 @@ mod tests {
             gross: q * price,
             fees,
             currency: "BRL".into(),
+            account: String::new(),
+            from_account: None,
+            moved: Decimal::ZERO,
         }
     }
 

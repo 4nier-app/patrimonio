@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Intro from "../components/Intro";
-import { errorMessage, market, type PortfolioView } from "../api";
+import { errorMessage, isResgate, market, resgateHow, type DollarAccount, type PortfolioView, type Position } from "../api";
+import ExitCostBox, { pctText } from "../components/ExitCostBox";
 import { isFund, isSavings, byName } from "../currency";
 import { useSort } from "../components/useSort";
 import { averagePrice, date, formatDateTime, money, percent, price, quantity, tone } from "../format";
@@ -8,6 +9,109 @@ import { averagePrice, date, formatDateTime, money, percent, price, quantity, to
 /** Valor em reais embaixo do valor em dólar. */
 function Brl({ v }: { v: string | null }) {
   return <div className="muted small">{v == null ? "R$ —" : money(v)}</div>;
+}
+
+/** Conta do valor de resgate de um ativo em dólar, para o ⓘ. */
+export function resgateNote(p: Pick<Position, "market_value" | "market_value_brl" | "value_fx" | "fx">): string | null {
+  if (!isResgate(p.value_fx) || p.market_value == null || p.market_value_brl == null) return null;
+  let t = `${money(p.market_value, "USD")} × ${resgateHow(p.value_fx!)} = ${money(p.market_value_brl)} que chegariam no Brasil`;
+  if (p.fx) t += `\nPara o imposto de renda: × PTAX ${price(p.fx.rate)} (${date(p.fx.date)}) = ${money(String(Number(p.market_value) * Number(p.fx.rate)))}`;
+  return t;
+}
+
+/** Valor em reais pelo valor de resgate, com a conta no ⓘ. */
+function BrlValue({ p }: { p: Position }) {
+  const note = resgateNote(p);
+  if (!note) return <Brl v={p.market_value_brl} />;
+  return (
+    <div className="muted small" title={note}>
+      {money(p.market_value_brl)} <span className="info-mark">ⓘ</span>
+      <div>valor de resgate</div>
+    </div>
+  );
+}
+
+/** Corretoras em dólar: saldo, câmbio, taxas e quanto chegaria no Brasil. */
+function DollarAccounts({ rows, onSaved }: { rows: DollarAccount[]; onSaved: () => void }) {
+  const updated = rows.find((r) => r.commercial_updated)?.commercial_updated;
+  return (
+    <div className="card spaced">
+      <h3 style={{ margin: "0 0 4px" }}>Corretoras em dólar: quanto chegaria no Brasil</h3>
+      {updated && <p className="muted small" style={{ margin: "0 0 12px" }}>Dólar comercial atualizado em {formatDateTime(updated)}.</p>}
+      <div className="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Corretora</th>
+              <th className="num">Saldo</th>
+              <th className="num">Dólar usado</th>
+              <th className="num">Taxas</th>
+              <th className="num">Valor em reais</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const resgate = isResgate(r.value_fx);
+              return (
+                <Fragment key={r.account}>
+                  <tr>
+                    <td>
+                      <strong>{r.account}</strong>
+                      <div className="muted small">{resgate ? "valor de resgate" : "pela PTAX"}</div>
+                    </td>
+                    <td className="num">{money(r.usd, "USD")}</td>
+                    <td className="num">
+                      {resgate && r.commercial ? (
+                        <>
+                          × {price(r.commercial.rate)}
+                          <div className="muted small">dólar comercial de {date(r.commercial.date)}</div>
+                        </>
+                      ) : r.value_fx ? (
+                        <>
+                          × {price(r.value_fx.rate)}
+                          <div className="muted small">{resgate ? "PTAX (sem dólar comercial)" : `PTAX de ${date(r.value_fx.date)}`}</div>
+                        </>
+                      ) : (
+                        <span className="muted">sem câmbio</span>
+                      )}
+                    </td>
+                    <td className="num">
+                      {r.fee_pct != null && r.total_pct != null ? (
+                        <>
+                          − {pctText(r.total_pct)}
+                          <div className="muted small">
+                            conversão {pctText(r.fee_pct)} + IOF {pctText(r.iof_pct)}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="muted small">sem custo informado</span>
+                      )}
+                      <ExitCostBox account={r.account} current={r.fee_pct ?? undefined} onSaved={onSaved} compact />
+                    </td>
+                    <td className="num">
+                      <strong>{money(r.value_brl)}</strong>
+                      {resgate && <div className="muted small">chegaria no Brasil</div>}
+                    </td>
+                  </tr>
+                  {resgate && r.ptax && (
+                    <tr>
+                      <td colSpan={5} className="muted small" style={{ paddingTop: 0 }}>
+                        Para o imposto de renda: {money(r.usd, "USD")} × PTAX {price(r.ptax.rate)} ({date(r.ptax.date)}) = {money(r.ptax_brl)}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted small" style={{ margin: "12px 0 0" }}>
+        Valor de resgate: o que chegaria na sua conta no Brasil, já descontadas a taxa de conversão da corretora e o IOF de 0,38%. É o valor usado no
+        Painel, na Evolução, na Carteira e na Rentabilidade. Nos impostos vale a PTAX, como manda a lei.
+      </p>
+    </div>
+  );
 }
 
 /** Código e nome do ativo; fundo aparece pelo nome, com o CNPJ embaixo. */
@@ -45,9 +149,20 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
   const [view, setView] = useState<PortfolioView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [bump, setBump] = useState(0);
+
   useEffect(() => {
     market.portfolio().then(setView).catch((e) => setError(errorMessage(e)));
-  }, [refresh]);
+  }, [refresh, bump]);
+
+  /** Depois de informar o custo: busca o dólar comercial e recalcula. */
+  function exitCostSaved() {
+    setBump((n) => n + 1);
+    market
+      .updateQuotes()
+      .catch(() => {})
+      .finally(() => setBump((n) => n + 1));
+  }
 
   const allOpen = useMemo(() => view?.positions.filter((p) => Number(p.quantity) !== 0) ?? [], [view]);
   const allClosed = useMemo(() => view?.positions.filter((p) => Number(p.quantity) === 0) ?? [], [view]);
@@ -82,7 +197,8 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
                   <>
                     {" "}
                     Ativos no exterior: custo pela PTAX de cada compra e valor atual pela PTAX de {date(view.fx.date)} ({price(view.fx.rate)} por
-                    dólar).
+                    dólar). Nas corretoras em dólar com o custo para trazer ao Brasil informado, o valor atual é o valor de resgate: dólar comercial
+                    menos a taxa de conversão da corretora e o IOF, o que chegaria na sua conta no Brasil. Os impostos sempre usam a PTAX.
                   </>
                 )}
               </>
@@ -190,7 +306,7 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
                   </td>
                   <td className="num">
                     {money(p.market_value, p.currency)}
-                    {p.currency === "USD" && <Brl v={p.market_value_brl} />}
+                    {p.currency === "USD" && <BrlValue p={p} />}
                   </td>
                   <td className={`num ${tone(p.unrealized)}`}>
                     {money(p.unrealized, p.currency)}
@@ -208,6 +324,8 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
           </table>
         </div>
       )}
+
+      {view && view.dollar_accounts.length > 0 && <DollarAccounts rows={view.dollar_accounts} onSaved={exitCostSaved} />}
 
       {closed.length > 0 && (
         <>

@@ -720,6 +720,24 @@ fn set_brokerage(
     with_vault(&state, |v| v.set_brokerage(&account, brokerage))
 }
 
+/// Taxa de conversão (%) das corretoras em dólar com o custo para trazer ao
+/// Brasil informado.
+#[tauri::command]
+fn exit_cost_table(
+    state: State<AppState>,
+) -> Result<std::collections::BTreeMap<String, rust_decimal::Decimal>, String> {
+    with_vault(&state, |v| v.exit_costs())
+}
+
+#[tauri::command]
+fn set_exit_cost(
+    account: String,
+    fee_pct: Option<rust_decimal::Decimal>,
+    state: State<AppState>,
+) -> Result<(), String> {
+    with_vault(&state, |v| v.set_exit_cost(&account, fee_pct))
+}
+
 #[tauri::command]
 fn corporate_events(state: State<AppState>) -> Result<views::EventsView, String> {
     with_vault_str(&state, |v| views::corporate_events(v))
@@ -1021,6 +1039,8 @@ pub fn run() {
             remove_improvement,
             brokerage_table,
             set_brokerage,
+            exit_cost_table,
+            set_exit_cost,
             preview_event,
             create_event,
             update_event,

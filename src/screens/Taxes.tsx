@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  exitCostApi,
   errorMessage,
   taxApi,
   type DarfStatus,
@@ -348,6 +349,13 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
   const [view, setView] = useState<TaxView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [year, setYear] = useState<number | null>(null);
+  const [resgate, setResgate] = useState(false);
+  useEffect(() => {
+    exitCostApi
+      .table()
+      .then((t) => setResgate(Object.keys(t).length > 0))
+      .catch(() => {});
+  }, [refresh]);
 
   function load() {
     taxApi
@@ -441,6 +449,12 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
           )}
 
           <h3 className="spaced">Exterior e criptomoedas: apuração anual</h3>
+          {resgate && (
+            <p className="banner info">
+              ⓘ <strong>Aqui os valores em dólar usam a PTAX</strong> de venda de cada data, como exige a Lei 14.754/2023, sem descontar as taxas da
+              corretora. Por isso podem ser um pouco maiores que o valor de resgate mostrado no Painel, na Evolução e na Carteira.
+            </p>
+          )}
           {foreign ? (
             <Foreign y={foreign} />
           ) : (

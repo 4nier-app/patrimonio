@@ -3,6 +3,7 @@ import Intro from "../components/Intro";
 import { offerUndo } from "../undo";
 import {
   brokerageApi,
+  exitCostApi,
   type Brokerage,
   errorMessage,
   market,
@@ -30,6 +31,7 @@ import {
 import { currencyOfNewAccount, fundTicker, isFund, isTesouro, normalizeTicker } from "../currency";
 import CashInput from "../components/CashInput";
 import BrokerageBox from "../components/BrokerageBox";
+import ExitCostBox from "../components/ExitCostBox";
 
 type Form = {
   id: string;
@@ -206,12 +208,14 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [brokerage, setBrokerage] = useState<Record<string, Brokerage>>({});
+  const [exitCost, setExitCost] = useState<Record<string, string>>({});
   const [bump, setBump] = useState(0);
 
   function load() {
     market.listOperations().then(setList).catch((e) => setError(errorMessage(e)));
     market.listAccounts().then(setAccounts).catch(() => {});
     brokerageApi.table().then(setBrokerage).catch(() => {});
+    exitCostApi.table().then(setExitCost).catch(() => {});
   }
   useEffect(load, []);
 
@@ -830,6 +834,19 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             no vencimento, informe o IR e o IOF descontados. O preço diário para a Carteira vem do site do Tesouro Direto. Tesouro não
             paga taxa da B3 e não entra no DARF: o imposto já é retido.
           </p>
+        )}
+
+        {existing && existing.currency === "USD" && !coin && !transfer && (
+          <ExitCostBox
+            key={`saida:${existing.name}`}
+            account={existing.name}
+            current={exitCost[existing.name]}
+            onSaved={() => {
+              load();
+              setBump((n) => n + 1);
+              onChanged();
+            }}
+          />
         )}
 
         {existing && existing.currency === "BRL" && !form.fund && !form.tesouro && !coin && !transfer && (

@@ -151,8 +151,37 @@ export type Position = {
   market_value_brl: Dec | null;
   unrealized_brl: Dec | null;
   realized_brl: Dec | null;
+  /** PTAX da data de avaliação (a dos impostos). */
   fx: FxRate | null;
+  /** Câmbio do valor em reais: PTAX ou valor de resgate (origem começa com "RESGATE"). */
+  value_fx: FxRate | null;
+  accounts: string[];
 };
+
+/** Saldo de uma corretora em dólar e quanto chegaria no Brasil. */
+export type DollarAccount = {
+  account: string;
+  usd: Dec | null;
+  fee_pct: Dec | null;
+  iof_pct: Dec;
+  total_pct: Dec | null;
+  commercial: FxRate | null;
+  commercial_updated: string | null;
+  value_fx: FxRate | null;
+  value_brl: Dec | null;
+  ptax: FxRate | null;
+  ptax_brl: Dec | null;
+};
+
+/** O câmbio é o valor de resgate (dólar comercial menos as taxas)? */
+export function isResgate(fx: FxRate | null | undefined): boolean {
+  return !!fx && fx.source.startsWith("RESGATE");
+}
+
+/** "dólar comercial 5,4350 (16/10/2026) − 1,38% (conversão 1,00% + IOF 0,38%)" */
+export function resgateHow(fx: FxRate): string {
+  return fx.source.replace(/^RESGATE:\s*/, "");
+}
 
 export type PortfolioView = {
   as_of: string;
@@ -168,6 +197,8 @@ export type PortfolioView = {
   names: Record<string, string>;
   /** Tipo de cada ativo: ACAO, FII, ETF, BDR, FUNDO, CRIPTO, OUTRO. */
   kinds: Record<string, string>;
+  /** Corretoras em dólar (sem criptomoedas). */
+  dollar_accounts: DollarAccount[];
 };
 
 export type MonthResult = {
@@ -321,6 +352,10 @@ export type EvolutionRow = {
   gain: EvolutionGain | null;
   /** Desde a primeira compra até a última coluna (só investimentos). */
   since: EvolutionGain | null;
+  /** Conta do valor de resgate em cada coluna (corretora em dólar com custo informado). */
+  notes: (string | null)[];
+  /** "Nomad · valor de resgate" */
+  value_label: string | null;
 };
 /** Resultado no período: valor final + vendas − compras − valor inicial; base = inicial + compras. */
 export type EvolutionGain = { value: Dec; base: Dec };
@@ -679,3 +714,12 @@ export const brokerageApi = {
   table: () => invoke<Record<string, Brokerage>>("brokerage_table"),
   set: (account: string, brokerage: Brokerage) => invoke<void>("set_brokerage", { account, brokerage }),
 };
+
+/** Custo para trazer ao Brasil (corretoras em dólar): taxa de conversão em %. O IOF fica no aplicativo. */
+export const exitCostApi = {
+  table: () => invoke<Record<string, Dec>>("exit_cost_table"),
+  set: (account: string, feePct: Dec | null) => invoke<void>("set_exit_cost", { account, feePct }),
+};
+
+/** IOF na volta do dinheiro ao Brasil, em %. Igual ao do aplicativo (crates/storage/src/resgate.rs). */
+export const IOF_PCT = "0.38";

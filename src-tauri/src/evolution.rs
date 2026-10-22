@@ -10,7 +10,7 @@ use carteira_core::model::{FxSource, BRL, USD};
 use carteira_core::operations::{trades_of, PricedOperation};
 use carteira_core::portfolio::positions_with_fx;
 use carteira_core::savings::{self, SavingsKind, SavingsReport};
-use carteira_storage::{FxTable, PriceTable, Vault};
+use carteira_storage::{explain_value, PriceTable, ValueFx, Vault};
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
 use rust_decimal::Decimal;
 use serde::Serialize;
@@ -57,6 +57,11 @@ pub struct Row {
     /// Resultado desde a primeira compra até a última coluna (só
     /// investimentos).
     pub since: Option<Gain>,
+    /// Conta do valor de resgate em cada coluna (corretora em dólar com o
+    /// custo para trazer ao Brasil informado).
+    pub notes: Vec<Option<String>>,
+    /// "Nomad · valor de resgate" quando a linha usa o valor de resgate.
+    pub value_label: Option<String>,
 }
 
 /// Resultado no período, descontando compras e vendas: um ativo vendido no
@@ -230,7 +235,7 @@ const ORDER: [&str; 9] = [
 struct Inputs<'a> {
     ops: &'a [PricedOperation],
     table: &'a PriceTable,
-    fx: &'a FxTable,
+    fx: &'a ValueFx,
     reports: &'a [SavingsReport],
     owned: &'a [carteira_core::owned::OwnedAsset],
     works: &'a [carteira_core::owned::Improvement],
@@ -271,10 +276,20 @@ fn build(
                 outside: vec![false; n],
                 gain: None,
                 since: None,
+                notes: vec![None; n],
+                value_label: None,
             });
             match p.market_value_brl {
                 Some(val) => row.values[i] = Some(val),
                 None => row.missing[i] = true,
+            }
+            if let (Some(usd), Some(vfx), Some(brl)) =
+                (p.market_value, p.value_fx.as_ref(), p.market_value_brl)
+            {
+                if let Some(note) = explain_value(usd, brl, vfx, p.fx.as_ref()) {
+                    row.notes[i] = Some(note);
+                    row.value_label = Some(format!("{} · valor de resgate", p.accounts.join(", ")));
+                }
             }
         }
     }
@@ -294,6 +309,8 @@ fn build(
                 outside: vec![false; n],
                 gain: None,
                 since: None,
+                notes: vec![None; n],
+                value_label: None,
             });
         }
     }
@@ -415,6 +432,8 @@ fn build(
                 .collect(),
             gain,
             since,
+            notes: vec![None; n],
+            value_label: None,
         });
     }
 
@@ -437,6 +456,8 @@ fn build(
                 outside: vec![false; n],
                 gain: None,
                 since: None,
+                notes: vec![None; n],
+                value_label: None,
             });
     }
 
@@ -635,6 +656,8 @@ fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
         outside: vec![false; n],
         gain: sum_gains(sold.iter()),
         since: sum_since(sold.iter()),
+        notes: vec![None; n],
+        value_label: None,
     };
     held.into_iter().chain(std::iter::once(merged)).collect()
 }
@@ -686,7 +709,7 @@ pub fn evolution(v: &Vault, year: Option<i32>, today: NaiveDate) -> Result<Evolu
         .into_iter()
         .collect();
     let table = v.price_table(&tickers).map_err(s)?;
-    let fx = v.fx_table().map_err(s)?;
+    let fx = v.value_fx().map_err(s)?;
     let inp = Inputs {
         ops: &ops,
         table: &table,
@@ -1048,6 +1071,8 @@ mod tests {
                 base: dec!(100),
             }),
             since: None,
+            notes: Vec::new(),
+            value_label: None,
         };
         let rows = vec![
             row("AAAA3", vec![Some(dec!(100)), Some(dec!(120))], dec!(20)),

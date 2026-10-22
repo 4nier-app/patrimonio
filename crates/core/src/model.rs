@@ -83,6 +83,15 @@ pub struct Trade {
     /// Moeda de preço, valor e taxas: "BRL" ou "USD".
     #[serde(default = "brl")]
     pub currency: String,
+    /// Conta (corretora) da operação; decide o câmbio do saldo em dólar.
+    #[serde(default)]
+    pub account: String,
+    /// Transferência de custódia: conta de origem e a quantidade que passou
+    /// para `account` (o resíduo, se houver, é `quantity`).
+    #[serde(default)]
+    pub from_account: Option<String>,
+    #[serde(default)]
+    pub moved: Decimal,
 }
 
 impl Trade {
@@ -116,7 +125,15 @@ pub struct FxRate {
 
 /// Fonte de câmbio USD/BRL.
 pub trait FxSource {
+    /// PTAX: usada nas operações e nos impostos.
     fn usd_brl_on_or_before(&self, date: NaiveDate) -> Option<FxRate>;
+
+    /// Câmbio para avaliar o saldo em dólar de uma conta numa data. Por
+    /// padrão é a PTAX; contas com custo para trazer o dinheiro ao Brasil
+    /// usam o valor de resgate (dólar comercial menos as taxas).
+    fn value_rate(&self, _account: &str, date: NaiveDate) -> Option<FxRate> {
+        self.usd_brl_on_or_before(date)
+    }
 }
 
 /// Cotação de fechamento usada num cálculo.
