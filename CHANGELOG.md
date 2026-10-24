@@ -6,7 +6,7 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.18.0] - Não lançada
+## [0.18.0] - 2026-10-24
 
 ### Adicionado
 - Primeiro uso guiado: ao abrir um perfil novo e vazio, o app pede o que você
