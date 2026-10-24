@@ -38,7 +38,12 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   Nomad, ou uma planilha CSV. Cotações, PTAX, cotas de fundos (CVM) e preços do
   Tesouro são buscados automaticamente.
 - **Seus dados ficam com você:** tudo roda localmente, num banco criptografado
-  pela sua senha. Nenhum servidor, nenhuma conta, nenhum custo.
+  pela sua senha. Nenhum servidor, nenhuma conta, nenhum custo. O app faz um
+  backup automático por semana e lembra você de salvar uma cópia fora do
+  computador.
+- **Começo rápido:** num perfil novo, informe o que você tem hoje em cada
+  corretora (quantidade e preço médio) e a carteira fica pronta, sem precisar
+  de todo o histórico.
 
 ## Instalação
 

@@ -154,7 +154,8 @@ function Backup({ onRestored }: { onRestored: () => void }) {
       <h3>Backup</h3>
       <p className="muted">
         O backup é um arquivo único com todos os seus dados, ainda criptografado. Guarde uma cópia fora deste computador
-        (pendrive, Google Drive, OneDrive). Para restaurá-lo, use a senha que valia no dia do backup.
+        (pendrive, Google Drive, OneDrive). Para restaurá-lo, use a senha que valia no dia do backup. Se passar 30 dias sem um backup
+        salvo por você, o aplicativo avisa no topo da tela.
       </p>
       <button onClick={exportNow} disabled={busy}>
         {busy ? "Gravando…" : "Fazer backup agora…"}

@@ -33,6 +33,7 @@ export type LedgerEvent = {
 
 export type RecoveryStatus = { configured: boolean; email: string | null; created_at: string | null };
 
+export type BackupReminder = { last_backup: string | null; days: number | null };
 export type BackupStatus = { auto_dir: string; last_auto: string | null; last_backup: string | null };
 
 export type BackupInfo = { path: string; created_at: string; events: number; bytes: number };
@@ -68,6 +69,12 @@ export const api = {
   generateRecoveryKey: (email: string) => invoke<string>("generate_recovery_key", { email }),
   sendRecoveryEmail: (email: string, key: string) => invoke<void>("send_recovery_email", { email, key }),
   backupStatus: () => invoke<BackupStatus>("backup_status"),
+  /** Aviso de backup fora do computador; null quando não precisa avisar. */
+  backupReminder: () => invoke<BackupReminder | null>("backup_reminder"),
+  snoozeBackupReminder: () => invoke<void>("snooze_backup_reminder"),
+  /** Perfil vazio que ainda não passou pelo primeiro uso guiado. */
+  firstUse: () => invoke<boolean>("first_use"),
+  finishFirstUse: () => invoke<void>("finish_first_use"),
   /** Abre a janela "Salvar como"; null se o usuário cancelar. */
   exportBackup: () => invoke<BackupInfo | null>("export_backup"),
   /** Abre a janela "Abrir"; null se o usuário cancelar. */

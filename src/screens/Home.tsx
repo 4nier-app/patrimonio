@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { api, errorMessage, market, taxApi, type TaxView, type UpdateLine, type VaultStatus } from "../api";
+import { api, errorMessage, market, taxApi, type BackupReminder, type TaxView, type UpdateLine, type VaultStatus } from "../api";
 import { date, money } from "../format";
 import Logo from "../components/Logo";
 import ErrorBoundary from "../components/ErrorBoundary";
@@ -12,6 +12,7 @@ import Dashboard from "./Dashboard";
 import Panel from "./Panel";
 import Events from "./Events";
 import Evolution from "./Evolution";
+import FirstUse from "./FirstUse";
 import Operations from "./Operations";
 import Portfolio from "./Portfolio";
 import Returns from "./Returns";
@@ -170,6 +171,35 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       .catch(() => {});
   }, []);
 
+  // Perfil novo e vazio: o primeiro uso guiado ocupa a tela até terminar ou pular.
+  const [firstUse, setFirstUse] = useState(false);
+  useEffect(() => {
+    api
+      .firstUse()
+      .then(setFirstUse)
+      .catch(() => {});
+  }, []);
+
+  // Lembrete de backup fora deste computador.
+  const [reminder, setReminder] = useState<BackupReminder | null>(null);
+  useEffect(() => {
+    api
+      .backupReminder()
+      .then(setReminder)
+      .catch(() => {});
+  }, [refresh, tab]);
+
+  async function backupNow() {
+    try {
+      const info = await api.exportBackup();
+      if (!info) return;
+      setReminder(null);
+      setReport([{ source: "Backup", ok: true, message: `gravado em ${info.path}. Guarde uma cópia fora deste computador.` }]);
+    } catch (e) {
+      setReport([{ source: "Backup", ok: false, message: errorMessage(e) }]);
+    }
+  }
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -199,6 +229,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             </button>
           </div>
         </div>
+        {!firstUse && (
         <nav>
           {TABS.map((t) => (
             <button key={t.id} className={tab === t.id ? "tab active" : "tab"} onClick={() => setTab(t.id)}>
@@ -206,6 +237,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             </button>
           ))}
         </nav>
+        )}
       </header>
 
       {report && report.length > 0 && (
@@ -235,7 +267,28 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         </div>
       )}
 
-      {!status.has_recovery_key && tab !== "seguranca" && (
+      {reminder && !firstUse && (
+        <div className="banner warning" role="status">
+          {reminder.last_backup && reminder.days != null
+            ? `Seu último backup fora deste computador foi há ${reminder.days} dias (${date(reminder.last_backup.slice(0, 10))}).`
+            : "Você ainda não salvou um backup fora deste computador."}{" "}
+          Se o computador quebrar ou for roubado, os backups automáticos vão junto.{" "}
+          <button className="link" onClick={() => void backupNow()}>
+            Fazer backup agora
+          </button>{" "}
+          <button
+            className="link subtle"
+            onClick={() => {
+              setReminder(null);
+              api.snoozeBackupReminder().catch(() => {});
+            }}
+          >
+            Lembrar daqui a 7 dias
+          </button>
+        </div>
+      )}
+
+      {!status.has_recovery_key && tab !== "seguranca" && !firstUse && (
         <div className="banner warning" role="status">
           Sua carteira ainda não tem chave de recuperação. Sem ela, se você esquecer a senha, não há como abrir os dados.{" "}
           <button className="link" onClick={() => setTab("seguranca", "seguranca")}>
@@ -256,6 +309,16 @@ export default function Home({ status, onLocked, onChanged }: Props) {
       )}
 
       <main className="content">
+        {firstUse && (
+          <FirstUse
+            onDone={() => {
+              setFirstUse(false);
+              setTab("painel");
+              void updateQuotes();
+            }}
+          />
+        )}
+        {!firstUse && (
         <ErrorBoundary resetKey={`${tab}|${current ?? ""}|${asset ?? ""}`} onReset={() => (asset ? closeAsset() : setTab("painel"))}>
           {asset && (
             <AssetPage
@@ -323,6 +386,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             />
           )}
         </ErrorBoundary>
+        )}
       </main>
       <UndoToast />
     </div>

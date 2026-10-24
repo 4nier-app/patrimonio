@@ -96,9 +96,32 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Configuração com a data do último backup salvo pelo usuário.
+const LAST_BACKUP: &str = "backup.ultimo";
+
 impl Vault {
-    /// Grava um backup completo do cofre em `path`.
+    /// Grava um backup completo do cofre em `path`, escolhido pelo usuário.
+    /// É o backup "fora deste computador" que o lembrete acompanha.
     pub fn export_backup(&mut self, path: &Path) -> Result<BackupInfo> {
+        let info = self.write_backup(path)?;
+        self.set_setting(LAST_BACKUP, &info.created_at)?;
+        Ok(info)
+    }
+
+    /// Data e hora do último backup salvo pelo usuário (os automáticos, na
+    /// pasta do cofre, não contam).
+    pub fn last_backup(&self) -> Result<Option<String>> {
+        self.setting(LAST_BACKUP)
+    }
+
+    /// O cofre ainda não tem nada: nenhum lançamento, saldo ou bem.
+    pub fn is_empty(&self) -> Result<bool> {
+        Ok(self.list_operations()?.is_empty()
+            && self.list_savings()?.is_empty()
+            && self.list_owned()?.is_empty())
+    }
+
+    fn write_backup(&mut self, path: &Path) -> Result<BackupInfo> {
         // Cópia consistente do banco, criptografada com a mesma chave.
         let tmp = self.dir.join("backup-em-andamento.db");
         if tmp.exists() {
@@ -152,7 +175,6 @@ impl Vault {
             Some(&after),
             None,
         )?;
-        self.set_setting("backup.ultimo", &info.created_at)?;
         Ok(info)
     }
 
@@ -167,7 +189,7 @@ impl Vault {
             return Ok(None);
         }
         let path = dir.join(format!("automatico-{today}.{BACKUP_EXTENSION}"));
-        let info = self.export_backup(&path)?;
+        let info = self.write_backup(&path)?;
         existing.push(path);
         existing.sort();
         existing.dedup();
@@ -465,5 +487,11 @@ mod tests {
             v.last_auto_backup().unwrap(),
             Some(chrono::Local::now().date_naive())
         );
+        // O automático fica no mesmo computador: não conta como o backup
+        // salvo pelo usuário, que o lembrete acompanha.
+        assert_eq!(v.last_backup().unwrap(), None);
+        v.export_backup(&a.path().join("meu.cabackup")).unwrap();
+        assert!(v.last_backup().unwrap().is_some());
+        assert!(v.is_empty().unwrap());
     }
 }

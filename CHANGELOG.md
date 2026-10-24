@@ -6,6 +6,23 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.18.0] - Não lançada
+
+### Adicionado
+- Primeiro uso guiado: ao abrir um perfil novo e vazio, o app pede o que você
+  tem hoje em cada corretora (ativo, quantidade e preço médio) e lança tudo
+  de uma vez, cada ativo como uma compra só na data escolhida (sugestão: 31/12
+  do ano passado, para bater com a declaração do imposto de renda). Depois,
+  os saldos de conta corrente, FGTS e cofrinhos. Dá para pular e lançar
+  depois.
+- Lembrete de backup: quando o último backup salvo fora deste computador
+  tem mais de 30 dias, ou nunca foi feito, aparece um aviso no topo com
+  "Fazer backup agora" e "Lembrar daqui a 7 dias".
+
+### Alterado
+- O backup automático semanal (na pasta do cofre, no mesmo computador) não
+  conta mais como "último backup": só o backup que você salva conta.
+
 ## [0.17.0] - 2026-10-24
 
 ### Adicionado
