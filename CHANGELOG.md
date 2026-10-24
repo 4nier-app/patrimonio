@@ -6,7 +6,7 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.17.0] - Não lançada
+## [0.17.0] - 2026-10-24
 
 ### Adicionado
 - Página do ativo: quadro "Compras em aberto" com o que resta de cada compra,
