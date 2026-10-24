@@ -572,7 +572,7 @@ export default function AssetPage({
                   <th className="num">Custo por {td ? "título" : fund ? "cota" : "ação"}</th>
                   <th className="num">Custo</th>
                   <th className="num">Valor hoje</th>
-                  <th className="num" colSpan={2}>
+                  <th colSpan={2} style={{ textAlign: "center" }}>
                     Ganho desde a compra
                   </th>
                 </tr>
