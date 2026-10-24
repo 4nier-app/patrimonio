@@ -31,6 +31,10 @@ use tauri_plugin_opener::OpenerExt;
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTO_BACKUP_DAYS: i64 = 7;
 const AUTO_BACKUP_KEEP: usize = 5;
+/// Dias sem backup salvo fora do computador até o aviso aparecer.
+const BACKUP_REMINDER_DAYS: i64 = 30;
+/// "Lembrar daqui a 7 dias".
+const BACKUP_SNOOZE_DAYS: i64 = 7;
 
 struct AppState {
     /// Pasta de dados do app; o perfil principal usa ela mesma.
@@ -273,8 +277,70 @@ fn backup_status(state: State<AppState>) -> Result<BackupStatus, String> {
         Ok(BackupStatus {
             auto_dir: v.auto_backup_dir().display().to_string(),
             last_auto: v.last_auto_backup()?.map(|d| d.to_string()),
-            last_backup: v.setting("backup.ultimo")?,
+            last_backup: v.last_backup()?,
         })
+    })
+}
+
+#[derive(Serialize)]
+struct BackupReminder {
+    /// Último backup salvo pelo usuário; `None` se nunca salvou.
+    last_backup: Option<String>,
+    days: Option<i64>,
+}
+
+/// Aviso de backup: aparece quando há dados e o último backup salvo fora do
+/// computador tem mais de 30 dias (ou nunca foi feito), a não ser que o
+/// usuário tenha pedido para lembrar depois.
+#[tauri::command]
+fn backup_reminder(state: State<AppState>) -> Result<Option<BackupReminder>, String> {
+    let today = chrono::Local::now().date_naive();
+    with_vault(&state, |v| {
+        let snoozed = v
+            .setting(BACKUP_SNOOZE)?
+            .and_then(|d| chrono::NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok())
+            .is_some_and(|d| d > today);
+        if snoozed || v.is_empty()? {
+            return Ok(None);
+        }
+        let last = v.last_backup()?;
+        let days = last
+            .as_deref()
+            .and_then(|s| s.get(..10))
+            .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+            .map(|d| (today - d).num_days());
+        Ok(match days {
+            Some(n) if n < BACKUP_REMINDER_DAYS => None,
+            _ => Some(BackupReminder {
+                last_backup: last,
+                days,
+            }),
+        })
+    })
+}
+
+const BACKUP_SNOOZE: &str = "backup.lembrar_em";
+
+#[tauri::command]
+fn snooze_backup_reminder(state: State<AppState>) -> Result<(), String> {
+    let when = chrono::Local::now().date_naive() + chrono::Duration::days(BACKUP_SNOOZE_DAYS);
+    with_vault(&state, |v| v.set_setting(BACKUP_SNOOZE, &when.to_string()))
+}
+
+const FIRST_USE: &str = "primeiro_uso.concluido";
+
+/// Primeiro uso guiado: só num perfil vazio que ainda não passou por ele.
+#[tauri::command]
+fn first_use(state: State<AppState>) -> Result<bool, String> {
+    with_vault(&state, |v| {
+        Ok(v.setting(FIRST_USE)?.is_none() && v.is_empty()?)
+    })
+}
+
+#[tauri::command]
+fn finish_first_use(state: State<AppState>) -> Result<(), String> {
+    with_vault(&state, |v| {
+        v.set_setting(FIRST_USE, &chrono::Local::now().to_rfc3339())
     })
 }
 
@@ -989,6 +1055,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             vault_status,
+            backup_reminder,
+            snooze_backup_reminder,
+            first_use,
+            finish_first_use,
             select_profile,
             create_profile,
             rename_profile,
