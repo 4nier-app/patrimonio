@@ -83,6 +83,70 @@ pub struct AssetDetail {
     pub average_steps: Vec<AverageStep>,
     /// Fechamentos guardados no cofre.
     pub history: Vec<DailyClose>,
+    /// Compras em aberto pelo FIFO, com o ganho de cada uma (informativo).
+    pub lots: Vec<LotView>,
+}
+
+/// O que resta de uma compra e o ganho desde ela, pela cotação de hoje.
+#[derive(Debug, Serialize)]
+pub struct LotView {
+    pub id: String,
+    pub date: NaiveDate,
+    pub account: String,
+    pub bought: Decimal,
+    pub quantity: Decimal,
+    /// Custo por unidade com as taxas, na moeda do ativo.
+    pub unit_cost: Decimal,
+    pub cost: Decimal,
+    pub value: Option<Decimal>,
+    pub gain: Option<Decimal>,
+    /// Em reais (ativos em dólar): custo pela PTAX da compra e valor pelo
+    /// câmbio da conta hoje (PTAX ou valor de resgate).
+    pub cost_brl: Option<Decimal>,
+    pub value_brl: Option<Decimal>,
+    pub gain_brl: Option<Decimal>,
+}
+
+fn lot_views(
+    trades: &[carteira_core::model::Trade],
+    close: Option<Decimal>,
+    currency: &str,
+    fx: &carteira_storage::ValueFx,
+    as_of: NaiveDate,
+) -> Vec<LotView> {
+    use carteira_core::model::FxSource;
+    carteira_core::lots::open_lots(trades)
+        .into_iter()
+        .map(|l| {
+            let value = close.map(|c| (c * l.quantity).round_dp(2));
+            let cost = l.cost.round_dp(2);
+            let (cost_brl, value_brl) = if currency == USD {
+                (
+                    fx.usd_brl_on_or_before(l.date)
+                        .map(|f| (l.cost * f.rate).round_dp(2)),
+                    value
+                        .zip(fx.value_rate(&l.account, as_of))
+                        .map(|(v, f)| (v * f.rate).round_dp(2)),
+                )
+            } else {
+                (None, None)
+            };
+            LotView {
+                unit_cost: l.unit_cost(),
+                gain: value.map(|v| v - cost),
+                gain_brl: value_brl.zip(cost_brl).map(|(v, c)| v - c),
+                id: l.id,
+                date: l.date,
+                account: l.account,
+                bought: l.bought,
+                quantity: l.quantity,
+                cost,
+                value,
+                cost_brl,
+                value_brl,
+            }
+        })
+        .collect()
 }
 
 pub fn detail(v: &Vault, ticker: &str, as_of: NaiveDate) -> Result<AssetDetail, String> {
@@ -106,6 +170,16 @@ pub fn detail(v: &Vault, ticker: &str, as_of: NaiveDate) -> Result<AssetDetail, 
     let position = positions_with_fx(&trades, &table, Some(&fx), as_of)
         .into_iter()
         .find(|p| p.asset == ticker);
+    let lots = lot_views(
+        &trades,
+        position
+            .as_ref()
+            .and_then(|p| p.quote.as_ref())
+            .map(|q| q.close),
+        &currency,
+        &fx,
+        as_of,
+    );
     let mut dates: Vec<NaiveDate> = mine.iter().map(|p| p.operation.date).collect();
     dates.dedup();
     let average_steps = dates
@@ -142,6 +216,7 @@ pub fn detail(v: &Vault, ticker: &str, as_of: NaiveDate) -> Result<AssetDetail, 
         operations,
         average_steps,
         history,
+        lots,
     })
 }
 
@@ -614,6 +689,7 @@ mod tests {
             operations: vec![],
             average_steps: vec![],
             history: vec![],
+            lots: vec![],
         };
         let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
         let c = chart(&d, &Net { up: true }, "1d", "1m", today);

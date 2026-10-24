@@ -6,7 +6,17 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.16.0] - Não lançada
+## [0.17.0] - Não lançada
+
+### Adicionado
+- Página do ativo: quadro "Compras em aberto" com o que resta de cada compra,
+  o custo por ação com as taxas, o valor hoje e o ganho desde a compra, em
+  reais e em %. Nas vendas, as compras mais antigas saem primeiro; na
+  transferência de custódia, a quantidade muda de conta mantendo data e
+  custo; desdobramento e bonificação valem para todas as compras. É só
+  informativo: preço médio, resultado e imposto de renda não mudam.
+
+## [0.16.0] - 2026-10-22
 
 ### Adicionado
 - Valor de resgate nas corretoras em dólar: em Lançamentos, cada corretora em

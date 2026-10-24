@@ -19,6 +19,10 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   S&P 500 e dólar.
 - **Nada é caixa-preta:** cada número pode mostrar a operação, a cotação, o
   câmbio (PTAX), as taxas e a fórmula usada, com os valores substituídos.
+- **Ganho de cada compra:** na página do ativo, cada compra que ainda está na
+  carteira mostra o custo com taxas, o valor hoje e o ganho desde a compra
+  (nas vendas, as compras mais antigas saem primeiro). É informativo: o imposto
+  usa o preço médio, como manda a Receita.
 - **Dólar como chegaria no Brasil:** informe o custo da sua corretora no
   exterior para trazer o dinheiro (na Nomad, conversão de 1% + IOF de 0,38%)
   e o saldo dela aparece pelo valor de resgate: dólar comercial menos as

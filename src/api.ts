@@ -499,6 +499,22 @@ export type AssetDetail = {
   operations: PricedOperation[];
   average_steps: AverageStep[];
   history: DailyClose[];
+  /** Compras em aberto pelo FIFO, com o ganho de cada uma (informativo; o IR usa o preço médio). */
+  lots: LotView[];
+};
+export type LotView = {
+  id: string;
+  date: string;
+  account: string;
+  bought: Dec;
+  quantity: Dec;
+  unit_cost: Dec;
+  cost: Dec;
+  value: Dec | null;
+  gain: Dec | null;
+  cost_brl: Dec | null;
+  value_brl: Dec | null;
+  gain_brl: Dec | null;
 };
 export type Candle = { time: number; open: number; high: number; low: number; close: number; volume: number };
 export type ChartPeriod = "1d" | "5d" | "1mo" | "6mo" | "1y" | "5y" | "max";
