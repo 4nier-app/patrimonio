@@ -8,8 +8,11 @@
 //! - Banco Central (SGS): CDI e IPCA, para comparar com a carteira.
 //! - Nasdaq Trader: catálogo de ações e ETFs dos EUA.
 //! - CVM (dados abertos): cota diária e cadastro dos fundos de investimento.
+//! - Extrato de negociação da B3 (planilha que o usuário baixa da Área do
+//!   Investidor): lido localmente, sem rede.
 //! - GitHub: número da versão mais recente do aplicativo, para avisar de atualização.
 
+pub mod b3_extrato;
 pub mod coinbase;
 pub mod cotahist;
 pub mod cvm;
@@ -19,6 +22,7 @@ pub mod nasdaq;
 pub mod ptax;
 pub mod sgs;
 pub mod tesouro;
+pub mod xlsx;
 pub mod yahoo;
 
 #[derive(Debug, thiserror::Error)]

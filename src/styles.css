@@ -275,6 +275,10 @@ tr.total-row td { background: var(--bg); }
 .import-summary p { margin: 0; font-weight: 600; }
 .note-card { margin-bottom: 12px; }
 .note-card.done { opacity: 0.75; }
+.b3-mapping { border-collapse: collapse; width: 100%; max-width: 720px; }
+.b3-mapping th, .b3-mapping td { text-align: left; padding: 4px 8px 4px 0; }
+.b3-mapping input { width: 100%; max-width: 260px; }
+label.warning-text { color: var(--warning-text); }
 .note-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .note-head h3 { margin: 0; }
 .warning-text { color: var(--warning-text); }

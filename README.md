@@ -34,7 +34,8 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Imposto de renda:** apuração mensal da B3 (isenção de R$ 20 mil, day trade,
   FIIs, prejuízo a compensar) com aviso de DARF; ganho anual no exterior e em
   cripto pela Lei 14.754; posições em 31/12 para Bens e Direitos.
-- **Menos digitação:** importa notas em PDF no padrão SINACOR e confirmações da
+- **Menos digitação:** importa o extrato de negociação da B3 (todas as
+  corretoras de uma vez), notas em PDF no padrão SINACOR e confirmações da
   Nomad, ou uma planilha CSV. Cotações, PTAX, cotas de fundos (CVM) e preços do
   Tesouro são buscados automaticamente.
 - **Seus dados ficam com você:** tudo roda localmente, num banco criptografado

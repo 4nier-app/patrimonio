@@ -6,6 +6,17 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.19.0] - 2026-10-24
+
+### Adicionado
+- Lançamentos › Importar da B3: lê o extrato de negociação da Área do
+  Investidor da B3 (Excel) e traz de uma vez as compras e vendas de ações,
+  FIIs e ETFs de todas as corretoras. Você escolhe em qual conta entra cada
+  corretora. As taxas da B3 e a corretagem da conta são calculadas como num
+  lançamento manual. Um dia que já tem os mesmos lançamentos na conta (de
+  uma nota, por exemplo) fica de fora, para não lançar duas vezes. Opções,
+  termo e futuro ficam de fora, com o motivo de cada linha.
+
 ## [0.18.0] - 2026-10-24
 
 ### Adicionado
