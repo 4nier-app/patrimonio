@@ -73,13 +73,18 @@ pub fn positions_with_fx(
     // No mesmo dia: eventos, depois compras, depois vendas e baixas.
     sorted.sort_by_key(|t| (t.date, t.side.day_order()));
 
-    // Câmbio de uma data para a moeda do ativo (1 para reais).
-    let rate = |currency: &str, date: NaiveDate| -> Option<Decimal> {
-        if currency == BRL {
+    // Câmbio da operação para a moeda do ativo (1 para reais): a compra
+    // pelo câmbio do custo e a venda pelo de resgate (PTAX nas contas sem
+    // custo para trazer ao Brasil).
+    let rate = |t: &Trade| -> Option<Decimal> {
+        if t.currency == BRL {
             Some(Decimal::ONE)
         } else {
-            fx.and_then(|f| f.usd_brl_on_or_before(date))
-                .map(|r| r.rate)
+            fx.and_then(|f| match t.side {
+                Side::Venda => f.value_rate(&t.account, t.date),
+                _ => f.cost_rate(&t.account, t.date),
+            })
+            .map(|r| r.rate)
         }
     };
 
@@ -106,7 +111,7 @@ pub fn positions_with_fx(
             accounts: Vec::new(),
             by_account: BTreeMap::new(),
         });
-        let r = rate(&t.currency, t.date);
+        let r = rate(t);
         match t.side {
             // No evento, a quantidade pode cair (grupamento); o custo total só
             // cresce pelo custo atribuído às ações bonificadas.

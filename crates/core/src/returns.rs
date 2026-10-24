@@ -43,13 +43,16 @@ pub enum Conversion<'a> {
     ToBrl(&'a dyn FxSource),
 }
 
-/// Câmbio a aplicar num valor: `Ok(None)` quando não há conversão,
-/// `Err(())` quando falta a PTAX.
-fn fx_for(conv: Conversion, currency: &str, date: NaiveDate) -> Result<Option<FxRate>, ()> {
+/// Câmbio de uma compra ou venda: a compra pelo câmbio do custo e a venda
+/// pelo de resgate (PTAX nas contas sem custo para trazer ao Brasil).
+fn flow_fx_for(conv: Conversion, t: &Trade) -> Result<Option<FxRate>, ()> {
     match conv {
-        Conversion::ToBrl(src) if currency != BRL => {
-            src.usd_brl_on_or_before(date).map(Some).ok_or(())
+        Conversion::ToBrl(src) if t.currency != BRL => match t.side {
+            Side::Venda => src.value_rate(&t.account, t.date),
+            _ => src.cost_rate(&t.account, t.date),
         }
+        .map(Some)
+        .ok_or(()),
         _ => Ok(None),
     }
 }
@@ -489,7 +492,7 @@ fn month_result(
                 Some(d) if t.date >= d => 0,
                 _ => ((period_end - t.date).num_days() + 1).clamp(0, days),
             };
-            let fx = fx_for(conv, &t.currency, t.date);
+            let fx = flow_fx_for(conv, t);
             let amount = match &fx {
                 Ok(Some(f)) => t.cash_flow() * f.rate,
                 Ok(None) => t.cash_flow(),

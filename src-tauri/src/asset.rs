@@ -122,7 +122,7 @@ fn lot_views(
             let cost = l.cost.round_dp(2);
             let (cost_brl, value_brl) = if currency == USD {
                 (
-                    fx.usd_brl_on_or_before(l.date)
+                    fx.cost_rate(&l.account, l.date)
                         .map(|f| (l.cost * f.rate).round_dp(2)),
                     value
                         .zip(fx.value_rate(&l.account, as_of))

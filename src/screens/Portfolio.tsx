@@ -113,7 +113,8 @@ function DollarAccounts({ rows, onSaved }: { rows: DollarAccount[]; onSaved: () 
       </div>
       <p className="muted small" style={{ margin: "12px 0 0" }}>
         Valor de resgate: o que chegaria na sua conta no Brasil, já descontadas a taxa de conversão da corretora e o IOF de 0,38%. É o valor usado no
-        Painel, na Evolução, na Carteira e na Rentabilidade. Nos impostos vale a PTAX, como manda a lei.
+        Painel, na Evolução, na Carteira e na Rentabilidade, no saldo e também no custo de cada compra (pelo valor de resgate do dia da compra). Nos
+        impostos vale a PTAX, como manda a lei.
       </p>
     </div>
   );
@@ -203,7 +204,8 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
                     {" "}
                     Ativos no exterior: custo pela PTAX de cada compra e valor atual pela PTAX de {date(view.fx.date)} ({price(view.fx.rate)} por
                     dólar). Nas corretoras em dólar com o custo para trazer ao Brasil informado, o valor atual é o valor de resgate: dólar comercial
-                    menos a taxa de conversão da corretora e o IOF, o que chegaria na sua conta no Brasil. Os impostos sempre usam a PTAX.
+                    menos a taxa de conversão da corretora e o IOF, o que chegaria na sua conta no Brasil, e o custo de cada compra é o valor de resgate
+                    do dia da compra. Os impostos sempre usam a PTAX.
                   </>
                 )}
               </>

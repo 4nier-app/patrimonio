@@ -84,7 +84,8 @@ export default function ExitCostBox({ account, current, onSaved, compact }: { ac
       </div>
       <p className="muted small">
         Confira a taxa no app da corretora, na tela de enviar dólares para o Brasil. Com a taxa informada, esta corretora aparece em todo o aplicativo
-        pelo <strong>valor de resgate</strong>: dólar comercial menos a taxa e o IOF, o que chegaria na sua conta no Brasil. Em branco, continua pela
+        pelo <strong>valor de resgate</strong>: dólar comercial menos a taxa e o IOF, o que chegaria na sua conta no Brasil. As compras também entram
+        pelo valor de resgate do dia, então o ganho é o que você teria a mais em reais. Em branco, continua pela
         PTAX. <strong>Os impostos sempre usam a PTAX</strong>, como manda a lei.
       </p>
       {error && <p className="error">{error}</p>}

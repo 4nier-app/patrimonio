@@ -268,13 +268,15 @@ export default function Evolution() {
         <Intro
           more={
             <>
-              Cada coluna é o patrimônio no fim do mês, em reais; o que está em dólar é convertido pela PTAX do dia. Nas corretoras em dólar com o custo para trazer ao Brasil informado, vale o valor de resgate: dólar comercial do dia menos a taxa de conversão e o IOF (passe o mouse no ⓘ para ver a conta).
+              Cada coluna é o patrimônio no fim do mês, em reais; o que está em dólar é convertido pela PTAX do dia. Nas corretoras em dólar com o custo para trazer ao Brasil informado, vale o valor de resgate: dólar comercial do dia menos a taxa de conversão e o IOF (passe o mouse no ⓘ para ver a conta); as compras também entram pelo valor de resgate do dia da compra.
               Abaixo de cada valor, a variação em relação à coluna anterior. Ativo vendido some das colunas seguintes, porque o dinheiro foi para
               outro lugar (outro ativo ou a conta corrente). A coluna “No período” mostra o resultado, descontando compras e vendas: um ativo
               vendido no meio do ano mostra o que rendeu até a venda. “Desde o início” faz a mesma conta desde a primeira compra de cada investimento. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
               alta e um saque como queda. Por isso, embaixo, a linha Rendimento mostra quanto os investimentos renderam sem contar compras e
               vendas. Investimentos são ações, ETFs, criptomoedas, fundos e cofrinhos; FGTS, conta corrente e cartões benefício entram só no total
-              geral. A rentabilidade, que desconta os aportes, fica em Carteira › Rentabilidade.
+              geral. A rentabilidade, que desconta os aportes, fica em Carteira › Rentabilidade. Num ativo com mais de uma compra, clique na
+              setinha ▸ para ver cada compra que ainda está na carteira, mês a mês; no mês da compra, a % compara com o preço pago. Nas vendas, as
+              compras mais antigas saem primeiro. É só informativo: o imposto de renda continua pelo preço médio.
             </>
           }
         >

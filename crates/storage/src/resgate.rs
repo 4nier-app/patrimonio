@@ -123,6 +123,13 @@ impl FxSource for ValueFx {
             ),
         })
     }
+
+    fn cost_rate(&self, account: &str, date: NaiveDate) -> Option<FxRate> {
+        // O IOF e a taxa da remessa foram pagos antes, ao mandar o dinheiro:
+        // a compra vale pelo mesmo valor de resgate do dia, e o ganho fica só
+        // com a variação do ativo e do dólar.
+        self.value_rate(account, date)
+    }
 }
 
 impl Vault {
@@ -252,6 +259,9 @@ mod tests {
         assert_eq!((r.rate * dec!(100)).round_dp(2), dec!(496.79));
         assert!(r.source.starts_with(RESGATE));
         assert!(r.source.contains("1,38%"), "{}", r.source);
+        // A compra vale pelo mesmo valor de resgate do dia; sem taxa, a PTAX.
+        assert_eq!(fx.cost_rate("Corretora US", d(3)).unwrap().rate, r.rate);
+        assert_eq!(fx.cost_rate("Outra US", d(3)).unwrap().rate, dec!(5.10));
         let note = explain_value(
             dec!(100),
             dec!(496.79),

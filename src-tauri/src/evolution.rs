@@ -503,7 +503,11 @@ fn build(
         let t = p.trade()?;
         let cash = t.cash_flow();
         if t.currency == USD {
-            inp.fx.usd_brl_on_or_before(t.date).map(|f| cash * f.rate)
+            let f = match t.side {
+                carteira_core::model::Side::Venda => inp.fx.value_rate(&t.account, t.date),
+                _ => inp.fx.cost_rate(&t.account, t.date),
+            };
+            f.map(|f| cash * f.rate)
         } else {
             Some(cash)
         }
@@ -708,7 +712,9 @@ fn lot_rows(
                     close
                         .zip(inp.fx.value_rate(&l.account, c.date))
                         .map(|(p, f)| p * l.quantity * f.rate),
-                    inp.fx.usd_brl_on_or_before(l.date).map(|f| l.cost * f.rate),
+                    inp.fx
+                        .cost_rate(&l.account, l.date)
+                        .map(|f| l.cost * f.rate),
                 )
             } else {
                 (close.map(|p| p * l.quantity), Some(l.cost))

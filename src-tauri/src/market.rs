@@ -1846,8 +1846,19 @@ mod tests {
         assert_eq!(acc.account, "Exterior");
         assert_eq!(acc.ptax_brl, Some(Decimal::from(2 * 99 * 5)));
         assert_eq!(acc.total_pct, Some(Decimal::new(138, 2)));
-        // Custo das compras continua pela PTAX da data.
-        assert_eq!(p.cost_brl, Some(Decimal::from(800 * 5)));
+        // O custo das compras também é o valor de resgate do dia da compra:
+        // o ganho em reais é o que sobraria depois de trazer o dinheiro.
+        assert_eq!(
+            p.cost_brl.unwrap().round_dp(6),
+            (p.cost * Decimal::from(99) * factor).round_dp(6)
+        );
+        // Os impostos usam só a PTAX (tabela sem as taxas da corretora).
+        let ptax = with(&vault, |v| v.fx_table().map_err(|e| e.to_string())).unwrap();
+        let d = NaiveDate::from_ymd_opt(2026, 1, 20).unwrap();
+        assert_eq!(
+            ptax.cost_rate("Exterior", d).unwrap().rate,
+            Decimal::from(5)
+        );
     }
 
     #[test]

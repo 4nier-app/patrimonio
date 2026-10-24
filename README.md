@@ -19,14 +19,17 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   S&P 500 e dólar.
 - **Nada é caixa-preta:** cada número pode mostrar a operação, a cotação, o
   câmbio (PTAX), as taxas e a fórmula usada, com os valores substituídos.
-- **Ganho de cada compra:** na página do ativo, cada compra que ainda está na
-  carteira mostra o custo com taxas, o valor hoje e o ganho desde a compra
-  (nas vendas, as compras mais antigas saem primeiro). É informativo: o imposto
-  usa o preço médio, como manda a Receita.
+- **Ganho de cada compra:** na página do ativo e na Evolução (na setinha ▸ de
+  cada ativo), cada compra que ainda está na carteira mostra o custo com
+  taxas, o valor e o ganho desde a compra (nas vendas, as compras mais antigas
+  saem primeiro). É informativo: o imposto usa o preço médio, como manda a
+  Receita.
 - **Dólar como chegaria no Brasil:** informe o custo da sua corretora no
   exterior para trazer o dinheiro (na Nomad, conversão de 1% + IOF de 0,38%)
   e o saldo dela aparece pelo valor de resgate: dólar comercial menos as
-  taxas. Sem o custo, vale a PTAX. Os impostos sempre usam a PTAX, como manda
+  taxas. As compras também entram pelo valor de resgate do dia, então o ganho
+  é o que você teria a mais em reais depois de trazer o dinheiro. Sem o custo,
+  vale a PTAX. Os impostos sempre usam a PTAX, como manda
   a Lei 14.754/2023.
 - **Imposto de renda:** apuração mensal da B3 (isenção de R$ 20 mil, day trade,
   FIIs, prejuízo a compensar) com aviso de DARF; ganho anual no exterior e em
