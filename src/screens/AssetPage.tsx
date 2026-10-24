@@ -559,6 +559,68 @@ export default function AssetPage({
         </>
       )}
 
+      {detail && detail.lots.length > 0 && (
+        <>
+          <h3 className="spaced">{fund ? "Aplicações em aberto" : "Compras em aberto"}</h3>
+          <div className="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Conta</th>
+                  <th className="num">{td ? "Títulos" : fund ? "Cotas" : "Qtd."}</th>
+                  <th className="num">Custo por {td ? "título" : fund ? "cota" : "ação"}</th>
+                  <th className="num">Custo</th>
+                  <th className="num">Valor hoje</th>
+                  <th className="num" colSpan={2}>
+                    Ganho desde a compra
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.lots.map((l, k) => {
+                  const pct = l.gain != null && Number(l.cost) ? String(Number(l.gain) / Number(l.cost)) : null;
+                  const pctBrl = l.gain_brl != null && Number(l.cost_brl) ? String(Number(l.gain_brl) / Number(l.cost_brl)) : null;
+                  return (
+                    <tr key={`${l.id}:${l.account}:${k}`}>
+                      <td>{date(l.date)}</td>
+                      <td>{l.account}</td>
+                      <td className="num">
+                        {quantity(l.quantity)}
+                        {Number(l.quantity) !== Number(l.bought) && <div className="muted small">de {quantity(l.bought)}</div>}
+                      </td>
+                      <td className="num" title={`Valor exato: ${l.unit_cost}`}>{averagePrice(l.unit_cost, cur)}</td>
+                      <td className="num">
+                        {money(l.cost, cur)}
+                        {cur === "USD" && <div className="muted small">{money(l.cost_brl)}</div>}
+                      </td>
+                      <td className="num">
+                        {money(l.value, cur)}
+                        {cur === "USD" && <div className="muted small">{money(l.value_brl)}</div>}
+                      </td>
+                      <td className={`num ${tone(l.gain)}`}>
+                        {money(l.gain, cur)}
+                        {cur === "USD" && <div className={`small ${tone(l.gain_brl)}`}>{money(l.gain_brl)}</div>}
+                      </td>
+                      <td className={`num ${tone(pct)}`}>
+                        {pct != null ? percent(pct) : "—"}
+                        {cur === "USD" && pctBrl != null && <div className={`small ${tone(pctBrl)}`}>{percent(pctBrl)}</div>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="muted small">
+            O que resta de cada {fund ? "aplicação" : "compra"}, com as taxas no custo, e quanto ela ganhou ou perdeu até a cotação de hoje. Nas vendas,{" "}
+            {fund ? "as aplicações" : "as compras"} mais antigas saem primeiro; numa transferência de custódia, a quantidade muda de conta
+            mantendo a data e o custo. É só informativo: o preço médio, o resultado e o imposto de renda continuam calculados pelo preço médio, como
+            manda a Receita.
+          </p>
+        </>
+      )}
+
       {detail && detail.operations.length > 0 && (
         <>
           <h3 className="spaced">Seus lançamentos</h3>

@@ -62,6 +62,29 @@ pub struct Row {
     pub notes: Vec<Option<String>>,
     /// "Nomad · valor de resgate" quando a linha usa o valor de resgate.
     pub value_label: Option<String>,
+    /// Compras em aberto do ativo, cada uma com o valor em cada coluna (as
+    /// compras mais antigas saem primeiro nas vendas). Vazio quando há uma
+    /// compra só.
+    pub lots: Vec<LotRow>,
+}
+
+/// Uma compra do ativo, mês a mês. A soma das compras dá a linha do ativo.
+#[derive(Debug, Clone, Serialize)]
+pub struct LotRow {
+    pub date: NaiveDate,
+    pub account: String,
+    /// Quantidade na última coluna em que a compra ainda existia.
+    pub quantity: Decimal,
+    /// "ações", "cotas", "títulos" ou o código (cripto).
+    pub unit: String,
+    /// Valor em reais em cada coluna; `None` antes da compra ou depois de
+    /// vendida.
+    pub values: Vec<Option<Decimal>>,
+    /// Custo em reais do que restava da compra em cada coluna: a base da %
+    /// no mês da compra.
+    pub costs: Vec<Option<Decimal>>,
+    pub gain: Option<Gain>,
+    pub since: Option<Gain>,
 }
 
 /// Resultado no período, descontando compras e vendas: um ativo vendido no
@@ -278,6 +301,7 @@ fn build(
                 since: None,
                 notes: vec![None; n],
                 value_label: None,
+                lots: Vec::new(),
             });
             match p.market_value_brl {
                 Some(val) => row.values[i] = Some(val),
@@ -311,9 +335,11 @@ fn build(
                 since: None,
                 notes: vec![None; n],
                 value_label: None,
+                lots: Vec::new(),
             });
         }
     }
+    let mut units: BTreeMap<String, String> = BTreeMap::new();
     for (asset, mut row) in by_asset {
         let info = v.get_asset(&asset).map_err(s)?;
         let kind = info.as_ref().map(|a| a.kind.clone());
@@ -330,6 +356,15 @@ fn build(
             row.detail = Some(name.clone());
         }
         let key = group_of(kind.as_deref(), &currency, acc);
+        units.insert(
+            asset.clone(),
+            match kind.as_deref() {
+                Some("FUNDO" | "FII" | "ETF") => "cotas".to_string(),
+                Some("TESOURO") => "títulos".to_string(),
+                Some("CRIPTO") => asset.clone(),
+                _ => "ações".to_string(),
+            },
+        );
         rows.entry(key).or_default().push(row);
     }
 
@@ -434,6 +469,7 @@ fn build(
             since,
             notes: vec![None; n],
             value_label: None,
+            lots: Vec::new(),
         });
     }
 
@@ -458,6 +494,7 @@ fn build(
                 since: None,
                 notes: vec![None; n],
                 value_label: None,
+                lots: Vec::new(),
             });
     }
 
@@ -466,7 +503,11 @@ fn build(
         let t = p.trade()?;
         let cash = t.cash_flow();
         if t.currency == USD {
-            inp.fx.usd_brl_on_or_before(t.date).map(|f| cash * f.rate)
+            let f = match t.side {
+                carteira_core::model::Side::Venda => inp.fx.value_rate(&t.account, t.date),
+                _ => inp.fx.cost_rate(&t.account, t.date),
+            };
+            f.map(|f| cash * f.rate)
         } else {
             Some(cash)
         }
@@ -526,6 +567,17 @@ fn build(
             value: (last - net).round_dp(2),
             base: buys.round_dp(2),
         });
+    }
+
+    for row in rows.values_mut().flatten() {
+        match &row.asset {
+            Some(a) if !a.is_empty() && row.savings_id.is_none() => {
+                let mine: Vec<_> = trades.iter().filter(|t| &t.asset == a).cloned().collect();
+                let unit = units.get(a).cloned().unwrap_or_default();
+                row.lots = lot_rows(&mine, a, &unit, &cols, inp);
+            }
+            _ => {}
+        }
     }
 
     let mut groups: Vec<Group> = rows
@@ -627,6 +679,102 @@ fn build(
     })
 }
 
+/// Compras do ativo em cada coluna. Só faz sentido com duas ou mais.
+fn lot_rows(
+    trades: &[carteira_core::model::Trade],
+    asset: &str,
+    unit: &str,
+    cols: &[Column],
+    inp: &Inputs,
+) -> Vec<LotRow> {
+    use carteira_core::lots::open_lots;
+    use carteira_core::returns::PriceSource;
+    let n = cols.len();
+    let usd = trades.first().is_some_and(|t| t.currency == USD);
+    // (valor, custo, quantidade) de cada compra em cada coluna.
+    let mut by_lot: BTreeMap<
+        (NaiveDate, String, String),
+        Vec<Option<(Option<Decimal>, Option<Decimal>, Decimal)>>,
+    > = BTreeMap::new();
+    for (i, c) in cols.iter().enumerate() {
+        let upto: Vec<_> = trades
+            .iter()
+            .filter(|t| t.date <= c.date)
+            .cloned()
+            .collect();
+        if upto.is_empty() {
+            continue;
+        }
+        let close = inp.table.close_on_or_before(asset, c.date).map(|q| q.close);
+        for l in open_lots(&upto) {
+            let (value, cost) = if usd {
+                (
+                    close
+                        .zip(inp.fx.value_rate(&l.account, c.date))
+                        .map(|(p, f)| p * l.quantity * f.rate),
+                    inp.fx
+                        .cost_rate(&l.account, l.date)
+                        .map(|f| l.cost * f.rate),
+                )
+            } else {
+                (close.map(|p| p * l.quantity), Some(l.cost))
+            };
+            by_lot
+                .entry((l.date, l.id.clone(), l.account.clone()))
+                .or_insert_with(|| vec![None; n])[i] = Some((
+                value.map(|v| v.round_dp(2)),
+                cost.map(|c| c.round_dp(2)),
+                l.quantity,
+            ));
+        }
+    }
+    if by_lot.len() < 2 {
+        return Vec::new();
+    }
+    by_lot
+        .into_iter()
+        .map(|((date, _, account), cells)| {
+            let quantity = cells
+                .iter()
+                .rev()
+                .flatten()
+                .next()
+                .map_or(Decimal::ZERO, |c| c.2);
+            let values: Vec<Option<Decimal>> = cells.iter().map(|c| c.and_then(|c| c.0)).collect();
+            let costs: Vec<Option<Decimal>> = cells.iter().map(|c| c.and_then(|c| c.1)).collect();
+            // Resultado só das compras que continuam na carteira.
+            let (mut gain, mut since) = (None, None);
+            if let Some(Some((Some(last), Some(cost), _))) = cells.last() {
+                since = Some(Gain {
+                    value: *last - *cost,
+                    base: *cost,
+                });
+                // No período: do valor na primeira coluna (ou do custo, se a
+                // compra é do período), proporcional ao que restou.
+                let start = match cells[0] {
+                    Some((Some(v0), Some(c0), _)) if !c0.is_zero() => Some(v0 * *cost / c0),
+                    Some(_) => None,
+                    None => Some(*cost),
+                };
+                gain = start.map(|s| Gain {
+                    value: (*last - s).round_dp(2),
+                    base: s.round_dp(2),
+                });
+            }
+            LotRow {
+                date,
+                account,
+                quantity,
+                unit: unit.to_string(),
+                values,
+                costs,
+                gain,
+                since,
+            }
+        })
+        .collect()
+}
+
 /// Em "Todos os anos", os ativos que já não estão na carteira viram uma
 /// linha só por grupo: os totais dos anos passados continuam completos sem
 /// listar o que foi vendido.
@@ -658,6 +806,7 @@ fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
         since: sum_since(sold.iter()),
         notes: vec![None; n],
         value_label: None,
+        lots: Vec::new(),
     };
     held.into_iter().chain(std::iter::once(merged)).collect()
 }
@@ -938,6 +1087,26 @@ mod tests {
             .unwrap();
         let today = test.values[view.columns.len() - 1].unwrap();
         assert_eq!(test.since.unwrap().value, today - dec!(1500));
+        // Compras dentro do ativo: a de fevereiro só aparece a partir de
+        // fevereiro, com o custo como base; a soma dá a linha do ativo.
+        assert_eq!(test.lots.len(), 2);
+        let (a, b) = (&test.lots[0], &test.lots[1]);
+        assert_eq!((a.quantity, a.unit.as_str()), (dec!(100), "ações"));
+        assert_eq!(a.values[0], Some(dec!(1100)));
+        assert_eq!(b.values[0], None);
+        assert_eq!(
+            (b.values[1], b.costs[1]),
+            (Some(dec!(600)), Some(dec!(500)))
+        );
+        for i in 0..view.columns.len() {
+            let sum: Decimal = test.lots.iter().filter_map(|l| l.values[i]).sum();
+            assert_eq!(Some(sum), test.values[i]);
+        }
+        let g = b.gain.unwrap();
+        assert_eq!(g.base, dec!(500));
+        assert_eq!(b.since.unwrap().value, g.value);
+        // Ativo com uma compra só não abre.
+        assert!(outr.lots.is_empty());
         // Conta: variação simples, 650 hoje − 500 em janeiro.
         let conta = &view.groups[1].rows[0];
         let g = conta.gain.unwrap();
@@ -1073,6 +1242,7 @@ mod tests {
             since: None,
             notes: Vec::new(),
             value_label: None,
+            lots: Vec::new(),
         };
         let rows = vec![
             row("AAAA3", vec![Some(dec!(100)), Some(dec!(120))], dec!(20)),

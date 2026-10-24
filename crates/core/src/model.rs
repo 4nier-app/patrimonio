@@ -134,6 +134,14 @@ pub trait FxSource {
     fn value_rate(&self, _account: &str, date: NaiveDate) -> Option<FxRate> {
         self.usd_brl_on_or_before(date)
     }
+
+    /// Câmbio do custo de uma compra em dólar, para mostrar o resultado em
+    /// reais (os impostos usam sempre a PTAX). Por padrão é a PTAX; contas
+    /// com custo para trazer o dinheiro ao Brasil usam o dólar comercial do
+    /// dia mais as taxas.
+    fn cost_rate(&self, _account: &str, date: NaiveDate) -> Option<FxRate> {
+        self.usd_brl_on_or_before(date)
+    }
 }
 
 /// Cotação de fechamento usada num cálculo.

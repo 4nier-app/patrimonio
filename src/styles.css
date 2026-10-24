@@ -595,3 +595,8 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .login-profile { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .login-profile .login-links { justify-content: flex-start; gap: 16px; }
 .info-mark { color: var(--accent); font-weight: 600; cursor: help; }
+/* Compras dentro de um ativo na Evolução. */
+.evo-lot-caret { color: var(--accent); margin-right: 6px; }
+.evo-table .evo-lot th, .evo-table .evo-lot td { background: color-mix(in srgb, var(--accent) 4%, transparent); font-size: 0.92em; }
+.evo-table .evo-lot th:first-child { padding-left: 34px; }
+.evo-table .evo-lot .evo-asset { font-weight: 400; }

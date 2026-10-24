@@ -6,7 +6,29 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.16.0] - Não lançada
+## [0.17.0] - 2026-10-24
+
+### Adicionado
+- Página do ativo: quadro "Compras em aberto" com o que resta de cada compra,
+  o custo por ação com as taxas, o valor hoje e o ganho desde a compra, em
+  reais e em %. Nas vendas, as compras mais antigas saem primeiro; na
+  transferência de custódia, a quantidade muda de conta mantendo data e
+  custo; desdobramento e bonificação valem para todas as compras. É só
+  informativo: preço médio, resultado e imposto de renda não mudam.
+- Evolução: ativo com mais de uma compra ganha uma setinha ▸ que abre as
+  compras embaixo, cada uma com o valor mês a mês, o resultado no período e
+  desde o início. No mês da compra, a % compara com o preço pago. A soma das
+  compras dá a linha do ativo. Ao abrir a Evolução, todas começam fechadas.
+
+### Alterado
+- Corretoras em dólar com o custo para trazer ao Brasil informado: o custo de
+  cada compra também passa a ser o valor de resgate do dia da compra (dólar
+  comercial menos a taxa de conversão e o IOF), e as vendas também. Assim o
+  ganho em reais é só o que você teria a mais depois de trazer o dinheiro.
+  Vale na Carteira, na Rentabilidade, na Evolução e na página do ativo. Os
+  impostos continuam pela PTAX, como manda a lei.
+
+## [0.16.0] - 2026-10-22
 
 ### Adicionado
 - Valor de resgate nas corretoras em dólar: em Lançamentos, cada corretora em

@@ -356,6 +356,21 @@ export type EvolutionRow = {
   notes: (string | null)[];
   /** "Nomad · valor de resgate" */
   value_label: string | null;
+  /** Compras em aberto, mês a mês (vazio quando há uma compra só). */
+  lots: EvolutionLot[];
+};
+/** Uma compra do ativo na Evolução; nas vendas, as compras mais antigas saem primeiro. */
+export type EvolutionLot = {
+  date: string;
+  account: string;
+  quantity: Dec;
+  /** "ações", "cotas", "títulos" ou o código da cripto. */
+  unit: string;
+  values: (Dec | null)[];
+  /** Custo em reais do que restava da compra: a base da % no mês da compra. */
+  costs: (Dec | null)[];
+  gain: EvolutionGain | null;
+  since: EvolutionGain | null;
 };
 /** Resultado no período: valor final + vendas − compras − valor inicial; base = inicial + compras. */
 export type EvolutionGain = { value: Dec; base: Dec };
@@ -499,6 +514,22 @@ export type AssetDetail = {
   operations: PricedOperation[];
   average_steps: AverageStep[];
   history: DailyClose[];
+  /** Compras em aberto pelo FIFO, com o ganho de cada uma (informativo; o IR usa o preço médio). */
+  lots: LotView[];
+};
+export type LotView = {
+  id: string;
+  date: string;
+  account: string;
+  bought: Dec;
+  quantity: Dec;
+  unit_cost: Dec;
+  cost: Dec;
+  value: Dec | null;
+  gain: Dec | null;
+  cost_brl: Dec | null;
+  value_brl: Dec | null;
+  gain_brl: Dec | null;
 };
 export type Candle = { time: number; open: number; high: number; low: number; close: number; volume: number };
 export type ChartPeriod = "1d" | "5d" | "1mo" | "6mo" | "1y" | "5y" | "max";
