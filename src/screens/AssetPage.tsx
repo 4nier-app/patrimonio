@@ -597,10 +597,12 @@ export default function AssetPage({
                         {cur === "USD" && <div className="muted small">{money(l.value_brl)}</div>}
                       </td>
                       <td className={`num ${tone(l.gain)}`}>
-                        {money(l.gain, cur)} {pct != null && <small>{percent(pct)}</small>}
+                        {money(l.gain, cur)}
+                        {pct != null && <div className="small">{percent(pct)}</div>}
                         {cur === "USD" && (
                           <div className={`small ${tone(l.gain_brl)}`}>
-                            {money(l.gain_brl)} {pctBrl != null && percent(pctBrl)}
+                            {money(l.gain_brl)}
+                            {pctBrl != null && <div>{percent(pctBrl)}</div>}
                           </div>
                         )}
                       </td>
