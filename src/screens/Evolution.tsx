@@ -3,7 +3,7 @@ import YearPager from "../components/YearPager";
 import { errorMessage, evolutionApi, savingsApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
 import CashInput from "../components/CashInput";
 import Intro from "../components/Intro";
-import { cashZero, date, money, monthLabel, parseDecimalInput, percent, toCashMask, tone } from "../format";
+import { cashZero, date, money, monthLabel, parseDecimalInput, percent, quantity, toCashMask, tone } from "../format";
 
 // Na tabela, valores sem "R$" (o cabeçalho já diz) para caber o ano inteiro.
 const numFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -94,9 +94,12 @@ function Cell({
   noRate,
   onEdit,
   note,
+  costs,
 }: {
   values: (Dec | null)[];
   i: number;
+  /** Compra: no mês da compra (sem valor anterior), a % compara com o custo. */
+  costs?: (Dec | null)[];
   missing?: boolean;
   /** Conta do valor de resgate (corretora em dólar), mostrada no ⓘ. */
   note?: string | null;
@@ -118,7 +121,10 @@ function Cell({
     ) : (
       <td className={`num evo-cell${hl}`}>{missing && <span className="ret-missing">sem cotação</span>}</td>
     );
-  const pct = noRate ? null : change(values, pairs[i] ?? (i > 0 ? [i - 1, i] : null));
+  const pair = pairs[i] ?? (i > 0 ? [i - 1, i] : null);
+  let pct = noRate ? null : change(values, pair);
+  const cost = costs?.[i];
+  if (pct == null && pair && values[pair[0]] == null && cost != null && Number(cost) !== 0) pct = String(Number(v) / Number(cost) - 1);
   return (
     <td className={edit?.className ?? `num evo-cell${hl}`} title={edit?.title ?? (note ? `${money(v)} · valor de resgate\n${note}` : money(v))} onClick={onEdit}>
       <span className={strong ? "evo-val strong" : "evo-val"}>
@@ -228,6 +234,8 @@ export default function Evolution() {
   const [view, setView] = useState<EvolutionView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<string[]>(loadCollapsed);
+  // Compras dentro de cada ativo: sempre começam fechadas.
+  const [lotsOpen, setLotsOpen] = useState<string[]>([]);
   const [edit, setEdit] = useState<Editing | null>(null);
   const [reload, setReload] = useState(0);
 
@@ -351,10 +359,25 @@ export default function Evolution() {
                           </tr>
                         )}
                         {open &&
-                          g.rows.map((r) => (
-                            <tr key={`${key}:${r.asset ?? r.name}:${r.detail ?? ""}`} className={single ? "evo-row evo-group" : "evo-row"}>
-                              <th scope="row" title={[r.name, r.detail, r.value_label].filter(Boolean).join("\n")}>
-                                <span className="evo-asset">{r.name}</span>
+                          g.rows.map((r) => {
+                            const rowKey = `${key}:${r.asset ?? r.name}:${r.detail ?? ""}`;
+                            const lots = r.lots ?? [];
+                            const hasLots = lots.length > 1;
+                            const lotsShown = hasLots && lotsOpen.includes(rowKey);
+                            const toggleLots = () => setLotsOpen(lotsShown ? lotsOpen.filter((k) => k !== rowKey) : [...lotsOpen, rowKey]);
+                            return (
+                          <Fragment key={rowKey}>
+                            <tr className={single ? "evo-row evo-group" : "evo-row"}>
+                              <th
+                                scope="row"
+                                className={hasLots ? "clickable" : undefined}
+                                onClick={hasLots ? toggleLots : undefined}
+                                title={[r.name, r.detail, r.value_label, hasLots ? (lotsShown ? "Clique para fechar as compras" : "Clique para ver cada compra") : null].filter(Boolean).join("\n")}
+                              >
+                                <span className="evo-asset">
+                                  {hasLots && <span className="evo-lot-caret">{lotsShown ? "▾" : "▸"}</span>}
+                                  {r.name}
+                                </span>
                                 {r.detail && <span className="evo-detail">{r.detail}</span>}
                                 {r.value_label && <span className="evo-detail">{r.value_label}</span>}
                               </th>
@@ -389,7 +412,25 @@ export default function Evolution() {
                               <Gain gain={r.gain} />
                               <Gain gain={r.since} plain />
                             </tr>
-                          ))}
+                            {lotsShown &&
+                              lots.map((l, li) => (
+                                <tr key={`${rowKey}:lot:${li}`} className="evo-row evo-lot">
+                                  <th scope="row" title={`Compra de ${date(l.date)} · ${l.account}\n${quantity(l.quantity)} ${l.unit}`}>
+                                    <span className="evo-asset">{date(l.date)}</span>
+                                    <span className="evo-detail">
+                                      {quantity(l.quantity)} {l.unit}
+                                    </span>
+                                  </th>
+                                  {shown.map(({ c, i }) => (
+                                    <Cell key={c.date} values={l.values} costs={l.costs} i={i} />
+                                  ))}
+                                  <Gain gain={l.gain} />
+                                  <Gain gain={l.since} plain />
+                                </tr>
+                              ))}
+                          </Fragment>
+                            );
+                          })}
                       </Fragment>
                     );
                   })}

@@ -356,6 +356,21 @@ export type EvolutionRow = {
   notes: (string | null)[];
   /** "Nomad · valor de resgate" */
   value_label: string | null;
+  /** Compras em aberto, mês a mês (vazio quando há uma compra só). */
+  lots: EvolutionLot[];
+};
+/** Uma compra do ativo na Evolução; nas vendas, as compras mais antigas saem primeiro. */
+export type EvolutionLot = {
+  date: string;
+  account: string;
+  quantity: Dec;
+  /** "ações", "cotas", "títulos" ou o código da cripto. */
+  unit: string;
+  values: (Dec | null)[];
+  /** Custo em reais do que restava da compra: a base da % no mês da compra. */
+  costs: (Dec | null)[];
+  gain: EvolutionGain | null;
+  since: EvolutionGain | null;
 };
 /** Resultado no período: valor final + vendas − compras − valor inicial; base = inicial + compras. */
 export type EvolutionGain = { value: Dec; base: Dec };
