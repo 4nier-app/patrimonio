@@ -19,6 +19,7 @@ import Returns from "./Returns";
 import Savings from "./Savings";
 import Owned from "./Owned";
 import ImportCsv from "./ImportCsv";
+import ImportB3 from "./ImportB3";
 import Security from "./Security";
 import Taxes, { pendingDarfs } from "./Taxes";
 import { isSavings } from "../currency";
@@ -53,6 +54,7 @@ const SECTIONS = {
   lancamentos: [
     { id: "manual", label: "Incluir e editar" },
     { id: "importar", label: "Importar notas" },
+    { id: "b3", label: "Importar da B3" },
     { id: "planilha", label: "Importar planilha" },
     { id: "eventos", label: "Eventos (bonificação, desdobramento)" },
     { id: "proventos", label: "Proventos" },
@@ -350,6 +352,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           {!asset && tab === "lancamentos" && current === "manual" && <Operations onChanged={() => void updateQuotes()} />}
           {!asset && tab === "lancamentos" && current === "proventos" && <Incomes refresh={refresh} onChanged={loadTaxes} />}
           {!asset && tab === "lancamentos" && current === "planilha" && <ImportCsv onImported={() => void updateQuotes()} />}
+          {!asset && tab === "lancamentos" && current === "b3" && <ImportB3 onImported={() => void updateQuotes()} />}
           {!asset && tab === "lancamentos" && current === "importar" && (
             <Suspense fallback={<p className="muted">Carregando…</p>}>
               <ImportNotes onImported={() => void updateQuotes()} />

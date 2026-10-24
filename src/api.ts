@@ -286,6 +286,26 @@ export const notesApi = {
   saveCsvTemplate: (content: string) => invoke<boolean>("save_csv_template", { content }),
 };
 
+/** Uma compra ou venda do extrato de negociação da B3. */
+export type B3Trade = {
+  /** Linha na planilha (a 1 é o cabeçalho). */
+  line: number;
+  date: string;
+  side: "COMPRA" | "VENDA";
+  market: string;
+  institution: string;
+  ticker: string;
+  quantity: Dec;
+  price: Dec;
+  value: Dec;
+};
+
+export type B3Skipped = { line: number; text: string; reason: string };
+
+export const b3Api = {
+  readTrades: (bytes: Uint8Array) => invoke<{ trades: B3Trade[]; skipped: B3Skipped[] }>("read_b3_trades", { bytes: Array.from(bytes) }),
+};
+
 // ---------- painel (etapa 3) ----------
 
 export type DashMonth = {

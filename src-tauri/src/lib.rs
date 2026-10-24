@@ -879,6 +879,16 @@ fn resolve_b3_names(
     })
 }
 
+/// Lê o extrato de negociação da B3 (planilha Excel) escolhido na tela. Só
+/// interpreta o arquivo; quem importa é `import_note`, dia a dia.
+#[tauri::command]
+fn read_b3_trades(bytes: Vec<u8>) -> Result<carteira_providers::b3_extrato::B3Extract, String> {
+    carteira_providers::b3_extrato::read_trades(&bytes).map_err(|e| match e {
+        carteira_providers::ProviderError::Format(m) => m,
+        other => other.to_string(),
+    })
+}
+
 #[tauri::command]
 fn import_note(note: NoteImport, state: State<AppState>) -> Result<usize, String> {
     with_vault(&state, |v| v.import_note(note).map(|ops| ops.len()))
@@ -1125,6 +1135,7 @@ pub fn run() {
             note_status,
             resolve_b3_names,
             import_note,
+            read_b3_trades,
             dashboard_days,
             evolution,
             taxes,
