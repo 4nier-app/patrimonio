@@ -572,7 +572,9 @@ export default function AssetPage({
                   <th className="num">Custo por {td ? "título" : fund ? "cota" : "ação"}</th>
                   <th className="num">Custo</th>
                   <th className="num">Valor hoje</th>
-                  <th className="num">Ganho desde a compra</th>
+                  <th className="num" colSpan={2}>
+                    Ganho desde a compra
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -598,13 +600,11 @@ export default function AssetPage({
                       </td>
                       <td className={`num ${tone(l.gain)}`}>
                         {money(l.gain, cur)}
-                        {pct != null && <div className="small">{percent(pct)}</div>}
-                        {cur === "USD" && (
-                          <div className={`small ${tone(l.gain_brl)}`}>
-                            {money(l.gain_brl)}
-                            {pctBrl != null && <div>{percent(pctBrl)}</div>}
-                          </div>
-                        )}
+                        {cur === "USD" && <div className={`small ${tone(l.gain_brl)}`}>{money(l.gain_brl)}</div>}
+                      </td>
+                      <td className={`num ${tone(pct)}`}>
+                        {pct != null ? percent(pct) : "—"}
+                        {cur === "USD" && pctBrl != null && <div className={`small ${tone(pctBrl)}`}>{percent(pctBrl)}</div>}
                       </td>
                     </tr>
                   );
