@@ -31,6 +31,9 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   é o que você teria a mais em reais depois de trazer o dinheiro. Sem o custo,
   vale a PTAX. Os impostos sempre usam a PTAX, como manda
   a Lei 14.754/2023.
+- **Alocação ideal:** defina a meta de cada classe (ações, FIIs, exterior,
+  cripto, renda fixa, dinheiro…) e veja quanto falta em cada uma e onde pôr o
+  próximo aporte, sem precisar vender nada.
 - **Imposto de renda:** apuração mensal da B3 (isenção de R$ 20 mil, day trade,
   FIIs, prejuízo a compensar) com aviso de DARF; ganho anual no exterior e em
   cripto pela Lei 14.754; posições em 31/12 para Bens e Direitos.

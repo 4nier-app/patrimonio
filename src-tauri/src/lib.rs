@@ -344,6 +344,51 @@ fn finish_first_use(state: State<AppState>) -> Result<(), String> {
     })
 }
 
+const ALLOCATION: &str = "alocacao.metas";
+
+/// Classes da alocação ideal: os grupos da Evolução, com os fundos de todos
+/// os bancos juntos e sem os bens.
+const ALLOCATION_CLASSES: [&str; 8] = [
+    "fundos", "b3", "fii", "exterior", "cripto", "rf", "fgts", "dinheiro",
+];
+
+/// Meta de cada classe, em % do que entra na alocação.
+#[tauri::command]
+fn allocation_targets(
+    state: State<AppState>,
+) -> Result<std::collections::BTreeMap<String, rust_decimal::Decimal>, String> {
+    with_vault(&state, |v| {
+        Ok(v
+            .setting(ALLOCATION)?
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default())
+    })
+}
+
+#[tauri::command]
+fn save_allocation_targets(
+    state: State<AppState>,
+    targets: std::collections::BTreeMap<String, rust_decimal::Decimal>,
+) -> Result<(), String> {
+    for (class, pct) in &targets {
+        if !ALLOCATION_CLASSES.contains(&class.as_str()) {
+            return Err(format!("classe desconhecida: {class}"));
+        }
+        if pct.is_sign_negative() || *pct > rust_decimal::Decimal::ONE_HUNDRED {
+            return Err("cada meta deve ficar entre 0% e 100%".into());
+        }
+    }
+    let total: rust_decimal::Decimal = targets.values().sum();
+    if !targets.is_empty() && total != rust_decimal::Decimal::ONE_HUNDRED {
+        return Err(format!(
+            "as metas somam {}%; elas precisam somar 100%",
+            total.normalize()
+        ));
+    }
+    let json = serde_json::to_string(&targets).map_err(|e| e.to_string())?;
+    with_vault(&state, |v| v.set_setting(ALLOCATION, &json))
+}
+
 /// Pergunta onde salvar e grava o backup. `None` quando o usuário cancela.
 #[tauri::command]
 async fn export_backup(app: tauri::AppHandle) -> Result<Option<BackupInfo>, String> {
@@ -1069,6 +1114,8 @@ pub fn run() {
             snooze_backup_reminder,
             first_use,
             finish_first_use,
+            allocation_targets,
+            save_allocation_targets,
             select_profile,
             create_profile,
             rename_profile,

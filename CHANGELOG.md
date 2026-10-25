@@ -6,6 +6,17 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.20.0] - 2026-10-25
+
+### Adicionado
+- Carteira › Alocação: escolha a meta, em %, de cada classe (fundos, ações e
+  ETFs na B3, FIIs, exterior, cripto, renda fixa, FGTS e dinheiro) e veja
+  quanto você tem hoje em cada uma, a % de hoje e quanto falta ou sobra para
+  chegar na meta. Em "Onde investir", digite quanto vai aplicar e o app
+  mostra quanto pôr em cada classe, sem vender nada: o aporte vai para as
+  classes abaixo da meta. O FGTS conta no total, mas não recebe aporte. Os
+  valores são os mesmos da coluna "hoje" da Evolução.
+
 ## [0.19.0] - 2026-10-24
 
 ### Adicionado
