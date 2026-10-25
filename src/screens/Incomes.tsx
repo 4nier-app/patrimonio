@@ -29,6 +29,7 @@ import {
   foreignTaxDue,
   inYear,
   last12,
+  projection,
   taxGroups,
   totals,
   years as yearsOf,
@@ -269,6 +270,34 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
     };
   }, [rows, year, p]);
 
+  // Estimativa dos próximos 12 meses com as cotas de hoje (todas as contas).
+  const forecast = useMemo(() => {
+    const held: Record<string, number> = {};
+    for (const pos of portfolio?.positions ?? []) held[pos.asset] = (held[pos.asset] ?? 0) + Number(pos.quantity);
+    return projection(rows, today(), held);
+  }, [rows, portfolio]);
+
+  const forecastChart = useMemo<EChartsCoreOption | null>(() => {
+    if (!forecast.total) return null;
+    const label = (k: string) => `${monthLabel(Number(k.slice(5, 7))).slice(0, 3).toLowerCase()}/${k.slice(2, 4)}`;
+    return {
+      ...base(p),
+      tooltip: { ...(base(p).tooltip as object), trigger: "axis", valueFormatter: (v: number) => brl(v) },
+      legend: { show: false },
+      xAxis: { type: "category", data: forecast.months.map(label), ...axisStyle(p), splitLine: { show: false } },
+      yAxis: { type: "value", ...axisStyle(p), axisLabel: { color: p.muted, formatter: (v: number) => compact(v) } },
+      series: [
+        {
+          name: "Estimativa",
+          type: "bar",
+          barMaxWidth: 32,
+          data: forecast.values,
+          itemStyle: { color: p.series[0], opacity: 0.75, borderColor: p.series[0], borderWidth: 1, borderType: "dashed" },
+        },
+      ],
+    };
+  }, [forecast, p]);
+
   // Lista agrupada por mês do pagamento.
   const byMonthList = useMemo(() => {
     const out: { key: string; items: IncomeRow[] }[] = [];
@@ -441,6 +470,66 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
             <div className="card">
               <h3>{year == null ? "Por ano" : `Por mês em ${year}`}</h3>
               <Chart option={chart} height={280} ariaLabel="Proventos líquidos por período e tipo" />
+            </div>
+          )}
+
+          {forecast.received > 0 && portfolio && (
+            <div className="card stack spaced forecast">
+              <div>
+                <h3>Próximos 12 meses (estimativa)</h3>
+                <Intro
+                  more={
+                    <>
+                      Cada provento recebido nos últimos 12 meses se repete no mesmo mês, ajustado pela quantidade que você tem hoje: se comprou
+                      mais cotas, a estimativa sobe; se vendeu tudo, aquele ativo sai da conta. Proventos sem cotas registradas (como juros de saldo)
+                      se repetem pelo mesmo valor. Os valores em dólar ficam pela PTAX do dia em que foram pagos. É uma estimativa: as empresas e os
+                      fundos podem pagar mais, menos ou em outros meses.
+                    </>
+                  }
+                >
+                  Quanto você deve receber, com base no que recebeu nos últimos 12 meses e nas cotas que tem hoje.
+                </Intro>
+              </div>
+              <div className="cards">
+                <div className="card stat">
+                  <span className="muted">Estimativa para 12 meses</span>
+                  <strong>{brl(forecast.total)}</strong>
+                  <span className="muted small">média de {brl(forecast.total / 12)} por mês</span>
+                </div>
+                <div className="card stat">
+                  <span className="muted">Recebido nos últimos 12 meses</span>
+                  <strong>{brl(forecast.received)}</strong>
+                  <span className="muted small">líquido</span>
+                </div>
+              </div>
+              {forecastChart && <Chart option={forecastChart} height={240} ariaLabel="Estimativa de proventos líquidos por mês" />}
+              <div className="scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Ativo</th>
+                      <th className="num">Recebido (12 meses)</th>
+                      <th className="num">Cotas hoje</th>
+                      <th className="num">Estimativa (12 meses)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {forecast.assets.map((a) => (
+                      <tr key={a.asset} className={a.projected > 0 ? "" : "muted"}>
+                        <td>
+                          <AssetName asset={a.asset} name={names[a.asset]} />
+                        </td>
+                        <td className="num">{brl(a.received)}</td>
+                        <td className="num">{a.held == null ? "—" : a.held === 0 ? "vendeu tudo" : quantity(String(a.held))}</td>
+                        <td className="num">{brl(a.projected)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {forecast.missingFx > 0 && (
+                <p className="muted small">{forecast.missingFx} provento(s) em dólar ainda sem a PTAX do dia ficaram fora da estimativa.</p>
+              )}
             </div>
           )}
 

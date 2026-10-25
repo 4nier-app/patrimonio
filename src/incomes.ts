@@ -119,3 +119,78 @@ export function taxGroups(rows: IncomeRow[]): TaxGroup[] {
 export function foreignTaxDue(g: TaxGroup): number {
   return Math.max(0, cents(g.gross * 0.15 - g.withheld));
 }
+
+export type ProjectedAsset = {
+  asset: string;
+  /** Líquido recebido nos últimos 12 meses. */
+  received: number;
+  /** Cotas hoje sobre as cotas de quando recebeu (média ponderada); null sem posição registrada. */
+  factor: number | null;
+  /** Cotas de hoje, somando as contas; null sem posição registrada. */
+  held: number | null;
+  projected: number;
+};
+
+export type Projection = {
+  /** 12 meses, a partir do mês que vem: "AAAA-MM". */
+  months: string[];
+  values: number[];
+  total: number;
+  received: number;
+  assets: ProjectedAsset[];
+  missingFx: number;
+};
+
+/**
+ * Estimativa dos próximos 12 meses: cada provento líquido dos últimos 12
+ * meses se repete no mesmo mês, ajustado pela quantidade que você tem hoje
+ * (comprou mais, recebe mais; vendeu tudo, não recebe). Proventos sem
+ * posição registrada (juros de saldo, por exemplo) se repetem como foram.
+ */
+export function projection(rows: IncomeRow[], today: string, held: Record<string, number>): Projection {
+  const [y, m] = today.split("-").map(Number);
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(Date.UTC(y, m + i, 1));
+    return d.toISOString().slice(0, 7);
+  });
+  const values = Array(12).fill(0);
+  const map = new Map<string, { received: number; projected: number; weighted: number; base: number }>();
+  let missingFx = 0;
+  for (const r of last12(rows, today)) {
+    if (r.net_brl == null) {
+      missingFx++;
+      continue;
+    }
+    const net = n(r.net_brl);
+    const q = r.quantity == null ? 0 : n(r.quantity);
+    const factor = q > 0 ? (held[r.income.asset] ?? 0) / q : 1;
+    const v = net * factor;
+    const i = months.findIndex((k) => k.slice(5, 7) === r.income.pay_date.slice(5, 7));
+    values[i] += v;
+    const a = map.get(r.income.asset) ?? { received: 0, projected: 0, weighted: 0, base: 0 };
+    a.received += net;
+    a.projected += v;
+    if (q > 0) {
+      a.weighted += factor * net;
+      a.base += net;
+    }
+    map.set(r.income.asset, a);
+  }
+  const assets = [...map.entries()]
+    .map(([asset, a]) => ({
+      asset,
+      received: cents(a.received),
+      factor: a.base > 0 ? a.weighted / a.base : null,
+      held: a.base > 0 ? (held[asset] ?? 0) : null,
+      projected: cents(a.projected),
+    }))
+    .sort((a, b) => b.projected - a.projected || b.received - a.received);
+  return {
+    months,
+    values: values.map(cents),
+    total: cents(values.reduce((s, v) => s + v, 0)),
+    received: cents(assets.reduce((s, a) => s + a.received, 0)),
+    assets,
+    missingFx,
+  };
+}

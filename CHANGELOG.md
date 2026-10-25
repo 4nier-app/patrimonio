@@ -6,6 +6,15 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.22.0] - 2026-10-25
+
+### Adicionado
+- Lançamentos › Proventos: estimativa dos próximos 12 meses. Cada provento
+  recebido nos últimos 12 meses se repete no mesmo mês, ajustado pelas cotas
+  que você tem hoje (comprou mais, a estimativa sobe; vendeu tudo, o ativo
+  sai da conta). Mostra o total, a média por mês, o gráfico mês a mês e a
+  tabela por ativo, ao lado do que foi recebido nos últimos 12 meses.
+
 ## [0.21.0] - 2026-10-25
 
 ### Adicionado
