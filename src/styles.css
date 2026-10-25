@@ -617,3 +617,16 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .first-use-table td { vertical-align: middle; }
 .first-use-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .first-use-table td:nth-child(4) input { min-width: 160px; }
+
+/* Carteira › Alocação */
+.alloc-table { border-collapse: collapse; width: 100%; }
+.alloc-table th, .alloc-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; vertical-align: middle; }
+.alloc-table .num { text-align: right; }
+.alloc-table tfoot th { border-bottom: none; }
+.alloc-table tr.muted td { color: var(--muted); }
+.alloc-target { width: 5.5em; text-align: right; margin-right: 4px; }
+.allocation .actions { margin-top: 12px; align-items: center; flex-wrap: wrap; }
+.alloc-amount { align-self: flex-start; text-align: left; }
+.alloc-amount input { max-width: 200px; }
+.warning-text { color: var(--warning-text); }
+.allocation .card + .card { margin-top: 16px; }

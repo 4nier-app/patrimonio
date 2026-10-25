@@ -20,6 +20,7 @@ import Savings from "./Savings";
 import Owned from "./Owned";
 import ImportCsv from "./ImportCsv";
 import ImportB3 from "./ImportB3";
+import Allocation from "./Allocation";
 import Security from "./Security";
 import Taxes, { pendingDarfs } from "./Taxes";
 import { isSavings } from "../currency";
@@ -45,6 +46,7 @@ const SECTIONS = {
   carteira: [
     { id: "posicoes", label: "Posições" },
     { id: "rentabilidade", label: "Rentabilidade" },
+    { id: "alocacao", label: "Alocação" },
   ],
   evolucao: [
     { id: "patrimonio", label: "Patrimônio" },
@@ -373,6 +375,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               <Dashboard refresh={refresh} />
             </>
           )}
+          {!asset && tab === "carteira" && current === "alocacao" && <Allocation refresh={refresh} />}
           {!asset && tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
           {!asset && tab === "seguranca" && current === "auditoria" && <Audit status={status} />}
           {!asset && tab === "seguranca" && current === "seguranca" && (

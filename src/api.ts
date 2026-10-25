@@ -429,6 +429,12 @@ export const evolutionApi = {
   load: (year: number | null) => invoke<EvolutionView>("evolution", { year }),
 };
 
+/** Alocação ideal: meta em % de cada classe (fundos, b3, fii, exterior, cripto, rf, fgts, dinheiro). */
+export const allocationApi = {
+  targets: () => invoke<Record<string, Dec>>("allocation_targets"),
+  save: (targets: Record<string, Dec>) => invoke<void>("save_allocation_targets", { targets }),
+};
+
 // ---------- impostos ----------
 
 export type TaxGroup = "COMUM" | "DAY_TRADE" | "FII";
