@@ -25,6 +25,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           versao=$(node -p "require('./package.json').version")
+          # Publicar o rascunho cria a etiqueta, e a etiqueta dispara este
+          # fluxo de novo: se a versão já está publicada, não há o que gerar.
+          publicada=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"v$versao\" and (.draft | not)) | .id" | head -n1)
+          if [ -n "$publicada" ]; then
+            echo "A versão v$versao já está publicada; nada a fazer."
+            exit 0
+          fi
           id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"v$versao\" and .draft) | .id" | head -n1)
           if [ -z "$id" ]; then
             id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
@@ -37,6 +44,7 @@ jobs:
 
   instaladores:
     needs: rascunho
+    if: needs.rascunho.outputs.id != ''
     strategy:
       fail-fast: false
       matrix:
