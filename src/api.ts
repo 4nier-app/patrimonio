@@ -639,6 +639,27 @@ export type IncomeRow = {
 
 export type IncomesView = { items: IncomeRow[]; names: Record<string, string>; kinds: Record<string, string> };
 
+/** Provento que o histórico do mercado indica e ainda não foi lançado. */
+export type SuggestedIncome = {
+  account: string;
+  asset: string;
+  kind: IncomeKind;
+  /** Data ex do Yahoo: quem tinha a cota no dia anterior recebe. */
+  ex_date: string;
+  per_share: Dec;
+  quantity: Dec;
+  gross: Dec;
+  withheld: Dec;
+  currency: "BRL" | "USD";
+};
+
+export type MarketIncomes = {
+  /** Por ativo: [data ex, valor por cota] dos últimos 12 meses, já valendo para a quantidade de hoje. */
+  history: Record<string, [string, Dec][]>;
+  suggestions: SuggestedIncome[];
+  unavailable: string[];
+};
+
 export type EventKind = "BONIFICACAO" | "DESDOBRAMENTO" | "GRUPAMENTO";
 
 export type CorporateEvent = {
@@ -678,6 +699,7 @@ export const eventsApi = {
 
 export const incomesApi = {
   load: () => invoke<IncomesView>("incomes"),
+  market: () => invoke<MarketIncomes>("market_incomes"),
   create: (income: Income) => invoke<Income>("create_income", { income }),
   update: (income: Income, reason: string) => invoke<Income>("update_income", { income, reason }),
   remove: (id: string) => invoke<void>("remove_income", { id, reason: null }),

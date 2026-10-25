@@ -11,6 +11,8 @@ import {
   type IncomeKind,
   type IncomeRow,
   type IncomesView,
+  type MarketIncomes,
+  type SuggestedIncome,
   type PortfolioView,
   type PricedOperation,
 } from "../api";
@@ -29,12 +31,13 @@ import {
   foreignTaxDue,
   inYear,
   last12,
-  projection,
   taxGroups,
   totals,
   years as yearsOf,
 } from "../incomes";
 import { AssetName } from "./Portfolio";
+import IncomeForecast from "./IncomeForecast";
+import IncomeSuggestions, { suggestionKey } from "./IncomeSuggestions";
 
 type Form = {
   id: string;
@@ -66,6 +69,8 @@ const EMPTY: Form = {
   reason: "",
 };
 
+const SUGGESTED_NOTE = "Pelo histórico do mercado (Yahoo); confira com o extrato";
+
 const KIND_HINT: Record<IncomeKind, string> = {
   DIVIDENDO: "Isento no Brasil. No exterior, normalmente vem com 30% retido nos EUA.",
   JCP: "Juros sobre capital próprio: a empresa já retém 15% de IR.",
@@ -94,6 +99,10 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [year, setYear] = useState<number | null>(null);
+  const [marketData, setMarketData] = useState<MarketIncomes | null>(null);
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [launched, setLaunched] = useState<Set<string>>(new Set());
+  const [filling, setFilling] = useState<string | null>(null);
 
   function load() {
     incomesApi
@@ -103,6 +112,15 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
   }
 
   useEffect(load, [refresh]);
+  // Histórico do mercado (Yahoo): uma vez ao abrir a tela.
+  useEffect(() => {
+    setMarketLoading(true);
+    incomesApi
+      .market()
+      .then(setMarketData)
+      .catch(() => setMarketData(null))
+      .finally(() => setMarketLoading(false));
+  }, []);
   useEffect(() => {
     market.portfolio().then(setPortfolio).catch(() => setPortfolio(null));
     market.listOperations().then(setOps).catch(() => setOps([]));
@@ -180,6 +198,8 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       if (form.id) await incomesApi.update(income, form.reason);
       else await incomesApi.create(income);
       setSaved(form.id ? "Provento alterado." : "Provento salvo.");
+      if (filling && !form.id) setLaunched((l) => new Set(l).add(filling));
+      setFilling(null);
       // Na inclusão, o próximo provento já vem com conta, ativo, tipo e datas.
       setForm((f) =>
         f.id
@@ -193,6 +213,59 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       setError(errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Preenche o formulário com uma sugestão do histórico do mercado. */
+  function fill(sg: SuggestedIncome) {
+    const ex = new Date(`${sg.ex_date}T12:00:00`);
+    ex.setDate(ex.getDate() - 1);
+    setForm({
+      ...EMPTY,
+      account: sg.account,
+      asset: sg.asset,
+      kind: sg.kind,
+      kindTouched: true,
+      payDate: sg.ex_date,
+      exDate: ex.toLocaleDateString("sv-SE"),
+      gross: toCashMask(sg.gross, 2, sg.currency).text,
+      withheld: Number(sg.withheld) ? toCashMask(sg.withheld, 2, sg.currency).text : "",
+      note: SUGGESTED_NOTE,
+    });
+    setFilling(suggestionKey(sg));
+    setSaved(null);
+    setError(null);
+    window.scrollTo({ top: 0 });
+  }
+
+  async function launchAll(list: SuggestedIncome[]) {
+    setError(null);
+    const done = new Set(launched);
+    try {
+      for (const sg of list) {
+        const ex = new Date(`${sg.ex_date}T12:00:00`);
+        ex.setDate(ex.getDate() - 1);
+        await incomesApi.create({
+          id: "",
+          account: sg.account,
+          asset: sg.asset,
+          kind: sg.kind,
+          pay_date: sg.ex_date,
+          ex_date: ex.toLocaleDateString("sv-SE"),
+          gross: sg.gross,
+          withheld: sg.withheld,
+          currency: sg.currency,
+          note: SUGGESTED_NOTE,
+        });
+        done.add(suggestionKey(sg));
+      }
+      setSaved(`${list.length} provento(s) lançados. Confira as datas de pagamento com o extrato da corretora.`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setLaunched(done);
+      load();
+      onChanged();
     }
   }
 
@@ -269,34 +342,6 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       })),
     };
   }, [rows, year, p]);
-
-  // Estimativa dos próximos 12 meses com as cotas de hoje (todas as contas).
-  const forecast = useMemo(() => {
-    const held: Record<string, number> = {};
-    for (const pos of portfolio?.positions ?? []) held[pos.asset] = (held[pos.asset] ?? 0) + Number(pos.quantity);
-    return projection(rows, today(), held);
-  }, [rows, portfolio]);
-
-  const forecastChart = useMemo<EChartsCoreOption | null>(() => {
-    if (!forecast.total) return null;
-    const label = (k: string) => `${monthLabel(Number(k.slice(5, 7))).slice(0, 3).toLowerCase()}/${k.slice(2, 4)}`;
-    return {
-      ...base(p),
-      tooltip: { ...(base(p).tooltip as object), trigger: "axis", valueFormatter: (v: number) => brl(v) },
-      legend: { show: false },
-      xAxis: { type: "category", data: forecast.months.map(label), ...axisStyle(p), splitLine: { show: false } },
-      yAxis: { type: "value", ...axisStyle(p), axisLabel: { color: p.muted, formatter: (v: number) => compact(v) } },
-      series: [
-        {
-          name: "Estimativa",
-          type: "bar",
-          barMaxWidth: 32,
-          data: forecast.values,
-          itemStyle: { color: p.series[0], opacity: 0.75, borderColor: p.series[0], borderWidth: 1, borderType: "dashed" },
-        },
-      ],
-    };
-  }, [forecast, p]);
 
   // Lista agrupada por mês do pagamento.
   const byMonthList = useMemo(() => {
@@ -425,6 +470,16 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
         </div>
       </form>
 
+      <IncomeForecast rows={rows} portfolio={portfolio} market={marketData} loading={marketLoading} names={names} />
+      {marketData && (
+        <IncomeSuggestions
+          items={marketData.suggestions.filter((sg) => !launched.has(suggestionKey(sg)))}
+          names={names}
+          onFill={fill}
+          onLaunchAll={() => launchAll(marketData.suggestions.filter((sg) => !launched.has(suggestionKey(sg))))}
+        />
+      )}
+
       {rows.length === 0 ? (
         <p className="muted">Nenhum provento lançado ainda.</p>
       ) : (
@@ -470,66 +525,6 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
             <div className="card">
               <h3>{year == null ? "Por ano" : `Por mês em ${year}`}</h3>
               <Chart option={chart} height={280} ariaLabel="Proventos líquidos por período e tipo" />
-            </div>
-          )}
-
-          {forecast.received > 0 && portfolio && (
-            <div className="card stack spaced forecast">
-              <div>
-                <h3>Próximos 12 meses (estimativa)</h3>
-                <Intro
-                  more={
-                    <>
-                      Cada provento recebido nos últimos 12 meses se repete no mesmo mês, ajustado pela quantidade que você tem hoje: se comprou
-                      mais cotas, a estimativa sobe; se vendeu tudo, aquele ativo sai da conta. Proventos sem cotas registradas (como juros de saldo)
-                      se repetem pelo mesmo valor. Os valores em dólar ficam pela PTAX do dia em que foram pagos. É uma estimativa: as empresas e os
-                      fundos podem pagar mais, menos ou em outros meses.
-                    </>
-                  }
-                >
-                  Quanto você deve receber, com base no que recebeu nos últimos 12 meses e nas cotas que tem hoje.
-                </Intro>
-              </div>
-              <div className="cards">
-                <div className="card stat">
-                  <span className="muted">Estimativa para 12 meses</span>
-                  <strong>{brl(forecast.total)}</strong>
-                  <span className="muted small">média de {brl(forecast.total / 12)} por mês</span>
-                </div>
-                <div className="card stat">
-                  <span className="muted">Recebido nos últimos 12 meses</span>
-                  <strong>{brl(forecast.received)}</strong>
-                  <span className="muted small">líquido</span>
-                </div>
-              </div>
-              {forecastChart && <Chart option={forecastChart} height={240} ariaLabel="Estimativa de proventos líquidos por mês" />}
-              <div className="scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Ativo</th>
-                      <th className="num">Recebido (12 meses)</th>
-                      <th className="num">Cotas hoje</th>
-                      <th className="num">Estimativa (12 meses)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {forecast.assets.map((a) => (
-                      <tr key={a.asset} className={a.projected > 0 ? "" : "muted"}>
-                        <td>
-                          <AssetName asset={a.asset} name={names[a.asset]} />
-                        </td>
-                        <td className="num">{brl(a.received)}</td>
-                        <td className="num">{a.held == null ? "—" : a.held === 0 ? "vendeu tudo" : quantity(String(a.held))}</td>
-                        <td className="num">{brl(a.projected)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {forecast.missingFx > 0 && (
-                <p className="muted small">{forecast.missingFx} provento(s) em dólar ainda sem a PTAX do dia ficaram fora da estimativa.</p>
-              )}
             </div>
           )}
 

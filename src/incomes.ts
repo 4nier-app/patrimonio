@@ -122,9 +122,14 @@ export function foreignTaxDue(g: TaxGroup): number {
 
 export type ProjectedAsset = {
   asset: string;
-  /** Líquido recebido nos últimos 12 meses. */
-  received: number;
-  /** Cotas hoje sobre as cotas de quando recebeu (média ponderada); null sem posição registrada. */
+  /** "lancados": pelos proventos que você lançou; "mercado": pelo que o ativo pagou por cota. */
+  source: "lancados" | "mercado";
+  /** Líquido recebido nos últimos 12 meses (só "lancados"). */
+  received: number | null;
+  /** Soma do que o ativo pagou por cota nos últimos 12 meses, na moeda dele (só "mercado"). */
+  perShare: number | null;
+  currency: "BRL" | "USD";
+  /** Cotas de hoje sobre as cotas de quando recebeu (média ponderada); null sem posição registrada. */
   factor: number | null;
   /** Cotas de hoje, somando as contas; null sem posição registrada. */
   held: number | null;
@@ -141,20 +146,37 @@ export type Projection = {
   missingFx: number;
 };
 
+/** Ativo da carteira hoje, para a estimativa pelo histórico do mercado. */
+export type Holding = { asset: string; quantity: number; currency: "BRL" | "USD" };
+
+/** Proventos por cota de cada ativo nos últimos 12 meses: [data com, valor]. */
+export type MarketDividends = Record<string, [string, string][]>;
+
+/** Imposto retido nos EUA sobre dividendos de quem mora no Brasil. */
+export const US_WITHHOLDING = 0.3;
+
 /**
- * Estimativa dos próximos 12 meses: cada provento líquido dos últimos 12
- * meses se repete no mesmo mês, ajustado pela quantidade que você tem hoje
- * (comprou mais, recebe mais; vendeu tudo, não recebe). Proventos sem
- * posição registrada (juros de saldo, por exemplo) se repetem como foram.
+ * Estimativa dos próximos 12 meses, mês a mês. Para cada ativo:
+ * - com proventos lançados nos últimos 12 meses, cada um se repete no mesmo
+ *   mês, ajustado pelas cotas de hoje (comprou mais, recebe mais; vendeu
+ *   tudo, não recebe). Sem cotas registradas (juros de saldo), repete igual;
+ * - sem proventos lançados, usa o que o ativo pagou por cota nos últimos 12
+ *   meses (`market`) vezes as cotas de hoje, no mês da data com. Em dólar,
+ *   desconta os 30% retidos nos EUA e converte por `usdRate`.
  */
-export function projection(rows: IncomeRow[], today: string, held: Record<string, number>): Projection {
+export function projection(
+  rows: IncomeRow[],
+  today: string,
+  held: Record<string, number>,
+  holdings: Holding[] = [],
+  market: MarketDividends = {},
+  usdRate: number | null = null,
+): Projection {
   const [y, m] = today.split("-").map(Number);
-  const months = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(Date.UTC(y, m + i, 1));
-    return d.toISOString().slice(0, 7);
-  });
+  const months = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(y, m + i, 1)).toISOString().slice(0, 7));
+  const slot = (iso: string) => months.findIndex((k) => k.slice(5, 7) === iso.slice(5, 7));
   const values = Array(12).fill(0);
-  const map = new Map<string, { received: number; projected: number; weighted: number; base: number }>();
+  const map = new Map<string, { received: number; projected: number; weighted: number; base: number; currency: "BRL" | "USD" }>();
   let missingFx = 0;
   for (const r of last12(rows, today)) {
     if (r.net_brl == null) {
@@ -165,9 +187,8 @@ export function projection(rows: IncomeRow[], today: string, held: Record<string
     const q = r.quantity == null ? 0 : n(r.quantity);
     const factor = q > 0 ? (held[r.income.asset] ?? 0) / q : 1;
     const v = net * factor;
-    const i = months.findIndex((k) => k.slice(5, 7) === r.income.pay_date.slice(5, 7));
-    values[i] += v;
-    const a = map.get(r.income.asset) ?? { received: 0, projected: 0, weighted: 0, base: 0 };
+    values[slot(r.income.pay_date)] += v;
+    const a = map.get(r.income.asset) ?? { received: 0, projected: 0, weighted: 0, base: 0, currency: r.income.currency };
     a.received += net;
     a.projected += v;
     if (q > 0) {
@@ -176,20 +197,51 @@ export function projection(rows: IncomeRow[], today: string, held: Record<string
     }
     map.set(r.income.asset, a);
   }
-  const assets = [...map.entries()]
-    .map(([asset, a]) => ({
-      asset,
-      received: cents(a.received),
-      factor: a.base > 0 ? a.weighted / a.base : null,
-      held: a.base > 0 ? (held[asset] ?? 0) : null,
-      projected: cents(a.projected),
-    }))
-    .sort((a, b) => b.projected - a.projected || b.received - a.received);
+  const assets: ProjectedAsset[] = [...map.entries()].map(([asset, a]) => ({
+    asset,
+    source: "lancados",
+    received: cents(a.received),
+    perShare: null,
+    currency: a.currency,
+    factor: a.base > 0 ? a.weighted / a.base : null,
+    held: a.base > 0 ? (held[asset] ?? 0) : null,
+    projected: cents(a.projected),
+  }));
+  const [ty, tm, td] = today.split("-").map(Number);
+  const from = new Date(Date.UTC(ty - 1, tm - 1, td + 1)).toISOString().slice(0, 10);
+  for (const h of holdings) {
+    if (map.has(h.asset) || h.quantity <= 0 || !(h.asset in market)) continue;
+    const list = market[h.asset].filter(([d]) => d >= from && d <= today);
+    if (h.currency === "USD" && usdRate == null && list.length) {
+      missingFx += list.length;
+      continue;
+    }
+    let projected = 0;
+    let perShare = 0;
+    for (const [d, ps] of list) {
+      const gross = Number(ps) * h.quantity;
+      const v = h.currency === "USD" ? gross * (1 - US_WITHHOLDING) * (usdRate ?? 0) : gross;
+      values[slot(d)] += v;
+      projected += v;
+      perShare += Number(ps);
+    }
+    assets.push({
+      asset: h.asset,
+      source: "mercado",
+      received: null,
+      perShare: Math.round(perShare * 1e8) / 1e8,
+      currency: h.currency,
+      factor: null,
+      held: h.quantity,
+      projected: cents(projected),
+    });
+  }
+  assets.sort((a, b) => b.projected - a.projected || (b.received ?? 0) - (a.received ?? 0));
   return {
     months,
     values: values.map(cents),
     total: cents(values.reduce((s, v) => s + v, 0)),
-    received: cents(assets.reduce((s, a) => s + a.received, 0)),
+    received: cents(assets.reduce((s, a) => s + (a.received ?? 0), 0)),
     assets,
     missingFx,
   };

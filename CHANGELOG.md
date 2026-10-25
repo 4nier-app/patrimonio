@@ -9,11 +9,19 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [0.22.0] - 2026-10-25
 
 ### Adicionado
-- Lançamentos › Proventos: estimativa dos próximos 12 meses. Cada provento
-  recebido nos últimos 12 meses se repete no mesmo mês, ajustado pelas cotas
-  que você tem hoje (comprou mais, a estimativa sobe; vendeu tudo, o ativo
-  sai da conta). Mostra o total, a média por mês, o gráfico mês a mês e a
-  tabela por ativo, ao lado do que foi recebido nos últimos 12 meses.
+- Lançamentos › Proventos: estimativa dos próximos 12 meses pelas ações,
+  FIIs e ETFs que você tem. Para cada ativo, o app busca no Yahoo Finance o
+  que ele pagou por cota nos últimos 12 meses e multiplica pelas cotas de
+  hoje; quando você já lançou os proventos do ativo, valem os seus
+  lançamentos, ajustados pelas cotas de hoje (vendeu tudo, sai da conta).
+  Nos ativos dos EUA, como os ETFs da Nomad, já sai o imposto de 30% retido
+  no pagamento. Mostra o total líquido, a média por mês, o gráfico mês a mês
+  e a tabela por ativo.
+- Proventos que faltam lançar: cruzando as cotas que você tinha em cada
+  conta com o histórico de cada ativo desde a primeira compra, o app lista
+  os proventos que ainda não estão lançados, com bruto, imposto retido e
+  líquido. "Conferir e lançar" preenche o formulário; "Lançar todos" lança
+  de uma vez, com a data ex como data do pagamento.
 
 ## [0.21.0] - 2026-10-25
 

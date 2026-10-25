@@ -78,11 +78,39 @@ describe("projeção dos próximos 12 meses", () => {
     expect(p.values[11]).toBe(5); // out: juros sem posição, como foi
     expect(p.total).toBe(230);
     expect(p.received).toBe(175); // VELHO3 está fora dos 12 meses
+    expect(p.assets.every((a) => a.source === "lancados")).toBe(true);
     expect(p.assets.map((a) => [a.asset, a.projected, a.factor, a.held])).toEqual([
       ["AAAA3", 225, 1.5, 150],
       ["CONTA", 5, null, null],
       ["BBBB11", 0, 0, 0],
     ]);
+  });
+
+  it("sem proventos lançados, usa o que o ativo pagou por cota", () => {
+    const market = {
+      AAAA3: [["2026-03-01", "9"]] as [string, string][], // já tem lançados: ignora o mercado
+      CCCC3: [["2026-04-10", "0.5"], ["2025-12-05", "0.25"], ["2025-01-01", "7"]] as [string, string][],
+      USDX: [["2026-06-20", "1"]] as [string, string][],
+      NADA11: [] as [string, string][],
+    };
+    const holdings = [
+      { asset: "AAAA3", quantity: 150, currency: "BRL" as const },
+      { asset: "CCCC3", quantity: 200, currency: "BRL" as const },
+      { asset: "USDX", quantity: 10, currency: "USD" as const },
+      { asset: "NADA11", quantity: 5, currency: "BRL" as const },
+      { asset: "SEMDADO", quantity: 5, currency: "BRL" as const },
+    ];
+    const p = projection(base, "2026-10-25", { AAAA3: 150 }, holdings, market, 5);
+    expect(p.values[1]).toBe(50); // dez: 0,25 × 200
+    expect(p.values[5]).toBe(100); // abr: 0,5 × 200
+    expect(p.values[7]).toBe(35); // jun: 1 × 10 × 0,7 × 5
+    const c = p.assets.find((a) => a.asset === "CCCC3")!;
+    expect([c.source, c.perShare, c.held, c.projected, c.received]).toEqual(["mercado", 0.75, 200, 150, null]);
+    expect(p.assets.find((a) => a.asset === "NADA11")!.projected).toBe(0);
+    expect(p.assets.some((a) => a.asset === "SEMDADO")).toBe(false);
+    expect(p.received).toBe(175);
+    // Sem PTAX, o que é em dólar fica de fora.
+    expect(projection([], "2026-10-25", {}, holdings.slice(2, 3), market, null).missingFx).toBe(1);
   });
 
   it("deixa de fora os sem PTAX", () => {

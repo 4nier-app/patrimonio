@@ -1732,3 +1732,358 @@ mod savings_tests {
         assert_eq!(sv.total_others, dec!(5000), "FGTS sem estimativa");
     }
 }
+
+// ---------- proventos pelo histórico do mercado ----------
+
+/// Ativo que já passou pela carteira e pode pagar proventos.
+#[derive(Debug, Clone)]
+pub struct MarketAsset {
+    pub ticker: String,
+    pub currency: String,
+    pub kind: String,
+    pub first: NaiveDate,
+}
+
+/// O que é preciso ler do cofre antes de ir à internet.
+pub struct MarketInput {
+    pub assets: Vec<MarketAsset>,
+    pub ops: Vec<Operation>,
+    pub incomes: Vec<carteira_core::income::Income>,
+}
+
+/// Tipos que pagam proventos por cota (fundos, cripto e renda fixa ficam de fora).
+const PAYERS: &[&str] = &["ACAO", "FII", "ETF", "BDR"];
+
+/// Imposto retido nos EUA sobre dividendos de quem mora no Brasil.
+pub const US_WITHHOLDING: Decimal = Decimal::from_parts(30, 0, 0, false, 2);
+
+pub fn market_input(v: &Vault) -> Result<MarketInput, String> {
+    let ops = engine_operations(v)?;
+    let mut first: BTreeMap<String, (NaiveDate, String)> = BTreeMap::new();
+    for o in &ops {
+        let e = first
+            .entry(o.asset.clone())
+            .or_insert((o.date, o.currency.clone()));
+        if o.date < e.0 {
+            e.0 = o.date;
+        }
+    }
+    let mut assets = Vec::new();
+    for (ticker, (date, currency)) in first {
+        let Some(a) = v.get_asset(&ticker).map_err(s)? else {
+            continue;
+        };
+        if PAYERS.contains(&a.kind.as_str()) {
+            assets.push(MarketAsset {
+                ticker,
+                currency,
+                kind: a.kind,
+                first: date,
+            });
+        }
+    }
+    Ok(MarketInput {
+        assets,
+        ops,
+        incomes: v.list_incomes().map_err(s)?,
+    })
+}
+
+/// Provento que o histórico do mercado indica e ainda não foi lançado.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SuggestedIncome {
+    pub account: String,
+    pub asset: String,
+    pub kind: carteira_core::income::IncomeKind,
+    /// Data ex informada pelo Yahoo (quem tinha a cota no dia anterior recebe).
+    pub ex_date: NaiveDate,
+    pub per_share: Decimal,
+    pub quantity: Decimal,
+    pub gross: Decimal,
+    pub withheld: Decimal,
+    pub currency: String,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct MarketIncomes {
+    /// Por ativo: (data ex, valor por cota ajustado aos desdobramentos), dos
+    /// últimos 12 meses. Vale para a quantidade de hoje.
+    pub history: BTreeMap<String, Vec<(NaiveDate, Decimal)>>,
+    /// Do mais recente para o mais antigo.
+    pub suggestions: Vec<SuggestedIncome>,
+    /// Ativos que o Yahoo não respondeu.
+    pub unavailable: Vec<String>,
+}
+
+/// Cotas de cada conta no fim do dia `day`.
+fn held_by_account(ops: &[Operation], asset: &str, day: NaiveDate) -> BTreeMap<String, Decimal> {
+    use carteira_core::model::Side;
+    let mut out: BTreeMap<String, Decimal> = BTreeMap::new();
+    for o in ops.iter().filter(|o| o.asset == asset && o.date <= day) {
+        let residue = o.residue.unwrap_or_default();
+        match o.side {
+            Side::Compra | Side::Ajuste => *out.entry(o.account.clone()).or_default() += o.quantity,
+            Side::Venda => *out.entry(o.account.clone()).or_default() -= o.quantity,
+            Side::Transferencia => match &o.from_account {
+                Some(from) => {
+                    *out.entry(from.clone()).or_default() -= o.quantity + residue;
+                    *out.entry(o.account.clone()).or_default() += o.quantity;
+                }
+                None => *out.entry(o.account.clone()).or_default() -= residue,
+            },
+        }
+    }
+    out
+}
+
+/// Junta o histórico de cada ativo com as cotas de cada conta em cada data ex.
+/// Um provento já lançado (mesmo ativo e conta, data com perto da data ex ou
+/// pagamento até 100 dias depois) cobre uma sugestão.
+pub fn market_incomes(
+    input: &MarketInput,
+    fetched: &BTreeMap<String, Option<carteira_providers::yahoo::Dividends>>,
+    today: NaiveDate,
+) -> MarketIncomes {
+    use carteira_core::income::IncomeKind;
+    let mut out = MarketIncomes::default();
+    let year_ago = today - chrono::Duration::days(365);
+    let mut used = vec![false; input.incomes.len()];
+    let mut suggestions = Vec::new();
+    for a in &input.assets {
+        let Some(found) = fetched.get(&a.ticker) else {
+            continue;
+        };
+        let Some(d) = found else {
+            out.unavailable.push(a.ticker.clone());
+            continue;
+        };
+        out.history.insert(
+            a.ticker.clone(),
+            d.dividends
+                .iter()
+                .filter(|(day, _)| *day > year_ago && *day <= today)
+                .cloned()
+                .collect(),
+        );
+        for (ex, per_share) in d.unadjusted() {
+            if ex < a.first || ex > today {
+                continue;
+            }
+            let Some(before) = ex.pred_opt() else {
+                continue;
+            };
+            for (account, quantity) in held_by_account(&input.ops, &a.ticker, before) {
+                if quantity <= Decimal::ZERO {
+                    continue;
+                }
+                let gross = (per_share * quantity).round_dp(2);
+                if gross < Decimal::new(1, 2) {
+                    continue;
+                }
+                let covered = input.incomes.iter().enumerate().find(|(i, inc)| {
+                    !used[*i]
+                        && inc.asset == a.ticker
+                        && inc.account == account
+                        && match inc.ex_date {
+                            Some(e) => (e - ex).num_days().abs() <= 7,
+                            None => {
+                                let days = (inc.pay_date - ex).num_days();
+                                (-3..=100).contains(&days)
+                            }
+                        }
+                });
+                if let Some((i, _)) = covered {
+                    used[i] = true;
+                    continue;
+                }
+                let usd = a.currency == "USD";
+                suggestions.push(SuggestedIncome {
+                    account,
+                    asset: a.ticker.clone(),
+                    kind: if a.kind == "FII" {
+                        IncomeKind::Rendimento
+                    } else {
+                        IncomeKind::Dividendo
+                    },
+                    ex_date: ex,
+                    per_share,
+                    quantity,
+                    gross,
+                    withheld: if usd {
+                        (gross * US_WITHHOLDING).round_dp(2)
+                    } else {
+                        Decimal::ZERO
+                    },
+                    currency: a.currency.clone(),
+                });
+            }
+        }
+    }
+    suggestions.sort_by(|a, b| b.ex_date.cmp(&a.ex_date).then(a.asset.cmp(&b.asset)));
+    out.suggestions = suggestions;
+    out
+}
+
+#[cfg(test)]
+mod market_tests {
+    use super::*;
+    use carteira_core::income::{Income, IncomeKind};
+    use carteira_core::model::Side;
+    use carteira_providers::yahoo::Dividends;
+    use rust_decimal_macros::dec;
+
+    fn d(y: i32, m: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    }
+
+    fn op(account: &str, date: NaiveDate, side: Side, q: Decimal, currency: &str) -> Operation {
+        Operation {
+            id: format!("{account}{date}"),
+            account: account.into(),
+            asset: if currency == "USD" {
+                "TSTX".into()
+            } else {
+                "TEST3".into()
+            },
+            date,
+            side,
+            quantity: q,
+            price: dec!(10),
+            manual_fees: None,
+            note: None,
+            currency: currency.into(),
+            from_account: None,
+            residue: None,
+            ir: None,
+            iof: None,
+        }
+    }
+
+    #[test]
+    fn sugere_o_que_falta_lancar_com_as_cotas_de_cada_conta() {
+        let ops = vec![
+            op("A", d(2025, 1, 10), Side::Compra, dec!(100), "BRL"),
+            op("B", d(2025, 5, 10), Side::Compra, dec!(50), "BRL"),
+            op("A", d(2025, 8, 1), Side::Venda, dec!(100), "BRL"),
+            op("N", d(2025, 2, 1), Side::Compra, dec!(10), "USD"),
+        ];
+        let input = MarketInput {
+            assets: vec![
+                MarketAsset {
+                    ticker: "TEST3".into(),
+                    currency: "BRL".into(),
+                    kind: "ACAO".into(),
+                    first: d(2025, 1, 10),
+                },
+                MarketAsset {
+                    ticker: "TSTX".into(),
+                    currency: "USD".into(),
+                    kind: "ETF".into(),
+                    first: d(2025, 2, 1),
+                },
+                MarketAsset {
+                    ticker: "SEMNET3".into(),
+                    currency: "BRL".into(),
+                    kind: "ACAO".into(),
+                    first: d(2025, 2, 1),
+                },
+            ],
+            ops,
+            incomes: vec![Income {
+                id: "i1".into(),
+                account: "A".into(),
+                asset: "TEST3".into(),
+                kind: IncomeKind::Dividendo,
+                pay_date: d(2025, 3, 25),
+                ex_date: None,
+                gross: dec!(50),
+                withheld: dec!(0),
+                currency: "BRL".into(),
+                note: None,
+            }],
+        };
+        let mut fetched = BTreeMap::new();
+        fetched.insert(
+            "TEST3".to_string(),
+            Some(Dividends {
+                // Valores ajustados por um desdobramento 1:2 em 2025-09-01.
+                dividends: vec![
+                    (d(2024, 12, 1), dec!(1)),
+                    (d(2025, 3, 3), dec!(0.25)),
+                    (d(2025, 6, 2), dec!(0.5)),
+                    (d(2025, 10, 1), dec!(0.1)),
+                ],
+                splits: vec![(d(2025, 9, 1), dec!(2))],
+            }),
+        );
+        fetched.insert(
+            "TSTX".to_string(),
+            Some(Dividends {
+                dividends: vec![(d(2025, 6, 20), dec!(1.5))],
+                splits: vec![],
+            }),
+        );
+        fetched.insert("SEMNET3".to_string(), None);
+        let r = market_incomes(&input, &fetched, d(2025, 10, 20));
+        let got: Vec<_> = r
+            .suggestions
+            .iter()
+            .map(|s| {
+                (
+                    s.account.as_str(),
+                    s.asset.as_str(),
+                    s.ex_date,
+                    s.per_share,
+                    s.quantity,
+                    s.gross,
+                    s.withheld,
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                // Junho vem desfeito do desdobramento posterior: 0,5 × 2 = 1 por cota.
+                (
+                    "B",
+                    "TEST3",
+                    d(2025, 10, 1),
+                    dec!(0.1),
+                    dec!(50),
+                    dec!(5.00),
+                    dec!(0)
+                ),
+                (
+                    "N",
+                    "TSTX",
+                    d(2025, 6, 20),
+                    dec!(1.5),
+                    dec!(10),
+                    dec!(15.00),
+                    dec!(4.50)
+                ),
+                (
+                    "A",
+                    "TEST3",
+                    d(2025, 6, 2),
+                    dec!(1),
+                    dec!(100),
+                    dec!(100.00),
+                    dec!(0)
+                ),
+                (
+                    "B",
+                    "TEST3",
+                    d(2025, 6, 2),
+                    dec!(1),
+                    dec!(50),
+                    dec!(50.00),
+                    dec!(0)
+                ),
+            ]
+        );
+        // Março já foi lançado (pagamento 22 dias depois da data ex); dez/24 é antes da 1ª compra.
+        assert_eq!(r.unavailable, vec!["SEMNET3".to_string()]);
+        assert_eq!(r.history["TEST3"].len(), 4);
+    }
+}
