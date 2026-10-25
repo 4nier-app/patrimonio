@@ -630,3 +630,16 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .alloc-amount input { max-width: 200px; }
 .warning-text { color: var(--warning-text); }
 .allocation .card + .card { margin-top: 16px; }
+
+/* Painel › Meta de patrimônio */
+.goal { margin-bottom: 16px; }
+.goal p { margin: 0; }
+.goal-empty { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.goal-empty h3 { margin: 0 0 4px; }
+.goal-numbers { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.goal-numbers strong { font-size: 1.5rem; }
+.goal-bar { height: 10px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.goal-bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.goal-form { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+.goal-form label:not(.check) { min-width: 200px; }
+p.pos, strong.pos { color: var(--ok); }

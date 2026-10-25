@@ -389,6 +389,40 @@ fn save_allocation_targets(
     with_vault(&state, |v| v.set_setting(ALLOCATION, &json))
 }
 
+const GOAL: &str = "meta.patrimonio";
+
+/// Meta de patrimônio: quanto quer ter e até quando.
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+struct Goal {
+    value: rust_decimal::Decimal,
+    date: chrono::NaiveDate,
+    /// Conta os bens (imóveis e veículos) no patrimônio da meta.
+    with_owned: bool,
+}
+
+#[tauri::command]
+fn goal(state: State<AppState>) -> Result<Option<Goal>, String> {
+    with_vault(&state, |v| {
+        Ok(v.setting(GOAL)?.and_then(|json| serde_json::from_str(&json).ok()))
+    })
+}
+
+/// Grava a meta; `None` apaga.
+#[tauri::command]
+fn save_goal(state: State<AppState>, goal: Option<Goal>) -> Result<(), String> {
+    let Some(g) = goal else {
+        return with_vault(&state, |v| v.set_setting(GOAL, ""));
+    };
+    if g.value <= rust_decimal::Decimal::ZERO {
+        return Err("informe o valor da meta".into());
+    }
+    if g.date <= chrono::Local::now().date_naive() {
+        return Err("a data da meta precisa ser no futuro".into());
+    }
+    let json = serde_json::to_string(&g).map_err(|e| e.to_string())?;
+    with_vault(&state, |v| v.set_setting(GOAL, &json))
+}
+
 /// Pergunta onde salvar e grava o backup. `None` quando o usuário cancela.
 #[tauri::command]
 async fn export_backup(app: tauri::AppHandle) -> Result<Option<BackupInfo>, String> {
@@ -1116,6 +1150,8 @@ pub fn run() {
             finish_first_use,
             allocation_targets,
             save_allocation_targets,
+            goal,
+            save_goal,
             select_profile,
             create_profile,
             rename_profile,

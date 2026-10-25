@@ -429,6 +429,14 @@ export const evolutionApi = {
   load: (year: number | null) => invoke<EvolutionView>("evolution", { year }),
 };
 
+/** Meta de patrimônio: quanto quer ter e até quando. */
+export type Goal = { value: Dec; date: string; with_owned: boolean };
+
+export const goalApi = {
+  load: () => invoke<Goal | null>("goal"),
+  save: (goal: Goal | null) => invoke<void>("save_goal", { goal }),
+};
+
 /** Alocação ideal: meta em % de cada classe (fundos, b3, fii, exterior, cripto, rf, fgts, dinheiro). */
 export const allocationApi = {
   targets: () => invoke<Record<string, Dec>>("allocation_targets"),
