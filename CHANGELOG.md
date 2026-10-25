@@ -6,6 +6,15 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.21.0] - 2026-10-25
+
+### Adicionado
+- Meta de patrimônio no Painel: diga quanto quer ter e até quando (com ou
+  sem os bens). O Painel mostra quanto você já tem, a barra de progresso,
+  quanto falta, quanto o patrimônio precisa crescer por mês até a data
+  (somando aportes e rendimentos) e, pelo ritmo dos últimos 12 meses, em
+  que mês você chega lá, antes ou depois do prazo.
+
 ## [0.20.0] - 2026-10-25
 
 ### Adicionado

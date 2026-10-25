@@ -17,6 +17,7 @@ import { Cards, compact, FirstSteps, type Go } from "./Dashboard";
 import { resgateNote } from "./Portfolio";
 import { columnLabel, withoutOwned } from "./Evolution";
 import YearPager from "../components/YearPager";
+import GoalCard from "./GoalCard";
 
 /** Abas e seções que o Painel abre. */
 export type PanelGo = (
@@ -231,6 +232,8 @@ export default function Panel({
           ))}
         </div>
       </div>
+
+      <GoalCard year={year} refresh={refresh} />
 
       <div className="dash-cards">
         <div className="card stat static">
