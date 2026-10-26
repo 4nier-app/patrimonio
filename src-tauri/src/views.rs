@@ -569,8 +569,10 @@ fn kind_label(kind: Option<&str>, currency: &str) -> &'static str {
         (_, Some("RENDA_FIXA")) => "Renda fixa",
         (_, Some("TESOURO")) => "Tesouro Direto",
         (true, Some("ACAO")) => "Ações",
-        (true, Some("FII")) => "FIIs",
+        (true, Some("FII")) => "FIIs e Fiagros",
         (true, Some("ETF")) => "ETFs",
+        (true, Some("FI_INFRA")) => "FI-Infra",
+        (true, Some("ETF_RF")) => "ETFs de renda fixa",
         (true, Some("BDR")) => "BDRs",
         (true, _) => "Outros (B3)",
         (false, Some("ETF")) => "ETFs no exterior",
@@ -1752,7 +1754,7 @@ pub struct MarketInput {
 }
 
 /// Tipos que pagam proventos por cota (fundos, cripto e renda fixa ficam de fora).
-const PAYERS: &[&str] = &["ACAO", "FII", "ETF", "BDR"];
+const PAYERS: &[&str] = &["ACAO", "FII", "ETF", "BDR", "FI_INFRA"];
 
 /// Imposto retido nos EUA sobre dividendos de quem mora no Brasil.
 pub const US_WITHHOLDING: Decimal = Decimal::from_parts(30, 0, 0, false, 2);
@@ -1815,6 +1817,25 @@ pub struct MarketIncomes {
     pub unavailable: Vec<String>,
 }
 
+/// Quão perto um provento já lançado está desta data ex, em dias; `None`
+/// quando está longe demais para ser o mesmo pagamento. A data com, quando
+/// informada, é a mais confiável; senão vale a data do pagamento, que vem
+/// depois da data ex (dias no exterior, até meses na B3).
+fn distance_to(inc: &carteira_core::income::Income, ex: NaiveDate) -> Option<i64> {
+    let by_ex = inc
+        .ex_date
+        .map(|e| (e - ex).num_days())
+        .filter(|d| d.abs() <= 10)
+        .map(|d| d.abs());
+    let by_pay = Some((inc.pay_date - ex).num_days())
+        .filter(|d| (-5..=120).contains(d))
+        .map(|d| d.abs());
+    match (by_ex, by_pay) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    }
+}
+
 /// Cotas de cada conta no fim do dia `day`.
 fn held_by_account(ops: &[Operation], asset: &str, day: NaiveDate) -> BTreeMap<String, Decimal> {
     use carteira_core::model::Side;
@@ -1847,7 +1868,6 @@ pub fn market_incomes(
     use carteira_core::income::IncomeKind;
     let mut out = MarketIncomes::default();
     let year_ago = today - chrono::Duration::days(365);
-    let mut used = vec![false; input.incomes.len()];
     let mut suggestions = Vec::new();
     for a in &input.assets {
         let Some(found) = fetched.get(&a.ticker) else {
@@ -1865,6 +1885,8 @@ pub fn market_incomes(
                 .cloned()
                 .collect(),
         );
+        // Primeiro, o que cada conta tinha a receber em cada data ex.
+        let mut due = Vec::new();
         for (ex, per_share) in d.unadjusted() {
             if ex < a.first || ex > today {
                 continue;
@@ -1880,43 +1902,56 @@ pub fn market_incomes(
                 if gross < Decimal::new(1, 2) {
                     continue;
                 }
-                let covered = input.incomes.iter().enumerate().find(|(i, inc)| {
-                    !used[*i]
-                        && inc.asset == a.ticker
-                        && inc.account == account
-                        && match inc.ex_date {
-                            Some(e) => (e - ex).num_days().abs() <= 7,
-                            None => {
-                                let days = (inc.pay_date - ex).num_days();
-                                (-3..=100).contains(&days)
-                            }
-                        }
-                });
-                if let Some((i, _)) = covered {
-                    used[i] = true;
-                    continue;
-                }
-                let usd = a.currency == "USD";
-                suggestions.push(SuggestedIncome {
-                    account,
-                    asset: a.ticker.clone(),
-                    kind: if a.kind == "FII" {
-                        IncomeKind::Rendimento
-                    } else {
-                        IncomeKind::Dividendo
-                    },
-                    ex_date: ex,
-                    per_share,
-                    quantity,
-                    gross,
-                    withheld: if usd {
-                        (gross * US_WITHHOLDING).round_dp(2)
-                    } else {
-                        Decimal::ZERO
-                    },
-                    currency: a.currency.clone(),
-                });
+                due.push((ex, per_share, account, quantity, gross));
             }
+        }
+        // Depois, casa cada provento já lançado com a data ex mais perto dele,
+        // começando pelos pares mais próximos de todos. Assim um pagamento de
+        // março não é tomado pela data ex de dezembro e não sobra um
+        // provento reconhecido como se faltasse.
+        let mut pairs = Vec::new();
+        for (j, (ex, _, account, _, _)) in due.iter().enumerate() {
+            for (i, inc) in input.incomes.iter().enumerate() {
+                if inc.asset == a.ticker && inc.account == *account {
+                    if let Some(dist) = distance_to(inc, *ex) {
+                        pairs.push((dist, j, i));
+                    }
+                }
+            }
+        }
+        pairs.sort();
+        let mut covered = vec![false; due.len()];
+        let mut used = vec![false; input.incomes.len()];
+        for (_, j, i) in pairs {
+            if !covered[j] && !used[i] {
+                covered[j] = true;
+                used[i] = true;
+            }
+        }
+        for ((ex, per_share, account, quantity, gross), done) in due.into_iter().zip(covered) {
+            if done {
+                continue;
+            }
+            let usd = a.currency == "USD";
+            suggestions.push(SuggestedIncome {
+                account,
+                asset: a.ticker.clone(),
+                kind: if a.kind == "FII" || a.kind == "FI_INFRA" {
+                    IncomeKind::Rendimento
+                } else {
+                    IncomeKind::Dividendo
+                },
+                ex_date: ex,
+                per_share,
+                quantity,
+                gross,
+                withheld: if usd {
+                    (gross * US_WITHHOLDING).round_dp(2)
+                } else {
+                    Decimal::ZERO
+                },
+                currency: a.currency.clone(),
+            });
         }
     }
     suggestions.sort_by(|a, b| b.ex_date.cmp(&a.ex_date).then(a.asset.cmp(&b.asset)));
@@ -2085,5 +2120,168 @@ mod market_tests {
         // Março já foi lançado (pagamento 22 dias depois da data ex); dez/24 é antes da 1ª compra.
         assert_eq!(r.unavailable, vec!["SEMNET3".to_string()]);
         assert_eq!(r.history["TEST3"].len(), 4);
+    }
+}
+
+#[cfg(test)]
+mod caso_etf_trimestral {
+    use super::*;
+    use carteira_core::income::{Income, IncomeKind};
+    use carteira_core::model::Side;
+    use carteira_providers::yahoo::Dividends;
+    use rust_decimal_macros::dec;
+
+    fn d(y: i32, m: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    }
+
+    fn compra(asset: &str, q: Decimal) -> Operation {
+        Operation {
+            id: format!("c{asset}"),
+            account: "Nomad".into(),
+            asset: asset.into(),
+            date: d(2024, 10, 28),
+            side: Side::Compra,
+            quantity: q,
+            price: dec!(100),
+            manual_fees: None,
+            note: None,
+            currency: "USD".into(),
+            from_account: None,
+            residue: None,
+            ir: None,
+            iof: None,
+        }
+    }
+
+    fn lancado(asset: &str, pay: NaiveDate, ex: Option<NaiveDate>) -> Income {
+        Income {
+            id: format!("i{asset}{pay}"),
+            account: "Nomad".into(),
+            asset: asset.into(),
+            kind: IncomeKind::Dividendo,
+            pay_date: pay,
+            ex_date: ex,
+            gross: dec!(70.00),
+            withheld: dec!(21.00),
+            currency: "USD".into(),
+            note: None,
+        }
+    }
+
+    /// Mesmo fora de ordem, cada lançamento casa com a data ex mais próxima.
+    #[test]
+    fn nao_sugere_o_que_ja_foi_lancado() {
+        let input = MarketInput {
+            assets: vec![MarketAsset {
+                ticker: "VOO".into(),
+                currency: "USD".into(),
+                kind: "ETF".into(),
+                first: d(2024, 10, 28),
+            }],
+            ops: vec![compra("VOO", dec!(40))],
+            // Fora de ordem de propósito, e um deles sem data com.
+            incomes: vec![
+                lancado("VOO", d(2026, 6, 30), Some(d(2026, 6, 25))),
+                lancado("VOO", d(2026, 9, 30), None),
+                lancado("VOO", d(2026, 3, 31), Some(d(2026, 3, 26))),
+            ],
+        };
+        let mut fetched = BTreeMap::new();
+        fetched.insert(
+            "VOO".to_string(),
+            Some(Dividends {
+                dividends: vec![
+                    (d(2025, 3, 27), dec!(1.812)),
+                    (d(2025, 6, 30), dec!(1.745)),
+                    (d(2025, 9, 29), dec!(1.74)),
+                    (d(2025, 12, 22), dec!(1.771)),
+                    (d(2026, 3, 27), dec!(1.872)),
+                    (d(2026, 6, 26), dec!(1.962)),
+                    (d(2026, 9, 28), dec!(1.823)),
+                ],
+                splits: vec![],
+            }),
+        );
+        let r = market_incomes(&input, &fetched, d(2026, 10, 26));
+        let datas: Vec<NaiveDate> = r.suggestions.iter().map(|s| s.ex_date).collect();
+        println!("SUGERIDOS: {datas:?}");
+        assert_eq!(datas.len(), 4, "só os de 2025 deveriam sobrar");
+    }
+
+    /// Sem data com em nenhum: o pagamento de março não pode ficar com a data
+    /// ex de dezembro (o caso real que sobrava setembro na lista).
+    #[test]
+    fn sem_data_com_casa_pelo_pagamento_mais_perto() {
+        let input = MarketInput {
+            assets: vec![MarketAsset {
+                ticker: "VOO".into(),
+                currency: "USD".into(),
+                kind: "ETF".into(),
+                first: d(2024, 10, 28),
+            }],
+            ops: vec![compra("VOO", dec!(40))],
+            incomes: vec![
+                lancado("VOO", d(2026, 9, 30), None),
+                lancado("VOO", d(2026, 6, 30), None),
+                lancado("VOO", d(2026, 3, 31), None),
+            ],
+        };
+        let mut fetched = BTreeMap::new();
+        fetched.insert(
+            "VOO".to_string(),
+            Some(Dividends {
+                dividends: vec![
+                    (d(2025, 12, 22), dec!(1.771)),
+                    (d(2026, 3, 27), dec!(1.872)),
+                    (d(2026, 6, 26), dec!(1.962)),
+                    (d(2026, 9, 28), dec!(1.823)),
+                ],
+                splits: vec![],
+            }),
+        );
+        let r = market_incomes(&input, &fetched, d(2026, 10, 26));
+        let datas: Vec<NaiveDate> = r.suggestions.iter().map(|s| s.ex_date).collect();
+        assert_eq!(datas, vec![d(2025, 12, 22)]);
+    }
+
+    #[test]
+    fn historico_completo_do_voo() {
+        let input = MarketInput {
+            assets: vec![MarketAsset {
+                ticker: "VOO".into(),
+                currency: "USD".into(),
+                kind: "ETF".into(),
+                first: d(2024, 10, 28),
+            }],
+            ops: vec![compra("VOO", dec!(40))],
+            incomes: vec![
+                lancado("VOO", d(2026, 9, 30), Some(d(2026, 9, 25))),
+                lancado("VOO", d(2026, 6, 30), None),
+                lancado("VOO", d(2026, 3, 31), None),
+            ],
+        };
+        let mut fetched = BTreeMap::new();
+        fetched.insert(
+            "VOO".to_string(),
+            Some(Dividends {
+                dividends: vec![
+                    (d(2024, 12, 23), dec!(1.7385)),
+                    (d(2025, 3, 27), dec!(1.8121)),
+                    (d(2025, 6, 30), dec!(1.7447)),
+                    (d(2025, 9, 29), dec!(1.74)),
+                    (d(2025, 12, 22), dec!(1.771)),
+                    (d(2026, 3, 27), dec!(1.8724)),
+                    (d(2026, 6, 26), dec!(1.9622)),
+                    (d(2026, 9, 28), dec!(1.8226)),
+                ],
+                splits: vec![],
+            }),
+        );
+        let r = market_incomes(&input, &fetched, d(2026, 10, 26));
+        let datas: Vec<NaiveDate> = r.suggestions.iter().map(|s| s.ex_date).collect();
+        println!("SUGERIDOS: {datas:?}");
+        assert!(datas.contains(&d(2025, 12, 22)));
+        assert_eq!(datas.len(), 5);
     }
 }

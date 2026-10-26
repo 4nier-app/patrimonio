@@ -10,9 +10,9 @@ export const KIND_LABEL: Record<IncomeKind, string> = {
 
 export const KINDS: IncomeKind[] = ["DIVIDENDO", "JCP", "RENDIMENTO", "JUROS", "OUTRO"];
 
-/** Tipo sugerido pelo ativo: FII paga rendimento; o resto, dividendo. */
+/** Tipo sugerido pelo ativo: FII, Fiagro e FI-Infra pagam rendimento; o resto, dividendo. */
 export function defaultKind(assetKind: string | undefined): IncomeKind {
-  return assetKind === "FII" ? "RENDIMENTO" : "DIVIDENDO";
+  return assetKind === "FII" || assetKind === "FI_INFRA" ? "RENDIMENTO" : "DIVIDENDO";
 }
 
 const n = (v: string | null) => (v == null ? 0 : Number(v));

@@ -348,8 +348,8 @@ const ALLOCATION: &str = "alocacao.metas";
 
 /// Classes da alocação ideal: os grupos da Evolução, com os fundos de todos
 /// os bancos juntos e sem os bens.
-const ALLOCATION_CLASSES: [&str; 8] = [
-    "fundos", "b3", "fii", "exterior", "cripto", "rf", "fgts", "dinheiro",
+const ALLOCATION_CLASSES: [&str; 9] = [
+    "fundos", "b3", "etf", "fii", "exterior", "cripto", "rf", "fgts", "dinheiro",
 ];
 
 /// Meta de cada classe, em % do que entra na alocação.

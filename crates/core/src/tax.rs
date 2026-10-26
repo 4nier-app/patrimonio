@@ -6,7 +6,7 @@
 //!   ações; o prejuízo continua compensável).
 //! - Day trade (compra e venda do mesmo ativo, na mesma corretora e no mesmo
 //!   dia, na quantidade casada): 20%, IRRF de 1% sobre o resultado do dia.
-//! - FIIs: 20%, sem isenção.
+//! - FIIs e Fiagros: 20%, sem isenção.
 //! - Prejuízo só compensa lucro do mesmo grupo (comum, day trade, FII), sem
 //!   prazo.
 //! - IRRF "dedo-duro" de 0,005% sobre as vendas comuns; retenção até
@@ -49,7 +49,7 @@ impl Group {
         match self {
             Group::Comum => "Operações comuns",
             Group::DayTrade => "Day trade",
-            Group::Fii => "Fundos imobiliários",
+            Group::Fii => "Fundos imobiliários e Fiagros",
         }
     }
 
@@ -444,6 +444,9 @@ fn run_b3(priced: &[PricedOperation], kind_of: KindOf) -> B3Run {
     if let Some(y) = last_year {
         year_end.insert(y, snapshot(&holdings));
     }
+    // FI-Infra (isento) e ETF de renda fixa (imposto retido pelo fundo) não
+    // entram no DARF; a posição continua em Bens e Direitos.
+    sales.retain(|s: &SaleLine| !crate::listed::outside_darf(&kind(&s.asset)));
     B3Run {
         sales,
         irrf_dt,
@@ -1020,6 +1023,50 @@ mod tests {
         assert_eq!(mar.irrf_month, dec!(1.25));
         assert_eq!(mar.darf, dec!(2098.75));
         assert_eq!(mar.due_date, d(2026, 4, 30));
+    }
+
+    #[test]
+    fn fi_infra_e_etf_de_renda_fixa_fora_do_darf() {
+        let kinds = |t: &str| {
+            Some(
+                match t {
+                    "INFR11" => crate::listed::FI_INFRA_KIND,
+                    "RFIX11" => crate::listed::ETF_RF_KIND,
+                    _ => "ACAO",
+                }
+                .into(),
+            )
+        };
+        let mut ops = Vec::new();
+        for asset in ["INFR11", "RFIX11"] {
+            ops.push(op(
+                "X",
+                asset,
+                d(2026, 1, 5),
+                Side::Compra,
+                dec!(3000),
+                dec!(10),
+                dec!(0),
+            ));
+            ops.push(op(
+                "X",
+                asset,
+                d(2026, 2, 5),
+                Side::Venda,
+                dec!(2000),
+                dec!(20),
+                dec!(0),
+            ));
+        }
+        let r = b3_months(&ops, &kinds, d(2026, 2, 28));
+        assert!(r
+            .months
+            .iter()
+            .all(|m| m.sales.is_empty() && m.darf.is_zero()));
+        // A posição que sobrou continua para Bens e Direitos.
+        let run = run_b3(&ops, &kinds);
+        let end = &run.year_end[&2026];
+        assert_eq!(end.len(), 2);
     }
 
     #[test]

@@ -76,7 +76,7 @@ const SUGGESTED_NOTE = "Pelo histórico do mercado (Yahoo); confira com o extrat
 const KIND_HINT: Record<IncomeKind, string> = {
   DIVIDENDO: "Isento no Brasil. No exterior, normalmente vem com 30% retido nos EUA.",
   JCP: "Juros sobre capital próprio: a empresa já retém 15% de IR.",
-  RENDIMENTO: "Rendimento de fundo imobiliário (isento para pessoa física, na maioria dos FIIs).",
+  RENDIMENTO: "Rendimento de fundo imobiliário ou Fiagro (isento para pessoa física, na maioria deles).",
   JUROS: "Juros de renda fixa ou saldo remunerado.",
   OUTRO: "Outros valores recebidos pelo ativo (frações de bonificação, restituição de capital…).",
 };
@@ -122,6 +122,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       .market()
       .then((m) => {
         setMarketData(m);
+        // A lista nova já vem sem os que foram lançados; a marcação local sai junto.
         setLaunched(new Set());
       })
       .catch(() => first && setMarketData(null))
@@ -207,6 +208,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       setSaved(form.id ? "Provento alterado." : "Provento salvo.");
       if (filling && !form.id) setLaunched((l) => new Set(l).add(filling));
       setFilling(null);
+      loadMarket();
       // Na inclusão, o próximo provento já vem com conta, ativo, tipo e datas.
       setForm((f) =>
         f.id
@@ -268,6 +270,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
     } finally {
       setLaunched(done);
       load();
+      loadMarket();
       onChanged();
     }
   }

@@ -189,6 +189,21 @@ impl Vault {
         self.upsert_assets(&coins)
     }
 
+    /// Aplica a classe própria dos fundos listados que o catálogo da B3 não
+    /// separa (FI-Infra e ETFs de renda fixa) aos ativos já guardados.
+    pub fn reclassify_listed(&mut self) -> Result<usize> {
+        let tx = self.conn.transaction()?;
+        let mut changed = 0;
+        for (ticker, kind) in carteira_core::listed::all() {
+            changed += tx.execute(
+                "UPDATE assets SET kind = ?2 WHERE ticker = ?1 AND market = 'B3' AND kind <> ?2",
+                params![ticker, kind],
+            )?;
+        }
+        tx.commit()?;
+        Ok(changed)
+    }
+
     /// Grava ou atualiza o catálogo. Retorna quantos ativos foram gravados.
     /// Código de criptomoeda conhecida fica sempre como cripto.
     pub fn upsert_assets(&mut self, assets: &[Asset]) -> Result<usize> {

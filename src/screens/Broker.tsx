@@ -161,6 +161,8 @@ const KIND: Record<string, string> = {
   ACAO: "Ação",
   FII: "FII",
   ETF: "ETF",
+  FI_INFRA: "FI-Infra",
+  ETF_RF: "ETF RF",
   BDR: "BDR",
   FUNDO: "Fundo",
   CRIPTO: "Cripto",

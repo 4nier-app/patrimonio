@@ -3,6 +3,7 @@ import YearPager from "../components/YearPager";
 import { errorMessage, evolutionApi, savingsApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
 import CashInput from "../components/CashInput";
 import Intro from "../components/Intro";
+import { assetsLabel, heldCount, todayColumn } from "../allocation";
 import { cashZero, date, money, monthLabel, parseDecimalInput, percent, quantity, toCashMask, tone } from "../format";
 
 // Na tabela, valores sem "R$" (o cabeçalho já diz) para caber o ano inteiro.
@@ -352,6 +353,7 @@ export default function Evolution() {
                             <th scope="row">
                               <span className="ret-caret">{open ? "▾" : "▸"}</span>
                               {g.label}
+                              {g.investment && <span className="evo-count">{assetsLabel(heldCount(g, todayColumn(view)))}</span>}
                             </th>
                             {shown.map(({ c, i }) => (
                               <Cell key={c.date} values={g.total} i={i} strong />

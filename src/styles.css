@@ -87,6 +87,8 @@ button.secondary { background: transparent; color: var(--text); border: 1px soli
   padding: 10px 20px 0; position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* Versão instalada: no fim da linha das abas, à direita. */
+.app-version { margin-left: auto; align-self: center; padding-right: 4px; color: rgba(255, 255, 255, 0.55); font-size: 12px; white-space: nowrap; }
 .topbar-actions { display: flex; gap: 8px; }
 .topbar-actions button { background: var(--brand-green); color: #08201f; }
 .topbar-actions button.secondary { background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); }
@@ -543,6 +545,7 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .evo-gain { border-left: 1px solid var(--border); }
 .evo-group th, .evo-group td { background: var(--bg); }
 .evo-group th:first-child { background: var(--bg); font-weight: 600; white-space: normal; }
+.evo-count { display: block; color: var(--muted); font-size: 11px; font-weight: 400; padding-left: 16px; }
 .evo-group:hover th, .evo-group:hover td { filter: brightness(0.97); }
 .evo-row th:first-child { padding-left: 20px; }
 .evo-row.evo-group th:first-child { padding-left: 24px; }

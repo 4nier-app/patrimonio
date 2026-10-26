@@ -26,8 +26,10 @@ const INTERVALS = [
 
 const KIND_LABEL: Record<string, string> = {
   ACAO: "Ação",
-  FII: "Fundo imobiliário",
+  FII: "Fundo imobiliário ou Fiagro",
   ETF: "ETF",
+  FI_INFRA: "FI-Infra (isento de IR)",
+  ETF_RF: "ETF de renda fixa (IR retido pelo fundo)",
   BDR: "BDR",
   FUNDO: "Fundo de investimento",
   TESOURO: "Tesouro Direto",

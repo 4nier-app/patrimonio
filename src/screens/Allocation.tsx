@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Intro from "../components/Intro";
 import CashInput from "../components/CashInput";
 import { allocationApi, errorMessage, evolutionApi } from "../api";
-import { CLASSES, NO_DEPOSIT, currentValues, lines, type ClassId } from "../allocation";
+import { CLASSES, NO_DEPOSIT, currentValues, heldCount, lines, todayColumn, type ClassId } from "../allocation";
 import { money, parseDecimalInput } from "../format";
 
 const pct = (n: number | null) => (n == null ? "—" : `${n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`);
@@ -23,12 +23,16 @@ export default function Allocation({ refresh }: { refresh: number }) {
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Quantos ativos há hoje em cada classe (as de investimento).
+  const [counts, setCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     evolutionApi
       .load(new Date().getFullYear())
       .then((v) => {
         const c = currentValues(v);
+        const col = todayColumn(v);
+        setCounts(Object.fromEntries(v.groups.filter((g) => g.investment).map((g) => [g.id, heldCount(g, col)])));
         setValues(c.values);
         setMissing(c.missing);
       })
@@ -102,6 +106,7 @@ export default function Allocation({ refresh }: { refresh: number }) {
             <thead>
               <tr>
                 <th>Classe</th>
+                <th className="num">Ativos</th>
                 <th className="num">Hoje</th>
                 <th className="num">% hoje</th>
                 <th className="num">Meta</th>
@@ -112,6 +117,7 @@ export default function Allocation({ refresh }: { refresh: number }) {
               {view.map((l) => (
                 <tr key={l.id} className={l.target == null ? "muted" : ""}>
                   <td>{l.label}</td>
+                  <td className="num">{counts[l.id] ? counts[l.id] : ""}</td>
                   <td className="num">{brl(l.value)}</td>
                   <td className="num">{pct(l.share)}</td>
                   <td className="num">
@@ -134,6 +140,7 @@ export default function Allocation({ refresh }: { refresh: number }) {
             <tfoot>
               <tr>
                 <th>Total com meta</th>
+                <th />
                 <th className="num">{brl(total)}</th>
                 <th />
                 <th className={`num ${sumOk || !Object.keys(targets).length ? "" : "neg"}`}>{pct(sum)}</th>
