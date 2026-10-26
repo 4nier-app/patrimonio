@@ -6,7 +6,7 @@ members = ["crates/core", "crates/ledger", "crates/providers", "crates/storage",
 version = "0.22.2"
 edition = "2021"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/marcelo-fournier/4nier-patrimonio"
+repository = "https://github.com/4nier-app/patrimonio"
 rust-version = "1.90"
 
 [workspace.dependencies]

@@ -13,6 +13,10 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   uma estimativa, que podem ter erros e que devem ser conferidos com um
   contador antes de pagar um DARF ou entregar a declaração. O aviso de DARF no
   Painel e no topo do app também lembra disso.
+- O projeto mudou de endereço: o código fica em
+  github.com/4nier-app/patrimonio e o site em 4nier-app.github.io/patrimonio.
+  Os links antigos do GitHub continuam funcionando; o aviso de nova versão já
+  procura no endereço novo.
 
 ## [0.22.1] - 2026-10-26
 
