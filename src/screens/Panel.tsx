@@ -190,7 +190,7 @@ export default function Panel({
           <ul>
             {darfs.map((d) => (
               <li key={d.month}>
-                DARF de {money(d.darf)} {d.status === "ATRASADO" ? "venceu" : "vence"} em {date(d.due_date)}.{" "}
+                DARF de {money(d.darf)} {d.status === "ATRASADO" ? "venceu" : "vence"} em {date(d.due_date)}. É uma estimativa: confira com um contador.{" "}
                 <button type="button" className="link" onClick={() => go("impostos")}>
                   Ver em Impostos ›
                 </button>

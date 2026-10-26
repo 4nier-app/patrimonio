@@ -143,8 +143,13 @@ e o CI recusa qualquer PDF ou planilha fora dessa pasta.
 
 ## Aviso
 
-Este software é uma ferramenta de apoio. Cálculos de imposto devem ser
-conferidos com um contador. Não há garantia de nenhum tipo (veja a licença).
+Este software é uma ferramenta de apoio. Os valores de imposto são uma
+estimativa, calculada a partir dos lançamentos que você digitou e da
+legislação como o autor a entende. Podem ter erros ou não considerar a sua
+situação, e não são orientação fiscal nem contábil. Antes de pagar um DARF ou
+entregar a declaração, confira com um contador. O uso das informações é de
+responsabilidade de quem usa o aplicativo. Não há garantia de nenhum tipo
+(veja a licença).
 
 ## Licença
 

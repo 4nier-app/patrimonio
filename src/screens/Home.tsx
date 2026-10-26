@@ -308,7 +308,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         <div className={`banner warning${darfs.some((m) => m.status === "ATRASADO") ? " overdue" : ""}`} role="status">
           {darfs.length === 1
             ? `DARF de ${money(darfs[0].darf)} ${darfs[0].status === "ATRASADO" ? "venceu" : "vence"} em ${date(darfs[0].due_date)}.`
-            : `${darfs.length} DARFs a pagar, somando ${money(String(darfs.reduce((t, m) => t + Number(m.darf), 0)))}.`}{" "}
+            : `${darfs.length} DARFs a pagar, somando ${money(String(darfs.reduce((t, m) => t + Number(m.darf), 0)))}.`} É uma estimativa: confira com um contador.{" "}
           <button className="link" onClick={() => setTab("impostos")}>
             Ver Impostos
           </button>

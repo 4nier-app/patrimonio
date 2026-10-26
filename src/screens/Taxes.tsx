@@ -400,8 +400,7 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
           <p className="muted">
             Imposto de renda sobre as vendas, calculado a partir dos lançamentos. B3: apuração mensal com DARF. Exterior e
             criptomoedas: apuração anual, na declaração. Vendas de FI-Infra (isentas para pessoa física) e de ETFs de renda fixa (o
-            imposto é retido pelo próprio fundo) não entram no DARF; a posição continua em Bens e Direitos. Confira com um contador antes
-            de pagar.
+            imposto é retido pelo próprio fundo) não entram no DARF; a posição continua em Bens e Direitos.
           </p>
         </div>
         {years.length > 0 && (
@@ -417,6 +416,13 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
           </label>
         )}
       </div>
+
+      <p className="warning tax-disclaimer" role="note">
+        <b>Estes valores são uma estimativa.</b> Eles são calculados a partir dos lançamentos que você digitou, seguindo a legislação
+        como o autor do aplicativo a entende. Podem ter erros ou não considerar a sua situação. Não são orientação fiscal nem
+        contábil. Antes de pagar um DARF ou entregar a declaração, confira com um contador. O uso das informações é de sua
+        responsabilidade.
+      </p>
 
       {error && <p className="error">{error}</p>}
 

@@ -6,6 +6,14 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.22.2] - 2026-10-26
+
+### Alterado
+- Impostos: um aviso destacado no topo da aba deixa claro que os valores são
+  uma estimativa, que podem ter erros e que devem ser conferidos com um
+  contador antes de pagar um DARF ou entregar a declaração. O aviso de DARF no
+  Painel e no topo do app também lembra disso.
+
 ## [0.22.1] - 2026-10-26
 
 ### Adicionado
