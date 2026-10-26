@@ -35,7 +35,7 @@ jobs:
           $pasta = "loja-pacote"
           New-Item -ItemType Directory -Force "$pasta/Assets" | Out-Null
           Copy-Item target/release/carteira-app.exe "$pasta/4Nier.exe"
-          foreach ($icone in "StoreLogo", "Square44x44Logo", "Square150x150Logo", "Square310x310Logo") {
+          foreach ($icone in "StoreLogo", "Square44x44Logo", "Square150x150Logo") {
             Copy-Item "src-tauri/icons/$icone.png" "$pasta/Assets/$icone.png"
           }
           (Get-Content loja/AppxManifest.xml -Raw).Replace("__VERSAO__", $v4) |
