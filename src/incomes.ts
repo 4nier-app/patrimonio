@@ -246,3 +246,23 @@ export function projection(
     missingFx,
   };
 }
+
+/** Data com: o dia útil anterior à data ex (pula o fim de semana). */
+export function dayBefore(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  do d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6);
+  return d.toLocaleDateString("sv-SE");
+}
+
+/** Pagamento estimado: nos EUA, 2 dias úteis depois da data ex; na B3, a própria data ex (o prazo varia muito). */
+export function estimatedPayDate(exDate: string, currency: "BRL" | "USD"): string {
+  if (currency !== "USD") return exDate;
+  const d = new Date(`${exDate}T12:00:00`);
+  let left = 2;
+  while (left > 0) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) left--;
+  }
+  return d.toLocaleDateString("sv-SE");
+}

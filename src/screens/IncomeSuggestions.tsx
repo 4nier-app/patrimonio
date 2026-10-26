@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { SuggestedIncome } from "../api";
 import Intro from "../components/Intro";
 import { date, money, price, quantity } from "../format";
-import { KIND_LABEL } from "../incomes";
+import { KIND_LABEL, estimatedPayDate } from "../incomes";
 import { AssetName } from "./Portfolio";
 
 export const suggestionKey = (s: SuggestedIncome) => `${s.account}|${s.asset}|${s.ex_date}`;
@@ -32,9 +32,9 @@ export default function IncomeSuggestions({
           more={
             <>
               O app cruza as cotas que você tinha em cada conta com o que cada ação, FII e ETF pagou por cota (pelo Yahoo Finance), desde a
-              sua primeira compra. Aparecem só os que ainda não estão lançados. A data mostrada é a data ex. Nos EUA, o pagamento costuma cair 2 dias
-              úteis depois, e o app já preenche assim; na B3, o prazo varia de dias a meses, então ajuste a data do pagamento antes de salvar,
-              porque ela define o ano da declaração. Na B3, o Yahoo junta
+              sua primeira compra. Aparecem só os que ainda não estão lançados. O Yahoo informa a data ex; a data do pagamento é estimada. Nos EUA, o
+              pagamento costuma cair 2 dias úteis depois da data ex; na B3, o prazo varia de dias a meses, então a lista mostra a data ex
+              "a conferir". Ajuste a data do pagamento antes de salvar, porque ela define o ano da declaração. Na B3, o Yahoo junta
               dividendos e JCP: se for JCP, troque o tipo e informe os 15% retidos. Nos EUA, já vem com os 30% retidos lá. Confira sempre
               com o extrato ou o informe de rendimentos da corretora.
             </>
@@ -47,6 +47,7 @@ export default function IncomeSuggestions({
         <table>
           <thead>
             <tr>
+              <th>Pagamento</th>
               <th>Data ex</th>
               <th>Ativo</th>
               <th>Conta</th>
@@ -63,6 +64,10 @@ export default function IncomeSuggestions({
               const net = (Number(s.gross) - Number(s.withheld)).toFixed(2);
               return (
                 <tr key={suggestionKey(s)}>
+                  <td>
+                    {date(estimatedPayDate(s.ex_date, s.currency))}
+                    <div className="muted small">{s.currency === "USD" ? "estimado" : "a conferir"}</div>
+                  </td>
                   <td>{date(s.ex_date)}</td>
                   <td>
                     <AssetName asset={s.asset} name={names[s.asset]} />

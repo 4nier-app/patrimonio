@@ -30,6 +30,8 @@ import {
   defaultKind,
   foreignTaxDue,
   inYear,
+  dayBefore,
+  estimatedPayDate,
   last12,
   taxGroups,
   totals,
@@ -68,26 +70,6 @@ const EMPTY: Form = {
   note: "",
   reason: "",
 };
-
-/** Data com: o dia útil anterior à data ex (pula o fim de semana). */
-function dayBefore(iso: string): string {
-  const d = new Date(`${iso}T12:00:00`);
-  do d.setDate(d.getDate() - 1);
-  while (d.getDay() === 0 || d.getDay() === 6);
-  return d.toLocaleDateString("sv-SE");
-}
-
-/** Pagamento estimado: nos EUA, 2 dias úteis depois da data ex; na B3, a própria data ex (o prazo varia muito). */
-export function estimatedPayDate(exDate: string, currency: "BRL" | "USD"): string {
-  if (currency !== "USD") return exDate;
-  const d = new Date(`${exDate}T12:00:00`);
-  let left = 2;
-  while (left > 0) {
-    d.setDate(d.getDate() + 1);
-    if (d.getDay() !== 0 && d.getDay() !== 6) left--;
-  }
-  return d.toLocaleDateString("sv-SE");
-}
 
 const SUGGESTED_NOTE = "Pelo histórico do mercado (Yahoo); confira com o extrato";
 
