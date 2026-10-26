@@ -10,6 +10,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ### Adicionado
 - A versão instalada aparece no topo do app, à direita da linha das abas.
+- Proventos: a lista de pagamentos diz de qual ano é ("Pagamentos de 2026")
+  e tem o seletor de ano ao lado, com a opção "Todos os anos".
 - Quantidade de ativos: em cada grupo da Evolução ("10 ativos"), na coluna
   "Ativos" da Alocação e no cartão "Ativos em carteira" da Carteira.
 

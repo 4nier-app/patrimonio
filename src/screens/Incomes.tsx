@@ -294,6 +294,17 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
   }
 
   const shown = inYear(rows, year);
+  // O mesmo ano vale para o Resumo e para a lista de pagamentos.
+  const yearPick = (
+    <select value={year ?? ""} onChange={(e) => setYear(e.target.value ? Number(e.target.value) : null)} aria-label="Ano">
+      <option value="">Todos os anos</option>
+      {allYears.map((y) => (
+        <option key={y} value={y}>
+          {y}
+        </option>
+      ))}
+    </select>
+  );
   const t = totals(shown);
   const t12 = totals(last12(rows, today()));
   const months =
@@ -494,14 +505,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
         <>
           <div className="section-head spaced">
             <h3>Resumo</h3>
-            <select value={year ?? ""} onChange={(e) => setYear(e.target.value ? Number(e.target.value) : null)} aria-label="Ano">
-              <option value="">Todos os anos</option>
-              {allYears.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+            {yearPick}
           </div>
           <div className="cards">
             <div className="card stat">
@@ -602,7 +606,10 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
             </div>
           )}
 
-          <h3 className="spaced">Pagamentos</h3>
+          <div className="section-head spaced">
+            <h3>{year == null ? "Pagamentos de todos os anos" : `Pagamentos de ${year}`}</h3>
+            {yearPick}
+          </div>
           <div className="scroll">
             <table>
               <thead>
