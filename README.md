@@ -37,6 +37,11 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Meta de patrimônio:** diga quanto quer ter e até quando; o Painel mostra
   quanto falta, quanto crescer por mês e, no ritmo dos últimos 12 meses,
   quando você chega lá.
+- **Projeção de proventos:** quanto você deve receber nos próximos 12 meses,
+  mês a mês e por ativo, pelo que cada ação, FII e ETF pagou por cota nos
+  últimos 12 meses e pelas cotas que você tem hoje (EUA já sem os 30%
+  retidos). O app também lista os proventos que faltam lançar, pelo
+  histórico dos ativos que você teve, para lançar com um clique.
 - **Imposto de renda:** apuração mensal da B3 (isenção de R$ 20 mil, day trade,
   FIIs, prejuízo a compensar) com aviso de DARF; ganho anual no exterior e em
   cripto pela Lei 14.754; posições em 31/12 para Bens e Direitos.

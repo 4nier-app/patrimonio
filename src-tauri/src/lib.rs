@@ -358,8 +358,7 @@ fn allocation_targets(
     state: State<AppState>,
 ) -> Result<std::collections::BTreeMap<String, rust_decimal::Decimal>, String> {
     with_vault(&state, |v| {
-        Ok(v
-            .setting(ALLOCATION)?
+        Ok(v.setting(ALLOCATION)?
             .and_then(|json| serde_json::from_str(&json).ok())
             .unwrap_or_default())
     })
@@ -403,7 +402,8 @@ struct Goal {
 #[tauri::command]
 fn goal(state: State<AppState>) -> Result<Option<Goal>, String> {
     with_vault(&state, |v| {
-        Ok(v.setting(GOAL)?.and_then(|json| serde_json::from_str(&json).ok()))
+        Ok(v.setting(GOAL)?
+            .and_then(|json| serde_json::from_str(&json).ok()))
     })
 }
 
@@ -640,6 +640,43 @@ async fn day_moves(app: tauri::AppHandle) -> Result<asset::DayView, String> {
             asset::day_inputs(v, today())?
         };
         Ok(asset::day_moves(inputs, &asset::Internet))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Proventos pelo histórico do mercado: o que cada ativo pagou por cota (no
+/// Yahoo), para a estimativa dos próximos 12 meses e para sugerir os
+/// proventos que faltam lançar. Lê o cofre, solta e só então vai à internet.
+#[tauri::command]
+async fn market_incomes(app: tauri::AppHandle) -> Result<views::MarketIncomes, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let input = {
+            let guard = state
+                .vault
+                .lock()
+                .map_err(|_| "estado interno indisponível".to_string())?;
+            let v = guard
+                .as_ref()
+                .ok_or_else(|| "o cofre está bloqueado".to_string())?;
+            views::market_input(v)?
+        };
+        let to = today();
+        let mut fetched = std::collections::BTreeMap::new();
+        for a in &input.assets {
+            let symbol = if a.currency == "USD" {
+                carteira_providers::yahoo::us_symbol(&a.ticker)
+            } else {
+                carteira_providers::yahoo::b3_symbol(&a.ticker)
+            };
+            let from = a.first.min(to - chrono::Duration::days(366));
+            fetched.insert(
+                a.ticker.clone(),
+                carteira_providers::yahoo::fetch_dividends(&symbol, from, to).ok(),
+            );
+        }
+        Ok(views::market_incomes(&input, &fetched, to))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1168,6 +1205,7 @@ pub fn run() {
             search_funds,
             asset_detail,
             asset_chart,
+            market_incomes,
             day_moves,
             name_fund,
             update_fund_catalog,

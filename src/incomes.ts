@@ -119,3 +119,150 @@ export function taxGroups(rows: IncomeRow[]): TaxGroup[] {
 export function foreignTaxDue(g: TaxGroup): number {
   return Math.max(0, cents(g.gross * 0.15 - g.withheld));
 }
+
+export type ProjectedAsset = {
+  asset: string;
+  /** "lancados": pelos proventos que você lançou; "mercado": pelo que o ativo pagou por cota. */
+  source: "lancados" | "mercado";
+  /** Líquido recebido nos últimos 12 meses (só "lancados"). */
+  received: number | null;
+  /** Soma do que o ativo pagou por cota nos últimos 12 meses, na moeda dele (só "mercado"). */
+  perShare: number | null;
+  currency: "BRL" | "USD";
+  /** Cotas de hoje sobre as cotas de quando recebeu (média ponderada); null sem posição registrada. */
+  factor: number | null;
+  /** Cotas de hoje, somando as contas; null sem posição registrada. */
+  held: number | null;
+  projected: number;
+};
+
+export type Projection = {
+  /** 12 meses, a partir do mês que vem: "AAAA-MM". */
+  months: string[];
+  values: number[];
+  total: number;
+  received: number;
+  assets: ProjectedAsset[];
+  missingFx: number;
+};
+
+/** Ativo da carteira hoje, para a estimativa pelo histórico do mercado. */
+export type Holding = { asset: string; quantity: number; currency: "BRL" | "USD" };
+
+/** Proventos por cota de cada ativo nos últimos 12 meses: [data com, valor]. */
+export type MarketDividends = Record<string, [string, string][]>;
+
+/** Imposto retido nos EUA sobre dividendos de quem mora no Brasil. */
+export const US_WITHHOLDING = 0.3;
+
+/**
+ * Estimativa dos próximos 12 meses, mês a mês. Para cada ativo:
+ * - com proventos lançados nos últimos 12 meses, cada um se repete no mesmo
+ *   mês, ajustado pelas cotas de hoje (comprou mais, recebe mais; vendeu
+ *   tudo, não recebe). Sem cotas registradas (juros de saldo), repete igual;
+ * - sem proventos lançados, usa o que o ativo pagou por cota nos últimos 12
+ *   meses (`market`) vezes as cotas de hoje, no mês da data com. Em dólar,
+ *   desconta os 30% retidos nos EUA e converte por `usdRate`.
+ */
+export function projection(
+  rows: IncomeRow[],
+  today: string,
+  held: Record<string, number>,
+  holdings: Holding[] = [],
+  market: MarketDividends = {},
+  usdRate: number | null = null,
+): Projection {
+  const [y, m] = today.split("-").map(Number);
+  const months = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(y, m + i, 1)).toISOString().slice(0, 7));
+  const slot = (iso: string) => months.findIndex((k) => k.slice(5, 7) === iso.slice(5, 7));
+  const values = Array(12).fill(0);
+  const map = new Map<string, { received: number; projected: number; weighted: number; base: number; currency: "BRL" | "USD" }>();
+  let missingFx = 0;
+  for (const r of last12(rows, today)) {
+    if (r.net_brl == null) {
+      missingFx++;
+      continue;
+    }
+    const net = n(r.net_brl);
+    const q = r.quantity == null ? 0 : n(r.quantity);
+    const factor = q > 0 ? (held[r.income.asset] ?? 0) / q : 1;
+    const v = net * factor;
+    values[slot(r.income.pay_date)] += v;
+    const a = map.get(r.income.asset) ?? { received: 0, projected: 0, weighted: 0, base: 0, currency: r.income.currency };
+    a.received += net;
+    a.projected += v;
+    if (q > 0) {
+      a.weighted += factor * net;
+      a.base += net;
+    }
+    map.set(r.income.asset, a);
+  }
+  const assets: ProjectedAsset[] = [...map.entries()].map(([asset, a]) => ({
+    asset,
+    source: "lancados",
+    received: cents(a.received),
+    perShare: null,
+    currency: a.currency,
+    factor: a.base > 0 ? a.weighted / a.base : null,
+    held: a.base > 0 ? (held[asset] ?? 0) : null,
+    projected: cents(a.projected),
+  }));
+  const [ty, tm, td] = today.split("-").map(Number);
+  const from = new Date(Date.UTC(ty - 1, tm - 1, td + 1)).toISOString().slice(0, 10);
+  for (const h of holdings) {
+    if (map.has(h.asset) || h.quantity <= 0 || !(h.asset in market)) continue;
+    const list = market[h.asset].filter(([d]) => d >= from && d <= today);
+    if (h.currency === "USD" && usdRate == null && list.length) {
+      missingFx += list.length;
+      continue;
+    }
+    let projected = 0;
+    let perShare = 0;
+    for (const [d, ps] of list) {
+      const gross = Number(ps) * h.quantity;
+      const v = h.currency === "USD" ? gross * (1 - US_WITHHOLDING) * (usdRate ?? 0) : gross;
+      values[slot(d)] += v;
+      projected += v;
+      perShare += Number(ps);
+    }
+    assets.push({
+      asset: h.asset,
+      source: "mercado",
+      received: null,
+      perShare: Math.round(perShare * 1e8) / 1e8,
+      currency: h.currency,
+      factor: null,
+      held: h.quantity,
+      projected: cents(projected),
+    });
+  }
+  assets.sort((a, b) => b.projected - a.projected || (b.received ?? 0) - (a.received ?? 0));
+  return {
+    months,
+    values: values.map(cents),
+    total: cents(values.reduce((s, v) => s + v, 0)),
+    received: cents(assets.reduce((s, a) => s + (a.received ?? 0), 0)),
+    assets,
+    missingFx,
+  };
+}
+
+/** Data com: o dia útil anterior à data ex (pula o fim de semana). */
+export function dayBefore(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  do d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6);
+  return d.toLocaleDateString("sv-SE");
+}
+
+/** Pagamento estimado: nos EUA, 2 dias úteis depois da data ex; na B3, a própria data ex (o prazo varia muito). */
+export function estimatedPayDate(exDate: string, currency: "BRL" | "USD"): string {
+  if (currency !== "USD") return exDate;
+  const d = new Date(`${exDate}T12:00:00`);
+  let left = 2;
+  while (left > 0) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) left--;
+  }
+  return d.toLocaleDateString("sv-SE");
+}

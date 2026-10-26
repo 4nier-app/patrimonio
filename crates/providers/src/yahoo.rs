@@ -180,6 +180,142 @@ pub fn fetch_closes_dp(
     Err(last)
 }
 
+/// Proventos por cota pagos pelo ativo no período, pelo gráfico público com
+/// `events=div,splits`. Na B3, o Yahoo soma dividendos, JCP (bruto) e
+/// rendimentos de FII; nos EUA, o dividendo bruto. A data é a data ex.
+pub fn dividends_url(symbol: &str, from: NaiveDate, to: NaiveDate) -> String {
+    chart_url(symbol, from, to).replace("interval=1d", "interval=1mo&events=div%2Csplits")
+}
+
+/// Proventos por cota e desdobramentos do ativo, como o Yahoo publica: o valor
+/// por cota já vem ajustado pelos desdobramentos posteriores (vale para a
+/// quantidade de hoje).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Dividends {
+    /// (data ex, valor por cota ajustado).
+    pub dividends: Vec<(NaiveDate, Decimal)>,
+    /// (data, cotas novas por cota antiga): desdobramento 1:2 = 2; grupamento 10:1 = 0,1.
+    pub splits: Vec<(NaiveDate, Decimal)>,
+}
+
+impl Dividends {
+    /// Valor por cota na época, para multiplicar pela quantidade que se tinha
+    /// então: desfaz os desdobramentos que vieram depois de cada data.
+    pub fn unadjusted(&self) -> Vec<(NaiveDate, Decimal)> {
+        self.dividends
+            .iter()
+            .map(|(d, v)| {
+                let factor: Decimal = self
+                    .splits
+                    .iter()
+                    .filter(|(s, _)| s > d)
+                    .map(|(_, r)| *r)
+                    .product();
+                (*d, (*v * factor).round_dp(8).normalize())
+            })
+            .collect()
+    }
+}
+
+#[derive(Deserialize)]
+struct DivEnvelope {
+    chart: DivChart,
+}
+
+#[derive(Deserialize)]
+struct DivChart {
+    result: Option<Vec<DivResult>>,
+    error: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
+struct DivResult {
+    #[serde(default)]
+    meta: Option<DivMeta>,
+    #[serde(default)]
+    events: Option<DivEvents>,
+}
+
+#[derive(Deserialize)]
+struct DivMeta {
+    #[serde(default)]
+    gmtoffset: i64,
+}
+
+#[derive(Deserialize)]
+struct DivEvents {
+    #[serde(default)]
+    dividends: std::collections::BTreeMap<String, DivEvent>,
+    #[serde(default)]
+    splits: std::collections::BTreeMap<String, SplitEvent>,
+}
+
+#[derive(Deserialize)]
+struct SplitEvent {
+    date: i64,
+    numerator: f64,
+    denominator: f64,
+}
+
+#[derive(Deserialize)]
+struct DivEvent {
+    amount: f64,
+    date: i64,
+}
+
+pub fn parse_dividends(json: &[u8]) -> Result<Dividends> {
+    let env: DivEnvelope =
+        serde_json::from_slice(json).map_err(|e| ProviderError::Format(e.to_string()))?;
+    if let Some(err) = env.chart.error.filter(|e| !e.is_null()) {
+        return Err(ProviderError::NotFound(err.to_string()));
+    }
+    let result = env
+        .chart
+        .result
+        .and_then(|r| r.into_iter().next())
+        .ok_or_else(|| ProviderError::Format("resposta sem resultado".into()))?;
+    let offset = result.meta.map(|m| m.gmtoffset).unwrap_or_default();
+    let events = result.events.unwrap_or(DivEvents {
+        dividends: Default::default(),
+        splits: Default::default(),
+    });
+    let dec = |v: f64| {
+        Decimal::from_str(&format!("{v:.10}"))
+            .map(|d| d.round_dp(8).normalize())
+            .map_err(|err| ProviderError::Format(format!("valor inválido {v}: {err}")))
+    };
+    let mut out = Dividends::default();
+    for e in events.dividends.into_values() {
+        if e.amount > 0.0 {
+            out.dividends
+                .push((local_date(e.date, offset)?, dec(e.amount)?));
+        }
+    }
+    for e in events.splits.into_values() {
+        if e.numerator > 0.0 && e.denominator > 0.0 {
+            out.splits.push((
+                local_date(e.date, offset)?,
+                dec(e.numerator / e.denominator)?,
+            ));
+        }
+    }
+    out.dividends.sort();
+    out.splits.sort();
+    Ok(out)
+}
+
+pub fn fetch_dividends(symbol: &str, from: NaiveDate, to: NaiveDate) -> Result<Dividends> {
+    let template = dividends_url(symbol, from, to);
+    let mut last = ProviderError::Network("Yahoo indisponível".into());
+    for host in HOSTS {
+        match http::get_bytes(&template.replace("{host}", host)) {
+            Ok(body) => return parse_dividends(&body),
+            Err(e) => last = e,
+        }
+    }
+    Err(last)
+}
+
 /// Vela do gráfico (preços em ponto flutuante: só para desenhar, nunca para
 /// cálculo). `time` em segundos desde 1970, UTC.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -298,6 +434,41 @@ mod tests {
         assert_eq!(c.previous_close, Some(12.1));
         assert_eq!(c.price, Some(12.5));
         assert!(candles_url("^BVSP", "5m", "1d").contains("%5EBVSP?interval=5m&range=1d"));
+    }
+
+    #[test]
+    fn interpreta_proventos() {
+        let json = br#"{"chart":{"result":[{"meta":{"gmtoffset":-10800},"timestamp":[1772456400],
+            "events":{"dividends":{"1772456400":{"amount":0.1,"date":1772456400},
+            "1767225600":{"amount":0.0912345678,"date":1767225600}}},
+            "indicators":{"quote":[{"close":[10.0]}]}}],"error":null}}"#;
+        let d = parse_dividends(json).unwrap().dividends;
+        assert_eq!(d.len(), 2);
+        assert!(d[0].0 < d[1].0);
+        assert_eq!(d[0].1, dec!(0.09123457));
+        assert_eq!(d[1].1, dec!(0.1));
+        let vazio = br#"{"chart":{"result":[{"meta":{"gmtoffset":0}}],"error":null}}"#;
+        assert_eq!(parse_dividends(vazio).unwrap(), Dividends::default());
+        assert!(dividends_url(
+            "TEST3.SA",
+            NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+            NaiveDate::from_ymd_opt(2025, 12, 31).unwrap()
+        )
+        .contains("interval=1mo&events=div%2Csplits"));
+    }
+
+    #[test]
+    fn desfaz_desdobramentos_posteriores() {
+        // Dividendo em jan/26, desdobramento 1:2 em mar/26 e grupamento 10:1 depois.
+        let json = br#"{"chart":{"result":[{"meta":{"gmtoffset":0},"events":{
+            "dividends":{"1767225600":{"amount":0.5,"date":1767225600},"1780000000":{"amount":0.2,"date":1780000000}},
+            "splits":{"1772456400":{"date":1772456400,"numerator":2,"denominator":1},
+                      "1790000000":{"date":1790000000,"numerator":1,"denominator":10}}}}],"error":null}}"#;
+        let d = parse_dividends(json).unwrap();
+        assert_eq!(d.splits.len(), 2);
+        let raw = d.unadjusted();
+        assert_eq!(raw[0].1, dec!(0.1)); // 0,5 × 2 × 0,1
+        assert_eq!(raw[1].1, dec!(0.02)); // só o grupamento depois
     }
 
     #[test]

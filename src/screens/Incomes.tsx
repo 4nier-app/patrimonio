@@ -11,6 +11,8 @@ import {
   type IncomeKind,
   type IncomeRow,
   type IncomesView,
+  type MarketIncomes,
+  type SuggestedIncome,
   type PortfolioView,
   type PricedOperation,
 } from "../api";
@@ -28,12 +30,16 @@ import {
   defaultKind,
   foreignTaxDue,
   inYear,
+  dayBefore,
+  estimatedPayDate,
   last12,
   taxGroups,
   totals,
   years as yearsOf,
 } from "../incomes";
 import { AssetName } from "./Portfolio";
+import IncomeForecast from "./IncomeForecast";
+import IncomeSuggestions, { suggestionKey } from "./IncomeSuggestions";
 
 type Form = {
   id: string;
@@ -65,6 +71,8 @@ const EMPTY: Form = {
   reason: "",
 };
 
+const SUGGESTED_NOTE = "Pelo histórico do mercado (Yahoo); confira com o extrato";
+
 const KIND_HINT: Record<IncomeKind, string> = {
   DIVIDENDO: "Isento no Brasil. No exterior, normalmente vem com 30% retido nos EUA.",
   JCP: "Juros sobre capital próprio: a empresa já retém 15% de IR.",
@@ -93,6 +101,10 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [year, setYear] = useState<number | null>(null);
+  const [marketData, setMarketData] = useState<MarketIncomes | null>(null);
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [launched, setLaunched] = useState<Set<string>>(new Set());
+  const [filling, setFilling] = useState<string | null>(null);
 
   function load() {
     incomesApi
@@ -102,6 +114,20 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
   }
 
   useEffect(load, [refresh]);
+  // Histórico do mercado (Yahoo): ao abrir a tela e depois de remover ou
+  // restaurar um provento, para ele voltar (ou sair) da lista dos que faltam lançar.
+  function loadMarket(first = false) {
+    if (first) setMarketLoading(true);
+    incomesApi
+      .market()
+      .then((m) => {
+        setMarketData(m);
+        setLaunched(new Set());
+      })
+      .catch(() => first && setMarketData(null))
+      .finally(() => first && setMarketLoading(false));
+  }
+  useEffect(() => loadMarket(true), []);
   useEffect(() => {
     market.portfolio().then(setPortfolio).catch(() => setPortfolio(null));
     market.listOperations().then(setOps).catch(() => setOps([]));
@@ -179,6 +205,8 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       if (form.id) await incomesApi.update(income, form.reason);
       else await incomesApi.create(income);
       setSaved(form.id ? "Provento alterado." : "Provento salvo.");
+      if (filling && !form.id) setLaunched((l) => new Set(l).add(filling));
+      setFilling(null);
       // Na inclusão, o próximo provento já vem com conta, ativo, tipo e datas.
       setForm((f) =>
         f.id
@@ -195,15 +223,66 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
     }
   }
 
+  /** Preenche o formulário com uma sugestão do histórico do mercado. */
+  function fill(sg: SuggestedIncome) {
+    setForm({
+      ...EMPTY,
+      account: sg.account,
+      asset: sg.asset,
+      kind: sg.kind,
+      kindTouched: true,
+      payDate: estimatedPayDate(sg.ex_date, sg.currency),
+      exDate: dayBefore(sg.ex_date),
+      gross: toCashMask(sg.gross, 2, sg.currency).text,
+      withheld: Number(sg.withheld) ? toCashMask(sg.withheld, 2, sg.currency).text : "",
+      note: SUGGESTED_NOTE,
+    });
+    setFilling(suggestionKey(sg));
+    setSaved(null);
+    setError(null);
+    window.scrollTo({ top: 0 });
+  }
+
+  async function launchAll(list: SuggestedIncome[]) {
+    setError(null);
+    const done = new Set(launched);
+    try {
+      for (const sg of list) {
+        await incomesApi.create({
+          id: "",
+          account: sg.account,
+          asset: sg.asset,
+          kind: sg.kind,
+          pay_date: estimatedPayDate(sg.ex_date, sg.currency),
+          ex_date: dayBefore(sg.ex_date),
+          gross: sg.gross,
+          withheld: sg.withheld,
+          currency: sg.currency,
+          note: SUGGESTED_NOTE,
+        });
+        done.add(suggestionKey(sg));
+      }
+      setSaved(`${list.length} provento(s) lançados. Confira as datas de pagamento com o extrato da corretora.`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setLaunched(done);
+      load();
+      onChanged();
+    }
+  }
+
   async function remove(id: string) {
     try {
       await incomesApi.remove(id);
       if (form.id === id) setForm(EMPTY);
       load();
+      loadMarket();
       onChanged();
       offerUndo("Provento removido.", async () => {
         await incomesApi.restore(id);
         load();
+        loadMarket();
         onChanged();
       });
     } catch (err) {
@@ -395,6 +474,16 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
           )}
         </div>
       </form>
+
+      <IncomeForecast rows={rows} portfolio={portfolio} market={marketData} loading={marketLoading} names={names} />
+      {marketData && (
+        <IncomeSuggestions
+          items={marketData.suggestions.filter((sg) => !launched.has(suggestionKey(sg)))}
+          names={names}
+          onFill={fill}
+          onLaunchAll={() => launchAll(marketData.suggestions.filter((sg) => !launched.has(suggestionKey(sg))))}
+        />
+      )}
 
       {rows.length === 0 ? (
         <p className="muted">Nenhum provento lançado ainda.</p>
