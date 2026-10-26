@@ -9,7 +9,7 @@ use crate::{ProviderError, Result};
 const USER_AGENT: &str = concat!(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) CarteiraAuditavel/",
     env!("CARGO_PKG_VERSION"),
-    " (+https://github.com/marcelo-fournier/4nier-patrimonio)"
+    " (+https://github.com/4nier-app/patrimonio)"
 );
 const MAX_BYTES: u64 = 200 * 1024 * 1024;
 

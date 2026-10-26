@@ -7,9 +7,9 @@ use crate::{http, ProviderError, Result};
 
 /// Página onde a pessoa baixa a versão nova.
 pub const RELEASES_PAGE: &str =
-    "https://github.com/marcelo-fournier/4nier-patrimonio/releases/latest";
+    "https://github.com/4nier-app/patrimonio/releases/latest";
 const LATEST_API: &str =
-    "https://api.github.com/repos/marcelo-fournier/4nier-patrimonio/releases/latest";
+    "https://api.github.com/repos/4nier-app/patrimonio/releases/latest";
 
 #[derive(Deserialize)]
 struct Release {

@@ -4,7 +4,7 @@ Controle de investimentos B3 + exterior com rentabilidade auditável, 100% local
 
 ![Painel do 4Nier com dados fictícios](docs/img/painel.webp)
 
-**[Baixar a versão mais recente](https://github.com/marcelo-fournier/4nier-patrimonio/releases/latest)** · para Windows, Mac e Linux · grátis e de código aberto
+**[Baixar a versão mais recente](https://github.com/4nier-app/patrimonio/releases/latest)** · para Windows, Mac e Linux · grátis e de código aberto
 
 Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 
@@ -60,7 +60,7 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 ## Instalação
 
 Baixe o arquivo do seu sistema na página
-[Releases](https://github.com/marcelo-fournier/4nier-patrimonio/releases/latest).
+[Releases](https://github.com/4nier-app/patrimonio/releases/latest).
 O aplicativo ainda não tem assinatura digital paga, então o sistema avisa na
 primeira vez:
 
@@ -70,7 +70,7 @@ primeira vez:
   na primeira vez, clique com o botão direito no app → **Abrir**.
 - **Linux:** `.deb` (Ubuntu, Debian) ou `.AppImage` (marque como executável).
 
-Encontrou um erro? [Reporte aqui](https://github.com/marcelo-fournier/4nier-patrimonio/issues/new?template=problema.yml),
+Encontrou um erro? [Reporte aqui](https://github.com/4nier-app/patrimonio/issues/new?template=problema.yml),
 sempre com valores fictícios.
 
 ## Como funciona
@@ -143,8 +143,13 @@ e o CI recusa qualquer PDF ou planilha fora dessa pasta.
 
 ## Aviso
 
-Este software é uma ferramenta de apoio. Cálculos de imposto devem ser
-conferidos com um contador. Não há garantia de nenhum tipo (veja a licença).
+Este software é uma ferramenta de apoio. Os valores de imposto são uma
+estimativa, calculada a partir dos lançamentos que você digitou e da
+legislação como o autor a entende. Podem ter erros ou não considerar a sua
+situação, e não são orientação fiscal nem contábil. Antes de pagar um DARF ou
+entregar a declaração, confira com um contador. O uso das informações é de
+responsabilidade de quem usa o aplicativo. Não há garantia de nenhum tipo
+(veja a licença).
 
 ## Licença
 

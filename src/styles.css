@@ -646,3 +646,4 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .goal-form { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
 .goal-form label:not(.check) { min-width: 200px; }
 p.pos, strong.pos { color: var(--ok); }
+.tax-disclaimer { margin: 0 0 14px; line-height: 1.5; }
