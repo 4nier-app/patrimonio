@@ -112,15 +112,20 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
   }
 
   useEffect(load, [refresh]);
-  // Histórico do mercado (Yahoo): uma vez ao abrir a tela.
-  useEffect(() => {
-    setMarketLoading(true);
+  // Histórico do mercado (Yahoo): ao abrir a tela e depois de remover ou
+  // restaurar um provento, para ele voltar (ou sair) da lista dos que faltam lançar.
+  function loadMarket(first = false) {
+    if (first) setMarketLoading(true);
     incomesApi
       .market()
-      .then(setMarketData)
-      .catch(() => setMarketData(null))
-      .finally(() => setMarketLoading(false));
-  }, []);
+      .then((m) => {
+        setMarketData(m);
+        setLaunched(new Set());
+      })
+      .catch(() => first && setMarketData(null))
+      .finally(() => first && setMarketLoading(false));
+  }
+  useEffect(() => loadMarket(true), []);
   useEffect(() => {
     market.portfolio().then(setPortfolio).catch(() => setPortfolio(null));
     market.listOperations().then(setOps).catch(() => setOps([]));
@@ -274,10 +279,12 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       await incomesApi.remove(id);
       if (form.id === id) setForm(EMPTY);
       load();
+      loadMarket();
       onChanged();
       offerUndo("Provento removido.", async () => {
         await incomesApi.restore(id);
         load();
+        loadMarket();
         onChanged();
       });
     } catch (err) {
