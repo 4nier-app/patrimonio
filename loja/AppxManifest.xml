@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pacote da Microsoft Store. A identidade vem da reserva do nome no Partner
+     Center; a versão (__VERSAO__) é preenchida pelo workflow "Pacote da
+     Microsoft Store". A loja assina o pacote. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+  <Identity
+    Name="4Nier.4NierPatrimnioAuditvel"
+    Publisher="CN=9139FAC7-9822-430A-AD0E-788DC1C4CC15"
+    Version="__VERSAO__"
+    ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>4Nier Patrimônio Auditável</DisplayName>
+    <PublisherDisplayName>4Nier</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>Controle do seu patrimônio, com rentabilidade auditável. Os dados ficam só no seu computador.</Description>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22631.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="pt-BR" />
+  </Resources>
+  <Applications>
+    <Application Id="App" Executable="4Nier.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="4Nier Patrimônio Auditável"
+        Description="Controle do seu patrimônio, com rentabilidade auditável."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Square310x310Logo="Assets\Square310x310Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
