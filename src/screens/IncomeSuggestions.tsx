@@ -32,8 +32,9 @@ export default function IncomeSuggestions({
           more={
             <>
               O app cruza as cotas que você tinha em cada conta com o que cada ação, FII e ETF pagou por cota (pelo Yahoo Finance), desde a
-              sua primeira compra. Aparecem só os que ainda não estão lançados. A data mostrada é a data ex; a data do pagamento costuma ser
-              alguns dias ou semanas depois, então ajuste antes de salvar, porque ela define o ano da declaração. Na B3, o Yahoo junta
+              sua primeira compra. Aparecem só os que ainda não estão lançados. A data mostrada é a data ex. Nos EUA, o pagamento costuma cair 2 dias
+              úteis depois, e o app já preenche assim; na B3, o prazo varia de dias a meses, então ajuste a data do pagamento antes de salvar,
+              porque ela define o ano da declaração. Na B3, o Yahoo junta
               dividendos e JCP: se for JCP, troque o tipo e informe os 15% retidos. Nos EUA, já vem com os 30% retidos lá. Confira sempre
               com o extrato ou o informe de rendimentos da corretora.
             </>
@@ -105,7 +106,9 @@ export default function IncomeSuggestions({
         >
           {busy ? "Lançando…" : `Lançar todos (${items.length})`}
         </button>
-        <span className="muted small">"Lançar todos" usa a data ex como data do pagamento; dá para alterar depois.</span>
+        <span className="muted small">
+          "Lançar todos" usa como data do pagamento a data ex mais 2 dias úteis nos EUA, e a própria data ex na B3; dá para alterar depois.
+        </span>
       </div>
     </div>
   );

@@ -77,6 +77,18 @@ function dayBefore(iso: string): string {
   return d.toLocaleDateString("sv-SE");
 }
 
+/** Pagamento estimado: nos EUA, 2 dias úteis depois da data ex; na B3, a própria data ex (o prazo varia muito). */
+export function estimatedPayDate(exDate: string, currency: "BRL" | "USD"): string {
+  if (currency !== "USD") return exDate;
+  const d = new Date(`${exDate}T12:00:00`);
+  let left = 2;
+  while (left > 0) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) left--;
+  }
+  return d.toLocaleDateString("sv-SE");
+}
+
 const SUGGESTED_NOTE = "Pelo histórico do mercado (Yahoo); confira com o extrato";
 
 const KIND_HINT: Record<IncomeKind, string> = {
@@ -237,7 +249,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       asset: sg.asset,
       kind: sg.kind,
       kindTouched: true,
-      payDate: sg.ex_date,
+      payDate: estimatedPayDate(sg.ex_date, sg.currency),
       exDate: dayBefore(sg.ex_date),
       gross: toCashMask(sg.gross, 2, sg.currency).text,
       withheld: Number(sg.withheld) ? toCashMask(sg.withheld, 2, sg.currency).text : "",
@@ -259,7 +271,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
           account: sg.account,
           asset: sg.asset,
           kind: sg.kind,
-          pay_date: sg.ex_date,
+          pay_date: estimatedPayDate(sg.ex_date, sg.currency),
           ex_date: dayBefore(sg.ex_date),
           gross: sg.gross,
           withheld: sg.withheld,

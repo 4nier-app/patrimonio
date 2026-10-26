@@ -119,3 +119,12 @@ describe("projeção dos próximos 12 meses", () => {
     expect(p.total).toBe(0);
   });
 });
+
+describe("data de pagamento estimada", () => {
+  it("nos EUA, 2 dias úteis depois da data ex; na B3, a data ex", async () => {
+    const { estimatedPayDate } = await import("./screens/Incomes");
+    expect(estimatedPayDate("2026-09-28", "USD")).toBe("2026-09-30"); // seg → qua
+    expect(estimatedPayDate("2026-09-25", "USD")).toBe("2026-09-29"); // sex → ter
+    expect(estimatedPayDate("2026-09-25", "BRL")).toBe("2026-09-25");
+  });
+});

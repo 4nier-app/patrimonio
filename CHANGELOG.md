@@ -21,7 +21,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   conta com o histórico de cada ativo desde a primeira compra, o app lista
   os proventos que ainda não estão lançados, com bruto, imposto retido e
   líquido. "Conferir e lançar" preenche o formulário; "Lançar todos" lança
-  de uma vez, com a data ex como data do pagamento.
+  de uma vez. A data do pagamento vem estimada: nos EUA, 2 dias úteis
+  depois da data ex; na B3, a própria data ex, para você ajustar.
 
 ## [0.21.0] - 2026-10-25
 
