@@ -69,6 +69,14 @@ const EMPTY: Form = {
   reason: "",
 };
 
+/** Data com: o dia útil anterior à data ex (pula o fim de semana). */
+function dayBefore(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  do d.setDate(d.getDate() - 1);
+  while (d.getDay() === 0 || d.getDay() === 6);
+  return d.toLocaleDateString("sv-SE");
+}
+
 const SUGGESTED_NOTE = "Pelo histórico do mercado (Yahoo); confira com o extrato";
 
 const KIND_HINT: Record<IncomeKind, string> = {
@@ -223,8 +231,6 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
 
   /** Preenche o formulário com uma sugestão do histórico do mercado. */
   function fill(sg: SuggestedIncome) {
-    const ex = new Date(`${sg.ex_date}T12:00:00`);
-    ex.setDate(ex.getDate() - 1);
     setForm({
       ...EMPTY,
       account: sg.account,
@@ -232,7 +238,7 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
       kind: sg.kind,
       kindTouched: true,
       payDate: sg.ex_date,
-      exDate: ex.toLocaleDateString("sv-SE"),
+      exDate: dayBefore(sg.ex_date),
       gross: toCashMask(sg.gross, 2, sg.currency).text,
       withheld: Number(sg.withheld) ? toCashMask(sg.withheld, 2, sg.currency).text : "",
       note: SUGGESTED_NOTE,
@@ -248,15 +254,13 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
     const done = new Set(launched);
     try {
       for (const sg of list) {
-        const ex = new Date(`${sg.ex_date}T12:00:00`);
-        ex.setDate(ex.getDate() - 1);
         await incomesApi.create({
           id: "",
           account: sg.account,
           asset: sg.asset,
           kind: sg.kind,
           pay_date: sg.ex_date,
-          ex_date: ex.toLocaleDateString("sv-SE"),
+          ex_date: dayBefore(sg.ex_date),
           gross: sg.gross,
           withheld: sg.withheld,
           currency: sg.currency,
