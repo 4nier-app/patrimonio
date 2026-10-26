@@ -7,6 +7,8 @@ export type VaultStatus = {
   has_recovery_key: boolean;
   unlocked: boolean;
   app_version: string;
+  /** Instalado pela Microsoft Store: a loja cuida das atualizações. */
+  store: boolean;
   data_dir: string;
   /** Perfil atual (cada pessoa da família tem o próprio cofre). */
   profile: string;
