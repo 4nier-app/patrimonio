@@ -6,6 +6,39 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.22.1] - 2026-10-26
+
+### Adicionado
+- A versão instalada aparece no topo do app, à direita da linha das abas.
+- Proventos: a lista de pagamentos diz de qual ano é ("Pagamentos de 2026")
+  e tem o seletor de ano ao lado, com a opção "Todos os anos".
+- Quantidade de ativos: em cada grupo da Evolução ("10 ativos"), na coluna
+  "Ativos" da Alocação e no cartão "Ativos em carteira" da Carteira.
+
+### Alterado
+- ETFs da B3 ganharam um grupo próprio, "ETFs na B3", separado de "Ações e
+  BDRs na B3", na Evolução e na Alocação. A meta que você tinha em "Ações e
+  ETFs na B3" fica em "Ações e BDRs na B3"; defina a dos ETFs se quiser.
+
+### Corrigido
+- FI-Infra (como KDIF11, JURO11 e CPTI11) e ETFs de renda fixa (como
+  IMAB11, B5P211 e FIXA11) ficam em "Renda fixa" e não entram mais no DARF:
+  as vendas de FI-Infra são isentas para pessoa física e o imposto dos ETFs
+  de renda fixa é retido pelo próprio fundo. A posição continua em Bens e
+  Direitos. A lista desses fundos é revista a cada versão.
+- Fiagros (como VGIA11 e XPCA11) ficam junto com os fundos imobiliários,
+  em "Fundos imobiliários e Fiagros", e não mais com as ações. Nos impostos
+  seguem a regra dos FIIs: 20% sobre o ganho na venda, sem a isenção de
+  R$ 20 mil, e rendimentos isentos.
+- Proventos que faltam lançar: a lista é atualizada assim que você salva um
+  provento, e o reconhecimento do que já foi lançado ficou mais tolerante
+  (vale o lançamento mais perto daquela data ex, com ou sem data com). Um
+  pagamento sem data com não é mais tomado pela data ex do trimestre
+  anterior, o que deixava o último provento do ativo na lista.
+- Proventos do mercado: o histórico vem do gráfico diário do Yahoo, que traz
+  todos os pagamentos (no mensal faltavam alguns, como os de dezembro/2025 de
+  ETFs americanos). Isso também corrige a estimativa dos próximos 12 meses.
+
 ## [0.22.0] - 2026-10-25
 
 ### Adicionado

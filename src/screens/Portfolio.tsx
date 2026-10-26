@@ -222,6 +222,11 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
       {view && (
         <div className="cards">
           <div className="card stat">
+            <span className="muted">Ativos em carteira</span>
+            <strong>{open.length}</strong>
+            <span className="muted small">por classe, em Carteira › Alocação</span>
+          </div>
+          <div className="card stat">
             <span className="muted">Custo da posição (R$)</span>
             <strong>{money(view.cost)}</strong>
           </div>

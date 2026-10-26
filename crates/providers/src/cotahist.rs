@@ -43,9 +43,13 @@ impl Record {
         self.market == "010"
     }
 
-    /// Classificação usada no catálogo.
+    /// Classificação usada no catálogo. Fiagro (fundo do agronegócio) segue
+    /// as regras de imposto do fundo imobiliário e fica junto com os FIIs.
     pub fn kind(&self) -> &'static str {
         let spec = self.specification.trim();
+        if self.short_name.trim_start().starts_with("FIAGRO") {
+            return "FII";
+        }
         match self.bdi.as_str() {
             "12" => "FII",
             "14" if spec.starts_with("CI") => "ETF",
@@ -252,6 +256,9 @@ pub(crate) mod tests {
         assert!(!recs[1].is_spot());
         assert_eq!(recs[2].kind(), "FII");
         assert_eq!(recs[3].kind(), "ETF");
+        let mut fiagro = recs[3].clone();
+        fiagro.short_name = "FIAGRO TEST".into();
+        assert_eq!(fiagro.kind(), "FII");
         assert_eq!(recs[4].close, dec!(0.045));
     }
 

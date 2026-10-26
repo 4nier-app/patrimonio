@@ -183,8 +183,10 @@ pub fn fetch_closes_dp(
 /// Proventos por cota pagos pelo ativo no período, pelo gráfico público com
 /// `events=div,splits`. Na B3, o Yahoo soma dividendos, JCP (bruto) e
 /// rendimentos de FII; nos EUA, o dividendo bruto. A data é a data ex.
+/// Usa o gráfico diário: no mensal o Yahoo às vezes deixa de fora um
+/// provento (faltava o de dezembro/2025 de ETFs americanos).
 pub fn dividends_url(symbol: &str, from: NaiveDate, to: NaiveDate) -> String {
-    chart_url(symbol, from, to).replace("interval=1d", "interval=1mo&events=div%2Csplits")
+    chart_url(symbol, from, to).replace("interval=1d", "interval=1d&events=div%2Csplits")
 }
 
 /// Proventos por cota e desdobramentos do ativo, como o Yahoo publica: o valor
@@ -454,7 +456,7 @@ mod tests {
             NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
             NaiveDate::from_ymd_opt(2025, 12, 31).unwrap()
         )
-        .contains("interval=1mo&events=div%2Csplits"));
+        .contains("interval=1d&events=div%2Csplits"));
     }
 
     #[test]

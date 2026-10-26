@@ -3,12 +3,13 @@
 
 import type { EvolutionView } from "./api";
 
-export type ClassId = "fundos" | "b3" | "fii" | "exterior" | "cripto" | "rf" | "fgts" | "dinheiro";
+export type ClassId = "fundos" | "b3" | "etf" | "fii" | "exterior" | "cripto" | "rf" | "fgts" | "dinheiro";
 
 export const CLASSES: { id: ClassId; label: string }[] = [
   { id: "fundos", label: "Fundos" },
-  { id: "b3", label: "Ações e ETFs na B3" },
-  { id: "fii", label: "Fundos imobiliários (FIIs)" },
+  { id: "b3", label: "Ações e BDRs na B3" },
+  { id: "etf", label: "ETFs na B3" },
+  { id: "fii", label: "Fundos imobiliários e Fiagros" },
   { id: "exterior", label: "Ações e ETFs no exterior" },
   { id: "cripto", label: "Criptomoedas" },
   { id: "rf", label: "Renda fixa" },
@@ -22,8 +23,7 @@ export const NO_DEPOSIT: ClassId[] = ["fgts"];
 /** Valor de hoje de cada classe (a coluna "hoje" da Evolução) e se faltou cotação em alguma linha. */
 export function currentValues(view: EvolutionView): { values: Record<ClassId, number>; missing: boolean } {
   const values = Object.fromEntries(CLASSES.map((c) => [c.id, 0])) as Record<ClassId, number>;
-  let col = view.columns.findIndex((c) => c.kind === "TODAY");
-  if (col < 0) col = view.columns.length - 1;
+  const col = todayColumn(view);
   let missing = false;
   for (const g of view.groups) {
     if (!(g.id in values)) continue;
@@ -34,6 +34,22 @@ export function currentValues(view: EvolutionView): { values: Record<ClassId, nu
     }
   }
   return { values, missing };
+}
+
+/** Coluna de hoje da Evolução; num ano passado, a última (31/12). */
+export function todayColumn(view: EvolutionView): number {
+  const col = view.columns.findIndex((c) => c.kind === "TODAY");
+  return col < 0 ? view.columns.length - 1 : col;
+}
+
+/** Quantos ativos do grupo têm valor na coluna (os já vendidos não contam). */
+export function heldCount(group: EvolutionView["groups"][number], col: number): number {
+  return group.rows.filter((r) => r.missing[col] || (r.values[col] != null && Number(r.values[col]) > 0)).length;
+}
+
+/** "1 ativo", "10 ativos". */
+export function assetsLabel(n: number): string {
+  return n === 1 ? "1 ativo" : `${n} ativos`;
 }
 
 export type Line = {

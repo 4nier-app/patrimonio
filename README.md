@@ -10,7 +10,7 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 
 ## O que faz
 
-- **Carteira consolidada em reais:** ações, FIIs, ETFs e BDRs da B3, fundos,
+- **Carteira consolidada em reais:** ações, FIIs, Fiagros, FI-Infra, ETFs e BDRs da B3, fundos,
   Tesouro Direto, renda fixa, corretoras do exterior e cripto, com FGTS, conta
   corrente e bens no patrimônio.
 - **Rentabilidade pelo tempo real de exposição:** o capital conta a partir da

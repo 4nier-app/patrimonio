@@ -356,7 +356,8 @@ pub fn update_all(
 ) -> Result<Vec<UpdateLine>, String> {
     let mut report = Vec::new();
     with(vault, |v| {
-        v.seed_crypto().map(|_| ()).map_err(|e| e.to_string())
+        v.seed_crypto().map(|_| ()).map_err(|e| e.to_string())?;
+        v.reclassify_listed().map(|_| ()).map_err(|e| e.to_string())
     })?;
 
     // 1. Catálogo.
@@ -426,7 +427,9 @@ pub fn update_all(
                     .map(|r| Asset {
                         ticker: r.ticker.clone(),
                         name: r.short_name.clone(),
-                        kind: r.kind().into(),
+                        kind: carteira_core::listed::special_kind(&r.ticker)
+                            .unwrap_or(r.kind())
+                            .into(),
                         market: "B3".into(),
                         currency: "BRL".into(),
                         isin: Some(r.isin.clone()).filter(|s| !s.is_empty()),

@@ -19,7 +19,7 @@ const MONTH_NAMES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
 const GROUP_LABEL: Record<TaxGroup, string> = {
   COMUM: "Operações comuns (15%)",
   DAY_TRADE: "Day trade (20%)",
-  FII: "Fundos imobiliários (20%)",
+  FII: "Fundos imobiliários e Fiagros (20%)",
 };
 
 const STATUS: Record<DarfStatus, { label: string; tone: string }> = {
@@ -399,7 +399,9 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
           <h2>Impostos</h2>
           <p className="muted">
             Imposto de renda sobre as vendas, calculado a partir dos lançamentos. B3: apuração mensal com DARF. Exterior e
-            criptomoedas: apuração anual, na declaração. Confira com um contador antes de pagar.
+            criptomoedas: apuração anual, na declaração. Vendas de FI-Infra (isentas para pessoa física) e de ETFs de renda fixa (o
+            imposto é retido pelo próprio fundo) não entram no DARF; a posição continua em Bens e Direitos. Confira com um contador antes
+            de pagar.
           </p>
         </div>
         {years.length > 0 && (

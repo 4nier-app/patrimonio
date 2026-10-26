@@ -240,6 +240,9 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               {t.label}
             </button>
           ))}
+          <span className="app-version" title="Versão instalada do 4Nier">
+            Versão {status.app_version}
+          </span>
         </nav>
         )}
       </header>

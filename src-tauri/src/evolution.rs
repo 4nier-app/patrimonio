@@ -238,21 +238,22 @@ pub fn columns(year: Option<i32>, first: NaiveDate, today: NaiveDate) -> Vec<Col
 }
 
 /// Grupo de cada linha: fundos por banco (o FMP-FGTS também é fundo), B3
-/// separada em ações/ETFs e FIIs, exterior, cripto, renda fixa, FGTS e
+/// separada em ações, ETFs e FIIs, exterior, cripto, renda fixa, FGTS e
 /// dinheiro.
 fn group_of(kind: Option<&str>, currency: &str, account: &str) -> (&'static str, String) {
     match kind {
         Some("FUNDO") => ("fundos", format!("Fundos · {account}")),
         Some("CRIPTO") => ("cripto", "Criptomoedas".into()),
-        Some("TESOURO") => ("rf", "Renda fixa".into()),
+        Some("TESOURO" | "FI_INFRA" | "ETF_RF") => ("rf", "Renda fixa".into()),
         _ if currency == USD => ("exterior", "Ações e ETFs no exterior".into()),
-        Some("FII") => ("fii", "Fundos imobiliários (FIIs)".into()),
-        _ => ("b3", "Ações e ETFs na B3".into()),
+        Some("FII") => ("fii", "Fundos imobiliários e Fiagros".into()),
+        Some("ETF") => ("etf", "ETFs na B3".into()),
+        _ => ("b3", "Ações e BDRs na B3".into()),
     }
 }
 
-const ORDER: [&str; 9] = [
-    "fundos", "b3", "fii", "exterior", "cripto", "rf", "fgts", "dinheiro", "bens",
+const ORDER: [&str; 10] = [
+    "fundos", "b3", "etf", "fii", "exterior", "cripto", "rf", "fgts", "dinheiro", "bens",
 ];
 
 struct Inputs<'a> {
@@ -359,7 +360,7 @@ fn build(
         units.insert(
             asset.clone(),
             match kind.as_deref() {
-                Some("FUNDO" | "FII" | "ETF") => "cotas".to_string(),
+                Some("FUNDO" | "FII" | "ETF" | "FI_INFRA" | "ETF_RF") => "cotas".to_string(),
                 Some("TESOURO") => "títulos".to_string(),
                 Some("CRIPTO") => asset.clone(),
                 _ => "ações".to_string(),
@@ -916,11 +917,15 @@ mod tests {
             "Fundos · Banco A"
         );
         assert_eq!(group_of(Some("ETF"), USD, "").0, "exterior");
+        assert_eq!(group_of(Some("FI_INFRA"), BRL, "").0, "rf");
+        assert_eq!(group_of(Some("ETF_RF"), BRL, "").0, "rf");
         assert_eq!(group_of(Some("CRIPTO"), USD, "").0, "cripto");
         assert_eq!(group_of(Some("FII"), BRL, "").0, "fii");
         assert_eq!(group_of(Some("TESOURO"), BRL, "").0, "rf");
         assert_eq!(group_of(Some("ACAO"), BRL, "").0, "b3");
         assert_eq!(group_of(None, BRL, "").0, "b3");
+        assert_eq!(group_of(Some("ETF"), BRL, "").0, "etf");
+        assert_eq!(group_of(Some("ETF"), USD, "").0, "exterior");
     }
 
     #[test]
