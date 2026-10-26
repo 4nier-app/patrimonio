@@ -23,7 +23,7 @@ export default function Security({ status, onRestored, onChanged, onErased }: Pr
         <Recovery onChanged={onChanged} />
         <Backup onRestored={onRestored} />
         <ChangePassword />
-        <UpdateNotice />
+        {!status.store && <UpdateNotice />}
         <EraseProfile status={status} onErased={onErased} />
       </div>
     </section>

@@ -29,6 +29,9 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Versão da Microsoft Store (gerada com `CARTEIRA_LOJA` definida): a própria
+/// loja atualiza o aplicativo, então ele não procura versão nova no GitHub.
+const STORE: bool = option_env!("CARTEIRA_LOJA").is_some();
 const AUTO_BACKUP_DAYS: i64 = 7;
 const AUTO_BACKUP_KEEP: usize = 5;
 /// Dias sem backup salvo fora do computador até o aviso aparecer.
@@ -75,6 +78,8 @@ struct VaultStatus {
     has_recovery_key: bool,
     unlocked: bool,
     app_version: &'static str,
+    /// Instalado pela Microsoft Store.
+    store: bool,
     data_dir: String,
     /// Perfil atual e todos os perfis, para a tela de entrada.
     profile: String,
@@ -108,6 +113,7 @@ fn vault_status(state: State<AppState>) -> VaultStatus {
         has_recovery_key: Vault::has_recovery_key(&dir),
         unlocked: state.unlocked(),
         app_version: APP_VERSION,
+        store: STORE,
         data_dir: dir.display().to_string(),
         profile: state.profile.lock().map(|p| p.clone()).unwrap_or_default(),
         profiles: profiles::load(base)
@@ -1081,7 +1087,7 @@ struct UpdateInfo {
 async fn check_update(app: tauri::AppHandle) -> Result<Option<UpdateInfo>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
-        if !update_notice(state.clone())? {
+        if STORE || !update_notice(state.clone())? {
             return Ok(None);
         }
         let Ok(latest) = carteira_providers::github::latest_version() else {
