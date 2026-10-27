@@ -1883,7 +1883,9 @@ mod tests {
         .unwrap();
         f.yahoo_calls.borrow_mut().clear();
         let report = update_all(&vault, &f, today).unwrap();
-        assert!(report.iter().any(|l| l.source.starts_with("Dólar comercial") && l.ok));
+        assert!(report
+            .iter()
+            .any(|l| l.source.starts_with("Dólar comercial") && l.ok));
         let calls = f.yahoo_calls.borrow();
         let (_, from) = calls.iter().find(|(s, _)| s == "BRL=X").unwrap();
         assert!(*from <= today);
