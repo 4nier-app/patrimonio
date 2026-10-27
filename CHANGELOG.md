@@ -6,6 +6,38 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.23.0] - 2026-10-27
+
+### Adicionado
+- Visão simples: um seletor no topo troca entre a visão simples e a completa.
+  Na simples, o Painel mostra em letras grandes quanto você tem, quanto os
+  investimentos renderam no ano e se ganharam do CDI, a meta de patrimônio e
+  onde está o dinheiro. A Carteira mostra só ativo, quantidade, valor hoje e
+  ganho desde a compra. As abas Evolução e Home broker e a Rentabilidade
+  ficam só na visão completa. O primeiro uso guiado pergunta qual visão você
+  prefere, já marcando a simples.
+- Importar da B3 lê também o extrato de movimentação: os dividendos, JCP e
+  rendimentos que caíram na conta entram de uma vez em Proventos (os que já
+  estão lançados ficam de fora), e as bonificações e desdobramentos vão para
+  Eventos, com a proporção calculada pelas ações que você tinha na data com.
+  O JCP vem no extrato já com os 15% de imposto descontados: o aplicativo
+  lança o bruto e o imposto retido. As compras e vendas desse extrato ficam
+  de fora, porque vêm do extrato de negociação.
+
+### Alterado
+- O primeiro uso guiado termina com dicas das funções mais novas: importar da
+  B3, proventos que faltam lançar, alocação e meta de patrimônio.
+- As novas versões são publicadas direto no GitHub, com as novidades desta
+  lista.
+- Página de privacidade: novas seções sobre os arquivos importados (lidos só
+  no computador) e sobre a LGPD.
+- Site e README com as telas novas, incluindo a visão simples e a importação
+  de proventos da B3.
+
+### Corrigido
+- Rentabilidade: um mês com resultado negativo em reais não quebra mais a
+  linha do valor no cartão do mês.
+
 ## [0.22.2] - 2026-10-26
 
 ### Alterado

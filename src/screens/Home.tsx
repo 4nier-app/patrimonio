@@ -341,6 +341,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           <FirstUse
             onDone={() => {
               setFirstUse(false);
+              setSimple(simpleView());
               setTab("painel");
               void updateQuotes();
             }}

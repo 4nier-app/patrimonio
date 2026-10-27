@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Intro from "../components/Intro";
-import { b3Api, errorMessage, market, notesApi, type Account, type B3Skipped, type B3Trade, type Operation, type PricedOperation } from "../api";
+import { b3Api, errorMessage, market, notesApi, type Account, type B3Movement, type B3Skipped, type B3Trade, type Operation, type PricedOperation } from "../api";
 import { normalizeTicker } from "../currency";
 import { date, money, price, quantity } from "../format";
+import ImportB3Movements from "./ImportB3Movements";
 
 /** Negócios da mesma corretora no mesmo dia: entram juntos, como uma nota. */
 type Group = {
@@ -32,7 +33,7 @@ function plain(s: string): string {
  * Conta para a corretora como a B3 escreve ("ITAU CORRETORA DE VALORES S/A"):
  * a conta já cadastrada cujo nome aparece nela; senão, a primeira palavra.
  */
-function guessAccount(institution: string, accounts: Account[]): string {
+export function guessAccount(institution: string, accounts: Account[]): string {
   const inst = plain(institution);
   const found = accounts.filter((a) => a.currency === "BRL").find((a) => {
     const first = plain(a.name).split(/\s+/)[0];
@@ -56,7 +57,7 @@ function signature(items: { asset: string; side: string; quantity: string }[]): 
     .join(";");
 }
 
-/** Lançamentos > Importar da B3: o extrato de negociação da Área do Investidor. */
+/** Lançamentos > Importar da B3: os extratos de negociação e de movimentação da Área do Investidor. */
 export default function ImportB3({ onImported }: { onImported: () => void }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [ops, setOps] = useState<PricedOperation[]>([]);
@@ -66,6 +67,7 @@ export default function ImportB3({ onImported }: { onImported: () => void }) {
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [movements, setMovements] = useState<{ movements: B3Movement[]; skipped: B3Skipped[] } | null>(null);
 
   useEffect(() => {
     market.listAccounts().then(setAccounts).catch(() => {});
@@ -78,9 +80,17 @@ export default function ImportB3({ onImported }: { onImported: () => void }) {
     setMessage(null);
     setGroups([]);
     setSkipped([]);
+    setMovements(null);
     setFile(f.name);
+    const bytes = new Uint8Array(await f.arrayBuffer());
     try {
-      const x = await b3Api.readTrades(new Uint8Array(await f.arrayBuffer()));
+      const x = await b3Api.readTrades(bytes).catch(async (e) => {
+        // Extrato de movimentação: proventos e eventos, em outra lista.
+        if (!errorMessage(e).includes("movimentação")) throw e;
+        setMovements(await b3Api.readMovements(bytes));
+        return null;
+      });
+      if (!x) return;
       setSkipped(x.skipped);
       const map: Record<string, string> = {};
       for (const t of x.trades) map[t.institution] ??= guessAccount(t.institution, accounts);
@@ -179,11 +189,18 @@ export default function ImportB3({ onImported }: { onImported: () => void }) {
             em Excel. O extrato traz as compras e vendas de ações, FIIs e ETFs de todas as corretoras; opções, termo e futuro ficam de fora. Ele
             não traz as taxas: o aplicativo calcula as da B3 e a corretagem informada para a conta, como num lançamento manual. Os negócios da
             mesma corretora no mesmo dia entram juntos. Um dia que já tem os mesmos lançamentos (de uma nota de corretagem, por exemplo) fica de
-            fora, para não lançar duas vezes. O arquivo é lido aqui no computador.
+            fora, para não lançar duas vezes.
+            <br />
+            <br />
+            Em Extratos › Movimentação, o extrato traz os dividendos, JCP e rendimentos que caíram na conta, e as bonificações e desdobramentos.
+            Escolha esse arquivo aqui também: o aplicativo mostra os proventos para lançar de uma vez (os já lançados ficam de fora) e calcula a
+            proporção de cada evento pelas ações que você tinha na data com. As compras e vendas desse extrato ficam de fora: elas vêm do extrato de
+            negociação. Os arquivos são lidos aqui no computador.
           </>
         }
       >
-        Traga de uma vez o histórico de compras e vendas na bolsa, de todas as corretoras, com o extrato de negociação da Área do Investidor da B3.
+        Traga de uma vez o histórico da bolsa, de todas as corretoras: as compras e vendas com o extrato de negociação, e os proventos, bonificações e
+        desdobramentos com o extrato de movimentação da Área do Investidor da B3.
       </Intro>
       <div className="actions">
         <label className="file-pick">
@@ -204,6 +221,8 @@ export default function ImportB3({ onImported }: { onImported: () => void }) {
       )}
 
       {message && <p className={message.ok ? "ok" : "error"}>{message.text}</p>}
+
+      {movements && file && <ImportB3Movements key={file + movements.movements.length} file={file} data={movements} accounts={accounts} onImported={onImported} />}
 
       {institutions.length > 0 && (
         <div className="card stack">
