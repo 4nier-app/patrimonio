@@ -127,7 +127,8 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space
         <h1>Seus investimentos num lugar só, com cada conta à mostra.</h1>
         <p class="lead">Ações, FIIs, fundos, Tesouro, exterior e cripto, consolidados em reais. Rentabilidade pelo tempo real em que o dinheiro ficou aplicado, DARF calculado e Bens e Direitos pronto para a declaração. Grátis e de código aberto.</p>
         <div class="download">
-          <a class="btn" href="https://github.com/4nier-app/patrimonio/releases/latest">Baixar grátis</a>
+          <a class="btn" href="https://apps.microsoft.com/detail/9PJLQX9CT76X">Baixar na Microsoft Store</a>
+          <a class="btn ghost" href="https://github.com/4nier-app/patrimonio/releases/latest">Mac, Linux ou instalador</a>
           <a class="btn ghost" href="#instalar">Como instalar</a>
         </div>
         <p class="note">Para computador com Windows, Mac ou Linux. Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.</p>
@@ -197,12 +198,13 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space
 <section id="instalar">
   <div class="wrap">
     <h2>Como instalar</h2>
-    <p class="sub">Baixe o arquivo do seu sistema na <a href="https://github.com/4nier-app/patrimonio/releases/latest">página de versões</a>. O aplicativo ainda não tem assinatura digital paga, por isso o sistema mostra um aviso na primeira vez.</p>
+    <p class="sub">No Windows, o jeito mais fácil é a <a href="https://apps.microsoft.com/detail/9PJLQX9CT76X">Microsoft Store</a>: instala sem aviso de segurança e atualiza sozinho. Para Mac e Linux, ou se preferir o instalador, baixe o arquivo do seu sistema na <a href="https://github.com/4nier-app/patrimonio/releases/latest">página de versões</a>. Esses arquivos ainda não têm assinatura digital paga, por isso o sistema mostra um aviso na primeira vez.</p>
     <div class="steps">
       <div class="step">
         <h3>Windows 10 ou 11</h3>
         <ol>
-          <li>Baixe o arquivo que termina em <b>-setup.exe</b>.</li>
+          <li>Recomendado: abra a <a href="https://apps.microsoft.com/detail/9PJLQX9CT76X">página do 4Nier na Microsoft Store</a> e clique em <b>Obter</b>. Pronto, não precisa dos passos abaixo.</li>
+          <li>Ou baixe o arquivo que termina em <b>-setup.exe</b>.</li>
           <li>Abra o arquivo. Se aparecer "O Windows protegeu o computador", clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>.</li>
           <li>Siga o instalador e abra o 4Nier pelo menu Iniciar.</li>
         </ol>
@@ -242,7 +244,8 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space
     <h2>Perguntas frequentes</h2>
     <details><summary>É grátis mesmo?</summary><p>Sim, para sempre. O código é aberto sob a licença GPL-3.0, não há versão paga, assinatura nem anúncio.</p></details>
     <details><summary>Meus dados vão para algum servidor?</summary><p>Não. Tudo fica num arquivo criptografado no seu computador. O aplicativo só acessa a internet para baixar cotações, PTAX, cotas de fundos e preços do Tesouro, sem enviar nada seu.</p></details>
-    <details><summary>Como atualizo para uma versão nova?</summary><p>Quando sai uma versão nova, o aplicativo mostra um aviso no topo com o botão "Atualizar agora". Ele baixa o instalador daqui, confere a assinatura do projeto, instala por cima e abre de novo, com os seus dados no mesmo lugar. Se preferir, baixe pelo botão "Baixar grátis" e instale por cima. Quem instalou pela Microsoft Store recebe as atualizações pela própria loja.</p></details>
+    <details><summary>Como atualizo para uma versão nova?</summary><p>Quando sai uma versão nova, o aplicativo mostra um aviso no topo com o botão "Atualizar agora". Ele baixa o instalador daqui, confere a assinatura do projeto, instala por cima e abre de novo, com os seus dados no mesmo lugar. Se preferir, baixe na página de versões e instale por cima. Quem instalou pela Microsoft Store recebe as atualizações pela própria loja.</p></details>
+    <details><summary>Já uso o instalador. Vale trocar pela Microsoft Store?</summary><p>Não precisa: as duas versões são o mesmo aplicativo. Se quiser trocar, saiba que a versão da loja guarda os dados numa pasta separada. Faça um backup na versão que você usa hoje (Segurança › Backup), instale pela loja, use "Restaurar um backup" na tela de entrada e depois desinstale a versão antiga.</p></details>
     <details><summary>Como fica a LGPD?</summary><p>O aplicativo não coleta nenhum dado seu: não tem cadastro, servidor, anúncio nem rastreador, e o autor não recebe dado de ninguém. Na internet, ele só consulta dados públicos de mercado (B3, Banco Central, CVM, Tesouro, Yahoo Finance, Coinbase e Nasdaq), enviando códigos de ativos, CNPJ de fundos e datas, nunca nome, CPF ou valores. Ao abrir, ele também pergunta ao GitHub qual é a versão mais recente, para avisar de atualização (dá para desligar em Segurança); em "Atualizar agora", ele baixa do GitHub o instalador assinado da versão nova. Esta página fica no GitHub Pages, que registra acessos conforme a <a href="https://docs.github.com/pt/site-policy/privacy-policies/github-general-privacy-statement">política de privacidade do GitHub</a>.</p></details>
     <details><summary>Como apago meus dados?</summary><p>No aplicativo, em Segurança › "Apagar perfil e todos os dados" (pede a senha). No Windows, ao desinstalar, marque "Apagar também meus dados". No Mac e no Linux, apague a pasta <code>io.github.marcelofournier.carteiraauditavel</code> em <code>~/Library/Application Support</code> (Mac) ou <code>~/.local/share</code> (Linux). Backups que você salvou em outro lugar ficam onde estão.</p></details>
     <details><summary>Como o app converte o dólar?</summary><p>Nos impostos, sempre pela PTAX de venda do Banco Central de cada data, como exige a Lei 14.754/2023. No resto do aplicativo também vale a PTAX, a não ser que você informe o custo da corretora para trazer o dinheiro ao Brasil (na Nomad, conversão de 1% + IOF de 0,38%). Aí o saldo dela aparece pelo valor de resgate: o dólar comercial do dia menos essas taxas, o que chegaria de fato na sua conta. As compras também entram pelo valor de resgate do dia em que foram feitas, então o ganho é o que você teria a mais em reais depois de trazer o dinheiro. A conta completa aparece na Carteira e num ⓘ ao lado de cada valor.</p></details>
