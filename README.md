@@ -4,7 +4,7 @@ Controle de investimentos B3 + exterior com rentabilidade auditável, 100% local
 
 ![Painel do 4Nier com dados fictícios](docs/img/painel.webp)
 
-**[Baixar a versão mais recente](https://github.com/4nier-app/patrimonio/releases/latest)** · para Windows, Mac e Linux · grátis e de código aberto
+**[Baixar na Microsoft Store](https://apps.microsoft.com/detail/9PJLQX9CT76X)** (Windows) · **[Baixar para Mac, Linux ou o instalador do Windows](https://github.com/4nier-app/patrimonio/releases/latest)** · grátis e de código aberto
 
 Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 
@@ -68,9 +68,12 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 
 ## Instalação
 
-Baixe o arquivo do seu sistema na página
+No Windows, o jeito mais fácil é a
+[Microsoft Store](https://apps.microsoft.com/detail/9PJLQX9CT76X): instala sem aviso de segurança e atualiza sozinho.
+
+Ou baixe o arquivo do seu sistema na página
 [Releases](https://github.com/4nier-app/patrimonio/releases/latest).
-O aplicativo ainda não tem assinatura digital paga, então o sistema avisa na
+Esses arquivos ainda não têm assinatura digital paga, então o sistema avisa na
 primeira vez:
 
 - **Windows 10/11 (64 bits):** arquivo `-setup.exe`. Em "O Windows protegeu o
