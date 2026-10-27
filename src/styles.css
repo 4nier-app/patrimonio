@@ -319,6 +319,7 @@ button.ret-month:hover { border-color: var(--accent); filter: none; }
 .ret-month.neg { border-left: 3px solid var(--error); }
 .ret-month.empty { background: transparent; border-style: dashed; opacity: 0.6; }
 .ret-month-name { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.ret-month > span { white-space: nowrap; }
 .ret-assets h3 { margin: 0 0 8px; }
 .ret-table { width: 100%; }
 .ret-table td { vertical-align: top; }
@@ -613,6 +614,10 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .first-use p { margin: 0; }
 .first-use-steps { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 0; padding: 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .first-use-steps li.active { color: var(--accent); font-weight: 700; }
+.first-use-view { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: grid; gap: 10px; margin: 0; }
+.first-use-view legend { font-weight: 700; padding: 0 6px; }
+.first-use-view label { flex-direction: row; gap: 10px; align-items: flex-start; cursor: pointer; font-weight: 400; }
+.first-use-view input { width: auto; margin-top: 3px; }
 .first-use-steps li.done { color: var(--text); }
 .first-use-date { max-width: 320px; }
 .first-use-table input, .first-use-table select { width: 100%; min-width: 90px; }
@@ -647,3 +652,14 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .goal-form label:not(.check) { min-width: 200px; }
 p.pos, strong.pos { color: var(--ok); }
 .tax-disclaimer { margin: 0 0 14px; line-height: 1.5; }
+
+/* Visão simples */
+.simple-hero { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 24px; align-items: start; }
+.simple-fig { display: flex; flex-direction: column; gap: 6px; }
+.simple-fig strong { font-size: 30px; line-height: 1.15; }
+.simple-fig strong.simple-big { font-size: 44px; }
+@media (max-width: 900px) { .simple-hero { grid-template-columns: 1fr; } }
+.simple-table td, .simple-table th { font-size: 15px; }
+.mov-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 18px; align-items: start; }
+.mov-fields label { display: grid; gap: 4px; }
+.first-use-tips { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; }

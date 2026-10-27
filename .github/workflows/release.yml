@@ -1,8 +1,9 @@
 name: Publicar versão
 
-# Ao criar uma etiqueta (tag) v*, gera os instaladores de Windows, Mac e
-# Linux e os anexa a um rascunho de versão no GitHub. O rascunho só fica
-# visível depois de publicado à mão na página Releases.
+# Gera os instaladores de Windows, Mac e Linux, anexa à versão no GitHub e
+# publica como a mais recente, com as novidades tiradas do CHANGELOG.md. A
+# versão fica como rascunho enquanto os instaladores são gerados: se algum
+# sistema falhar, ela não é publicada.
 on:
   push:
     tags: ["v*"]
@@ -78,3 +79,28 @@ jobs:
         with:
           releaseId: ${{ needs.rascunho.outputs.id }}
           args: ${{ matrix.args }}
+
+  publicar:
+    needs: [rascunho, instaladores]
+    if: needs.rascunho.outputs.id != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          versao=$(node -p "require('./package.json').version")
+          # A seção desta versão no CHANGELOG, sem o título.
+          awk -v v="$versao" '
+            /^## \[/ { dentro = index($0, "[" v "]") > 0; next }
+            dentro' CHANGELOG.md > notas.md
+          {
+            echo
+            echo "## Como instalar"
+            echo
+            echo "- Windows: baixe o arquivo que termina em -setup.exe."
+            echo "- Mac: baixe o .dmg (na primeira vez, botão direito › Abrir)."
+            echo "- Linux: .deb ou .AppImage."
+          } >> notas.md
+          jq -n --rawfile body notas.md '{draft: false, make_latest: "true", body: $body}' \
+            | gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/${{ needs.rascunho.outputs.id }}" --input - --jq .html_url

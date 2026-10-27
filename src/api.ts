@@ -304,7 +304,21 @@ export type B3Trade = {
 
 export type B3Skipped = { line: number; text: string; reason: string };
 
+export type B3Movement = {
+  line: number;
+  date: string;
+  kind: "DIVIDENDO" | "JCP" | "RENDIMENTO" | "BONIFICACAO" | "DESDOBRAMENTO";
+  description: string;
+  ticker: string;
+  institution: string;
+  quantity: Dec | null;
+  unit_price: Dec | null;
+  value: Dec | null;
+};
+
 export const b3Api = {
+  readMovements: (bytes: Uint8Array) =>
+    invoke<{ movements: B3Movement[]; skipped: B3Skipped[] }>("read_b3_movements", { bytes: Array.from(bytes) }),
   readTrades: (bytes: Uint8Array) => invoke<{ trades: B3Trade[]; skipped: B3Skipped[] }>("read_b3_trades", { bytes: Array.from(bytes) }),
 };
 

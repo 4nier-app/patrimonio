@@ -1,7 +1,7 @@
 {
   "name": "carteira-auditavel",
   "private": true,
-  "version": "0.22.2",
+  "version": "0.23.0",
   "description": "Controle de investimentos B3 + exterior com rentabilidade auditável, 100% local e gratuito",
   "license": "GPL-3.0-or-later",
   "type": "module",

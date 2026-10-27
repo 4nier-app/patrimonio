@@ -25,6 +25,7 @@ import Security from "./Security";
 import Taxes, { pendingDarfs } from "./Taxes";
 import { isSavings } from "../currency";
 import { setThemePref, themePref, type ThemePref } from "../theme";
+import { ADVANCED_TABS, setSimpleView, simpleView } from "../viewMode";
 
 // A leitura de PDF (pdf.js) só carrega quando a aba é aberta.
 const ImportNotes = lazy(() => import("./ImportNotes"));
@@ -108,8 +109,13 @@ export default function Home({ status, onLocked, onChanged }: Props) {
     // Entre chaves: no Windows, window.scrollTo devolve uma Promise.
     window.scrollTo({ top: 0 });
   }
-  const sections = tab in SECTIONS ? SECTIONS[tab as keyof typeof SECTIONS] : null;
-  const current = section[tab];
+  const [simple, setSimple] = useState(simpleView);
+  const tabs = simple ? TABS.filter((t) => !(ADVANCED_TABS as readonly string[]).includes(t.id)) : TABS;
+  // Na visão simples a Carteira é só a lista de posições e some a planilha genérica.
+  const allSections = tab in SECTIONS ? SECTIONS[tab as keyof typeof SECTIONS] : null;
+  const sections =
+    allSections && simple ? (tab === "carteira" ? null : allSections.filter((x) => x.id !== "planilha")) : allSections;
+  const current = simple && tab === "carteira" ? "posicoes" : simple && section[tab] === "planilha" ? "manual" : section[tab];
   const [theme, setTheme] = useState<ThemePref>(themePref);
   const [updating, setUpdating] = useState(false);
   const [report, setReport] = useState<UpdateLine[] | null>(null);
@@ -225,6 +231,21 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               <option value="light">☀ Tema claro</option>
               <option value="dark">☾ Tema escuro</option>
             </select>
+            <select
+              className="theme-pick"
+              aria-label="Visão"
+              title="A visão simples mostra só o essencial; os cálculos são os mesmos"
+              value={simple ? "simples" : "completa"}
+              onChange={(e) => {
+                const on = e.target.value === "simples";
+                setSimple(on);
+                setSimpleView(on);
+                if (on && (ADVANCED_TABS as readonly string[]).includes(tab)) setTab("painel");
+              }}
+            >
+              <option value="simples">Visão simples</option>
+              <option value="completa">Visão completa</option>
+            </select>
             <button className="secondary" onClick={updateQuotes} disabled={updating} title="As cotações já são atualizadas ao abrir e depois de cada lançamento; use para buscar de novo agora">
               {updating ? "Atualizando…" : "↻ Atualizar cotações"}
             </button>
@@ -235,7 +256,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
         </div>
         {!firstUse && (
         <nav>
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button key={t.id} className={tab === t.id ? "tab active" : "tab"} onClick={() => setTab(t.id)}>
               {t.label}
             </button>
@@ -320,6 +341,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           <FirstUse
             onDone={() => {
               setFirstUse(false);
+              setSimple(simpleView());
               setTab("painel");
               void updateQuotes();
             }}
@@ -337,7 +359,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               onLoaded={(d) => rememberAsset(d.ticker, d.name)}
             />
           )}
-          {!asset && tab === "painel" && <Panel refresh={refresh} go={setTab} hasRecovery={status.has_recovery_key} darfs={darfs} />}
+          {!asset && tab === "painel" && <Panel refresh={refresh} go={setTab} hasRecovery={status.has_recovery_key} darfs={darfs} simple={simple} />}
           {!asset && tab === "homebroker" && <Broker refresh={refresh} onOpen={openAsset} />}
           {!asset && sections && (
             <div className="subtabs" role="tablist">
@@ -371,7 +393,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           {!asset && tab === "lancamentos" && current === "eventos" && (
             <Events onChanged={() => void updateQuotes()} onIncomes={() => setTab("lancamentos", "proventos")} />
           )}
-          {!asset && tab === "carteira" && current === "posicoes" && <Portfolio refresh={refresh} onOpen={openAsset} />}
+          {!asset && tab === "carteira" && current === "posicoes" && <Portfolio refresh={refresh} onOpen={openAsset} simple={simple} />}
           {!asset && tab === "carteira" && current === "rentabilidade" && (
             <>
               <Returns key={refresh} onToday={() => setTab("homebroker")} />

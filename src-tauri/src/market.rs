@@ -299,7 +299,10 @@ fn update_commercial_dollar(
             .map_err(|e| e.to_string())
     })?;
     let start = match range {
-        Some((lo, hi)) if lo <= first => hi,
+        // O Yahoo data o dólar pelo horário de Londres: perto da meia-noite o
+        // último dia gravado pode ser "amanhã" no Brasil. Pedir a partir dele
+        // daria um período que termina antes de começar.
+        Some((lo, hi)) if lo <= first => hi.min(today),
         _ => first - Duration::days(10),
     };
     match fetcher.commercial_dollar(start, today) {
@@ -1862,6 +1865,30 @@ mod tests {
             ptax.cost_rate("Exterior", d).unwrap().rate,
             Decimal::from(5)
         );
+
+        // Dólar gravado com a data de amanhã (fuso de Londres perto da
+        // meia-noite): a próxima busca ainda começa no máximo hoje.
+        with(&vault, |v| {
+            v.save_fx_pair(
+                USD_BRL_COMMERCIAL,
+                &[NewFxRate {
+                    date: today + Duration::days(1),
+                    buy: Decimal::from(99),
+                    sell: Decimal::from(99),
+                    source: yahoo::SOURCE.into(),
+                }],
+            )
+            .map_err(|e| e.to_string())
+        })
+        .unwrap();
+        f.yahoo_calls.borrow_mut().clear();
+        let report = update_all(&vault, &f, today).unwrap();
+        assert!(report
+            .iter()
+            .any(|l| l.source.starts_with("Dólar comercial") && l.ok));
+        let calls = f.yahoo_calls.borrow();
+        let (_, from) = calls.iter().find(|(s, _)| s == "BRL=X").unwrap();
+        assert!(*from <= today);
     }
 
     #[test]

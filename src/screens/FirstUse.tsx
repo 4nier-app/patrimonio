@@ -3,6 +3,7 @@ import { api, errorMessage, market, savingsApi, type Account, type Currency, typ
 import CashInput from "../components/CashInput";
 import { currencyOfNewAccount, fundTicker, normalizeTicker } from "../currency";
 import { keepNumberChars, maskDecimal, money, parseDecimalInput, priceDecimals } from "../format";
+import { setSimpleView } from "../viewMode";
 
 /** Corretoras sugeridas no campo (dá para digitar outra). */
 const BROKERS = ["Itaú", "XP", "BTG Pactual", "Nubank", "Rico", "Clear", "Inter", "Santander", "Bradesco", "Banco do Brasil", "Nomad", "Avenue", "Carteira física"];
@@ -35,6 +36,7 @@ function todayIso(): string {
  */
 export default function FirstUse({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [simple, setSimple] = useState(true);
   const [date, setDate] = useState(lastYearEnd);
   const [rows, setRows] = useState<Row[]>([emptyRow(), emptyRow(), emptyRow()]);
   const [balances, setBalances] = useState<Balance[]>([emptyBalance()]);
@@ -165,6 +167,7 @@ export default function FirstUse({ onDone }: { onDone: () => void }) {
     setBusy(true);
     try {
       await api.finishFirstUse();
+      if (step === 3) setSimpleView(simple);
       onDone();
     } catch (e) {
       setError(errorMessage(e));
@@ -362,10 +365,32 @@ export default function FirstUse({ onDone }: { onDone: () => void }) {
               {rows.filter((r) => r.done).length} ativo(s) e {balances.filter((b) => b.done).length} saldo(s) lançados. O aplicativo vai buscar as
               cotações agora e abrir o Painel.
             </p>
-            <p className="muted">
-              Dicas: importe as próximas notas de corretagem em Lançamentos › Importar notas; faça um backup em Segurança e guarde fora deste
-              computador; e confira tudo em Carteira.
-            </p>
+            <fieldset className="first-use-view">
+              <legend>Como prefere ver?</legend>
+              <label>
+                <input type="radio" name="visao" checked={simple} onChange={() => setSimple(true)} />
+                <span>
+                  <b>Visão simples</b>: quanto você tem, quanto rendeu no ano e se ganhou do CDI, e uma carteira com poucas colunas.
+                </span>
+              </label>
+              <label>
+                <input type="radio" name="visao" checked={!simple} onChange={() => setSimple(false)} />
+                <span>
+                  <b>Visão completa</b>: todas as abas, com a evolução mês a mês, a rentabilidade detalhada e o home broker.
+                </span>
+              </label>
+              <span className="muted small">Dá para trocar quando quiser, no seletor do topo.</span>
+            </fieldset>
+            <div className="muted">
+              Próximos passos, quando quiser:
+              <ul className="first-use-tips">
+                <li>Traga o histórico da bolsa em Lançamentos › Importar da B3: o extrato de negociação traz as compras e vendas, e o de movimentação, os proventos, bonificações e desdobramentos.</li>
+                <li>Importe as próximas notas de corretagem em Lançamentos › Importar notas.</li>
+                <li>Veja em Lançamentos › Proventos os que faltam lançar.</li>
+                <li>Defina a divisão ideal da carteira em Carteira › Alocação e uma meta de patrimônio no Painel.</li>
+                <li>Faça um backup em Segurança e guarde fora deste computador.</li>
+              </ul>
+            </div>
           </>
         )}
 

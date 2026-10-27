@@ -45,9 +45,10 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Imposto de renda:** apuração mensal da B3 (isenção de R$ 20 mil, day trade,
   FIIs, prejuízo a compensar) com aviso de DARF; ganho anual no exterior e em
   cripto pela Lei 14.754; posições em 31/12 para Bens e Direitos.
-- **Menos digitação:** importa o extrato de negociação da B3 (todas as
-  corretoras de uma vez), notas em PDF no padrão SINACOR e confirmações da
-  Nomad, ou uma planilha CSV. Cotações, PTAX, cotas de fundos (CVM) e preços do
+- **Menos digitação:** importa os extratos da B3 (todas as corretoras de uma
+  vez): o de negociação traz as compras e vendas, e o de movimentação traz os
+  dividendos, JCP e rendimentos, as bonificações e os desdobramentos. Lê também
+  notas em PDF no padrão SINACOR e confirmações da Nomad, ou uma planilha CSV. Cotações, PTAX, cotas de fundos (CVM) e preços do
   Tesouro são buscados automaticamente.
 - **Seus dados ficam com você:** tudo roda localmente, num banco criptografado
   pela sua senha. Nenhum servidor, nenhuma conta, nenhum custo. O app faz um
@@ -56,6 +57,10 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Começo rápido:** num perfil novo, informe o que você tem hoje em cada
   corretora (quantidade e preço médio) e a carteira fica pronta, sem precisar
   de todo o histórico.
+- **Visão simples ou completa:** a visão simples mostra em letras grandes
+  quanto você tem, quanto rendeu no ano e se ganhou do CDI, e uma carteira com
+  poucas colunas. A completa tem todas as abas, com a evolução mês a mês e a
+  rentabilidade detalhada. Troque quando quiser, no topo do app.
 
 ## Instalação
 

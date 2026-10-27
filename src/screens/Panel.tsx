@@ -86,11 +86,14 @@ export default function Panel({
   go,
   hasRecovery,
   darfs,
+  simple = false,
 }: {
   refresh: number;
   go: PanelGo;
   hasRecovery: boolean;
   darfs: TaxMonth[];
+  /** Visão simples: só o total, o rendimento e onde está o dinheiro. */
+  simple?: boolean;
 }) {
   const [year, setYear] = useState<EvolutionView | null>(null);
   const [all, setAll] = useState<EvolutionView | null>(null);
@@ -167,24 +170,7 @@ export default function Panel({
   const resgateAccounts = [...new Set(resgate.flatMap((p) => p.accounts))];
   const resgateTip = resgate.map((p) => `${p.asset}: ${resgateNote(p)}`).join("\n\n");
 
-  return (
-    <section className="panel">
-      <div className="dash-head">
-        <div>
-          <h2>Painel</h2>
-          <p className="muted">
-            Seu patrimônio hoje e como ele chegou até aqui. Valores em reais; o que está em dólar vai pela PTAX
-            {resgateAccounts.length > 0 && (
-              <span title={resgateTip}>
-                , e {resgateAccounts.join(", ")} pelo valor de resgate (o que chegaria no Brasil) <span className="info-mark">ⓘ</span>
-              </span>
-            )}
-            .
-          </p>
-        </div>
-      </div>
-
-      {(darfs.length > 0 || stale.length > 0) && (
+  const alerts = (darfs.length > 0 || stale.length > 0) && (
         <div className="card panel-alerts">
           <h3>Pendências</h3>
           <ul>
@@ -207,7 +193,78 @@ export default function Panel({
             ))}
           </ul>
         </div>
-      )}
+      );
+
+  if (simple) {
+    // O mesmo cartão de 12 meses da Rentabilidade; sem 12 meses de histórico, desde o início.
+    const card = dash.cards.find((c) => c.label === "Últimos 12 meses") ?? dash.cards.find((c) => c.label === "Desde o início");
+    const rate = card?.rate != null ? Number(card.rate) : null;
+    const cdi = card?.cdi != null ? Number(card.cdi) : null;
+    return (
+      <section className="panel">
+        <div className="dash-head">
+          <div>
+            <h2>Painel</h2>
+            <p className="muted">Quanto você tem e quanto rendeu. Para ver todos os detalhes, escolha Visão completa no topo.</p>
+          </div>
+        </div>
+
+        {alerts}
+
+        <div className="card simple-hero">
+          <div className="simple-fig">
+            <span className="muted">Você tem hoje</span>
+            <strong className="simple-big">{total == null ? "sem cotação" : money(total.toFixed(2))}</strong>
+            <span className="muted small">somando investimentos, FGTS, contas{groups.some((g) => g.id === "bens") ? " e bens" : ""}</span>
+          </div>
+          <div className="simple-fig">
+            <span className="muted">Seus investimentos renderam em {thisYear}</span>
+            <strong className={tone(income == null ? null : String(income))}>{income == null ? "sem cotação" : money(income.toFixed(2))}</strong>
+            {income != null && incomeBase ? <span className="muted small">{percent(String(income / incomeBase))} sobre o que estava investido</span> : null}
+          </div>
+          {card && (
+            <div className="simple-fig">
+              <span className="muted">{card.label === "Últimos 12 meses" ? "Nos últimos 12 meses" : "Desde o início"}</span>
+              <strong className={tone(card.rate)}>{percent(card.rate)}</strong>
+              {rate != null && cdi != null && (
+                <span className="muted small">
+                  {rate >= cdi ? "rendeu mais que o CDI" : "rendeu menos que o CDI"}, que foi de {percent(card.cdi)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <GoalCard year={year} refresh={refresh} />
+
+        <div className="card dash-block">
+          <div className="block-head">
+            <h3>Onde está o seu dinheiro</h3>
+          </div>
+          <Division groups={groups} at={today} total={total} p={p} />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel">
+      <div className="dash-head">
+        <div>
+          <h2>Painel</h2>
+          <p className="muted">
+            Seu patrimônio hoje e como ele chegou até aqui. Valores em reais; o que está em dólar vai pela PTAX
+            {resgateAccounts.length > 0 && (
+              <span title={resgateTip}>
+                , e {resgateAccounts.join(", ")} pelo valor de resgate (o que chegaria no Brasil) <span className="info-mark">ⓘ</span>
+              </span>
+            )}
+            .
+          </p>
+        </div>
+      </div>
+
+      {alerts}
 
       <div className="card panel-hero">
         <div className="panel-total">

@@ -151,7 +151,16 @@ function ratio(a: string | null, b: string | null): string | null {
   return String(Number(a) / Number(b));
 }
 
-export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen: (asset: string) => void }) {
+export default function Portfolio({
+  refresh,
+  onOpen,
+  simple = false,
+}: {
+  refresh: number;
+  onOpen: (asset: string) => void;
+  /** Visão simples: só ativo, quantidade, valor e ganho, tudo em reais. */
+  simple?: boolean;
+}) {
   const [view, setView] = useState<PortfolioView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -188,6 +197,76 @@ export default function Portfolio({ refresh, onOpen }: { refresh: number; onOpen
   const closedSort = useSort(allClosed, { ativo: (p) => label(p.asset), realizado: (p) => num(p.realized_brl) }, "encerradas");
   const open = openSort.sorted;
   const closed = closedSort.sorted;
+
+  if (simple) {
+    return (
+      <section>
+        <div className="section-head">
+          <div>
+            <h2>Carteira</h2>
+            <p className="muted">O que você tem hoje, em reais. Clique num ativo para ver o gráfico.</p>
+          </div>
+        </div>
+        {error && <p className="error">{error}</p>}
+        {view && (
+          <div className="cards">
+            <div className="card stat">
+              <span className="muted">Valor hoje</span>
+              <strong>{money(view.market_value)}</strong>
+            </div>
+            <div className="card stat">
+              <span className="muted">Ganho desde a compra</span>
+              <strong className={tone(view.unrealized)}>
+                {money(view.unrealized)} {view.unrealized != null && <small>{percent(ratio(view.unrealized, view.cost))}</small>}
+              </strong>
+            </div>
+            <div className="card stat">
+              <span className="muted">Ativos</span>
+              <strong>{open.length}</strong>
+            </div>
+          </div>
+        )}
+        {view && open.length === 0 && <p className="muted">Nenhum lançamento ainda. Comece pela aba Lançamentos.</p>}
+        {open.length > 0 && (
+          <div className="scroll">
+            <table className="simple-table">
+              <thead>
+                <tr>
+                  {openSort.header("ativo", "Ativo")}
+                  <th className="num">Quantidade</th>
+                  {openSort.header("valor", "Valor hoje", { numeric: true })}
+                  {openSort.header("resultado", "Ganho", { numeric: true })}
+                </tr>
+              </thead>
+              <tbody>
+                {open.map((p) => (
+                  <tr
+                    key={p.asset}
+                    className={isSavings(p.asset) ? undefined : "clickable go"}
+                    tabIndex={isSavings(p.asset) ? undefined : 0}
+                    onClick={isSavings(p.asset) ? undefined : () => onOpen(p.asset)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !isSavings(p.asset)) onOpen(p.asset);
+                    }}
+                  >
+                    <td className={isSavings(p.asset) ? undefined : "asset-link"}>
+                      <AssetName asset={p.asset} name={view?.names[p.asset]} />
+                    </td>
+                    <td className="num">{isSavings(p.asset) ? <span className="muted">—</span> : quantity(p.quantity)}</td>
+                    <td className="num">{money(p.market_value_brl)}</td>
+                    <td className={`num ${tone(p.unrealized_brl)}`}>
+                      {money(p.unrealized_brl)}
+                      {p.unrealized_brl != null && <div className="small">{percent(ratio(p.unrealized_brl, p.cost_brl))}</div>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section>
