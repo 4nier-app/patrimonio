@@ -34,6 +34,10 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Alocação ideal:** defina a meta de cada classe (ações, FIIs, exterior,
   cripto, renda fixa, dinheiro…) e veja quanto falta em cada uma e onde pôr o
   próximo aporte, sem precisar vender nada.
+- **De onde veio a variação do ano:** o Painel separa quanto o patrimônio
+  mudou no ano em rendimento dos investimentos, FGTS e dinheiro que entrou (o
+  que você guardou, menos o que gastou ou retirou). Um ano em que as ações
+  caíram mas o patrimônio subiu fica explicado.
 - **Meta de patrimônio:** diga quanto quer ter e até quando; o Painel mostra
   quanto falta, quanto crescer por mês e, no ritmo dos últimos 12 meses,
   quando você chega lá.
@@ -74,6 +78,10 @@ primeira vez:
 - **Mac (Intel e Apple Silicon):** arquivo `.dmg`. Arraste para Aplicativos e,
   na primeira vez, clique com o botão direito no app → **Abrir**.
 - **Linux:** `.deb` (Ubuntu, Debian) ou `.AppImage` (marque como executável).
+
+Para atualizar, use o botão **Atualizar agora** do aviso que aparece no topo
+do app quando sai uma versão nova: ele baixa o instalador daqui, confere a
+assinatura do projeto e instala por cima, sem mexer nos seus dados.
 
 Encontrou um erro? [Reporte aqui](https://github.com/4nier-app/patrimonio/issues/new?template=problema.yml),
 sempre com valores fictícios.
