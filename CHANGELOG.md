@@ -35,6 +35,9 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   de proventos da B3.
 
 ### Corrigido
+- Atualizar cotações perto da meia-noite não dá mais o erro "HTTP 400" no
+  dólar comercial (Yahoo), que acontecia quando o último dólar gravado já
+  tinha a data do dia seguinte pelo horário de Londres.
 - Rentabilidade: um mês com resultado negativo em reais não quebra mais a
   linha do valor no cartão do mês.
 
