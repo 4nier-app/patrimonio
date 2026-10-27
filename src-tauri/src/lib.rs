@@ -1131,6 +1131,32 @@ fn open_releases(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Baixa a versão nova do GitHub, confere a assinatura do projeto e instala
+/// por cima; os dados ficam onde estão e o app reabre sozinho. Se não der (sem
+/// internet, ou instalação .deb no Linux), a tela oferece a página de download.
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    if STORE {
+        return Err("na versão da Microsoft Store, a atualização vem pela própria loja".into());
+    }
+    let update = app
+        .updater()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("o aplicativo já está na versão mais recente")?;
+    let bytes = update
+        .download(|_, _| {}, || {})
+        .await
+        .map_err(|e| e.to_string())?;
+    // Fecha o cofre antes de instalar, para nada ficar pela metade no disco.
+    lock(app.state::<AppState>());
+    update.install(bytes).map_err(|e| e.to_string())?;
+    app.restart()
+}
+
 #[tauri::command]
 async fn update_quotes(app: tauri::AppHandle) -> Result<Vec<market::UpdateLine>, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -1172,6 +1198,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // A janela abre do jeito que foi fechada (tamanho, posição, maximizada).
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
@@ -1295,6 +1322,7 @@ pub fn run() {
             update_notice,
             set_update_notice,
             open_releases,
+            install_update,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o aplicativo");

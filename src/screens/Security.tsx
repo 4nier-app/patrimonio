@@ -247,8 +247,9 @@ function UpdateNotice() {
     <div className="card stack">
       <h3>Aviso de nova versão</h3>
       <p className="muted">
-        Ao abrir, o aplicativo pergunta ao GitHub qual é a versão mais recente e avisa se houver uma nova. Só o número
-        da versão é consultado; nenhum dado seu é enviado.
+        Ao abrir, o aplicativo pergunta ao GitHub qual é a versão mais recente e avisa se houver uma nova. Em "Atualizar
+        agora", ele baixa a versão nova do GitHub, confere a assinatura do projeto, instala por cima e abre de novo; seus
+        dados ficam onde estão. Só o número da versão é consultado; nenhum dado seu é enviado.
       </p>
       <label className="check">
         <input type="checkbox" checked={on ?? true} disabled={on == null} onChange={(e) => void change(e.target.checked)} />

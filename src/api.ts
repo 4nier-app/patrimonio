@@ -88,6 +88,7 @@ export const api = {
   updateNotice: () => invoke<boolean>("update_notice"),
   setUpdateNotice: (on: boolean) => invoke<void>("set_update_notice", { on }),
   openReleases: () => invoke<void>("open_releases"),
+  installUpdate: () => invoke<void>("install_update"),
   unlock: (password: string) => invoke<void>("unlock", { password }),
   lock: () => invoke<void>("lock"),
   changePassword: (current: string, next: string, confirmation: string) =>

@@ -6,6 +6,25 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.24.0] - 2026-10-27
+
+### Adicionado
+- Atualizar agora: quando sai uma versão nova, o aviso no topo do app tem o
+  botão "Atualizar agora". O app baixa do GitHub o instalador da versão nova,
+  confere a assinatura do projeto (se não bater, não instala), bloqueia o
+  cofre, instala por cima e abre de novo. Seus dados continuam onde estão. Se
+  algo falhar, o aviso mostra o motivo e o link da página de download.
+- Painel: o cartão "De onde veio a variação do ano" separa a variação do
+  patrimônio em rendimento dos investimentos, FGTS e dinheiro que entrou (o
+  que você guardou, menos o que gastou ou retirou). A soma fecha com a
+  variação do topo do Painel, então um ano em que os investimentos caíram mas
+  o patrimônio subiu fica explicado.
+
+### Alterado
+- Meta de patrimônio: com menos de um mês até a data, o cartão mostra só
+  quanto falta, sem o valor por mês nem o ritmo, que não faziam sentido em
+  poucos dias.
+
 ## [0.23.0] - 2026-10-27
 
 ### Adicionado

@@ -156,13 +156,16 @@ export default function GoalCard({ year, refresh }: { year: EvolutionView; refre
         ) : (
           <>
             {Math.round(p.done * 100)}% da meta. Faltam <strong>{brl(p.missing)}</strong>
-            {p.perMonth != null
-              ? `: o ${what} precisa crescer ${brl(p.perMonth)} por mês até ${date(goal.date)}, somando aportes e rendimentos.`
-              : ", e a data da meta já passou."}
+            {p.perMonth == null
+              ? ", e a data da meta já passou."
+              : p.monthsLeft < 1
+                ? // Falta menos de um mês: um valor "por mês" ficaria enorme e sem sentido.
+                  ` até ${date(goal.date)}.`
+                : `: o ${what} precisa crescer ${brl(p.perMonth)} por mês até ${date(goal.date)}, somando aportes e rendimentos.`}
           </>
         )}
       </p>
-      {!reached && p.pace != null && (
+      {!reached && p.pace != null && p.monthsLeft >= 1 && (
         <p className={`small ${late || p.pace <= 0 ? "warning-text" : "pos"}`}>
           {p.pace <= 0
             ? `Nos últimos ${Math.round(p.paceMonths ?? 0)} meses o ${what} não cresceu; nesse ritmo, a meta não chega.`

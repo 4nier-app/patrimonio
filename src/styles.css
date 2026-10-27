@@ -231,6 +231,15 @@ tr.total-row td { background: var(--bg); }
 .stat-label { color: var(--muted); font-weight: 500; }
 .stat-value { font-size: 1.8rem; font-weight: 700; }
 .stat-sub { color: var(--muted); font-size: 0.85rem; font-weight: 400; }
+.panel-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; margin-bottom: 16px; align-items: start; }
+.panel-pair > .goal { margin-bottom: 0; }
+.bridge { display: grid; gap: 4px; margin-top: 8px; align-self: stretch; }
+.bridge-line { display: grid; grid-template-columns: 1fr auto; gap: 2px 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); font-weight: 400; }
+.bridge-line b { font-size: 1.15rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bridge-sub { grid-column: 1 / -1; color: var(--muted); font-size: 0.85rem; }
+.bridge-total { border-bottom: 0; border-top: 2px solid var(--text); padding-top: 10px; }
+.bridge-total > span:first-child { font-weight: 600; }
+.bridge-total b { font-size: 1.4rem; }
 .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
 .dash-block { min-width: 0; padding: 16px; }
 .dash-block.wide { grid-column: 1 / -1; }

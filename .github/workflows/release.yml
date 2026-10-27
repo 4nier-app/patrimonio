@@ -76,9 +76,16 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Assina os pacotes de atualização ("Atualizar agora" no app). A
+          # chave pública correspondente está em tauri.conf.json.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           releaseId: ${{ needs.rascunho.outputs.id }}
-          args: ${{ matrix.args }}
+          # Só aqui são gerados os pacotes de atualização e o latest.json; os
+          # instaladores de teste do CI e o pacote da loja não precisam deles.
+          args: ${{ matrix.args }} --config src-tauri/tauri.atualizacao.conf.json
+          includeUpdaterJson: true
 
   publicar:
     needs: [rascunho, instaladores]
