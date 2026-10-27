@@ -174,6 +174,18 @@ export default function Home({ status, onLocked, onChanged }: Props) {
 
   // Avisa quando há versão mais nova publicada (pode ser desligado em Segurança).
   const [newVersion, setNewVersion] = useState<string | null>(null);
+  const [upgrade, setUpgrade] = useState<"idle" | "busy" | "failed">("idle");
+  const [updateError, setUpdateError] = useState("");
+  async function installUpdate() {
+    setUpgrade("busy");
+    try {
+      // Se der certo, o app fecha, instala e reabre sozinho.
+      await api.installUpdate();
+    } catch (e) {
+      setUpdateError(errorMessage(e));
+      setUpgrade("failed");
+    }
+  }
   useEffect(() => {
     api
       .checkUpdate()
@@ -285,13 +297,29 @@ export default function Home({ status, onLocked, onChanged }: Props) {
 
       {newVersion && (
         <div className="banner info" role="status">
-          Nova versão {newVersion} do 4Nier disponível. Baixe e instale por cima; seus dados são mantidos.{" "}
-          <button className="link" onClick={() => void api.openReleases()}>
-            Baixar
-          </button>{" "}
-          <button className="link" onClick={() => setNewVersion(null)} aria-label="Fechar aviso">
-            ✕
-          </button>
+          {upgrade === "busy" ? (
+            <>Baixando a versão {newVersion}… O aplicativo vai fechar, instalar e abrir de novo sozinho. Seus dados são mantidos.</>
+          ) : upgrade === "failed" ? (
+            <>
+              Não deu para atualizar daqui ({updateError}). Baixe a versão {newVersion} e instale por cima; seus dados são mantidos.{" "}
+              <button className="link" onClick={() => void api.openReleases()}>
+                Abrir a página de download
+              </button>{" "}
+              <button className="link" onClick={() => setNewVersion(null)} aria-label="Fechar aviso">
+                ✕
+              </button>
+            </>
+          ) : (
+            <>
+              Nova versão {newVersion} do 4Nier disponível. Seus dados são mantidos.{" "}
+              <button className="link" onClick={() => void installUpdate()}>
+                Atualizar agora
+              </button>{" "}
+              <button className="link" onClick={() => setNewVersion(null)} aria-label="Fechar aviso">
+                ✕
+              </button>
+            </>
+          )}
         </div>
       )}
 

@@ -128,7 +128,8 @@ apenas códigos de ativos, CNPJ de fundos e datas, nunca nome, CPF, quantidades
 ou valores. Esses sites veem só o endereço de internet do computador, como em
 qualquer acesso. Ao abrir, o aplicativo também pergunta ao GitHub qual é a
 versão mais recente, para avisar se há atualização (dá para desligar em
-Segurança). A chave de recuperação vai pelo seu próprio programa de e-mail; o
+Segurança); em "Atualizar agora", baixa do GitHub o instalador assinado da
+versão nova, confere a assinatura e instala por cima. A chave de recuperação vai pelo seu próprio programa de e-mail; o
 aplicativo não envia nada.
 
 **Como apagar seus dados:**

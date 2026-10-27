@@ -26,7 +26,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi", "appimage", "deb", "dmg"],
+    "targets": [
+      "nsis",
+      "msi",
+      "appimage",
+      "deb",
+      "dmg"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -38,9 +44,33 @@
     "shortDescription": "Controle de investimentos com rentabilidade auditável",
     "copyright": "GPL-3.0-or-later",
     "windows": {
-      "nsis": { "languages": ["PortugueseBR"], "customLanguageFiles": { "PortugueseBR": "nsis/PortugueseBR.nsh" }, "installMode": "currentUser" },
-      "wix": { "language": "pt-BR" }
+      "nsis": {
+        "languages": [
+          "PortugueseBR"
+        ],
+        "customLanguageFiles": {
+          "PortugueseBR": "nsis/PortugueseBR.nsh"
+        },
+        "installMode": "currentUser"
+      },
+      "wix": {
+        "language": "pt-BR"
+      }
     },
-    "macOS": { "signingIdentity": "-", "minimumSystemVersion": "10.15" }
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "10.15"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDQTQxMDYwN0Y2NUVEQjQKUldTMDdXVi9ZQkNrdktJRzlicERFQkUxcjVUME1YdHVId3RxRXhwZWNFSWxOeHpRZ1R3Unk2RW8K",
+      "endpoints": [
+        "https://github.com/4nier-app/patrimonio/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
