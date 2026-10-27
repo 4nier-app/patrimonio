@@ -647,3 +647,11 @@ th.sortable .sort-btn:focus-visible { outline: 2px solid var(--accent); outline-
 .goal-form label:not(.check) { min-width: 200px; }
 p.pos, strong.pos { color: var(--ok); }
 .tax-disclaimer { margin: 0 0 14px; line-height: 1.5; }
+
+/* Visão simples */
+.simple-hero { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 24px; align-items: start; }
+.simple-fig { display: flex; flex-direction: column; gap: 6px; }
+.simple-fig strong { font-size: 30px; line-height: 1.15; }
+.simple-fig strong.simple-big { font-size: 44px; }
+@media (max-width: 900px) { .simple-hero { grid-template-columns: 1fr; } }
+.simple-table td, .simple-table th { font-size: 15px; }
