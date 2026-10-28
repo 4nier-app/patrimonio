@@ -65,6 +65,13 @@ pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
     }
     let moves = v.list_savings_moves().map_err(s)?;
     let today = today();
+    // CDI e IPCA para a renda fixa calculada pela taxa.
+    let cdi = v.index_points("CDI").map_err(s)?.0;
+    let ipca = v.index_points("IPCA").map_err(s)?.0;
+    let idx = carteira_core::fixed_curve::Indexes {
+        cdi: &cdi,
+        ipca: &ipca,
+    };
     Ok(list
         .iter()
         .map(|sv| {
@@ -73,7 +80,7 @@ pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
                 .filter(|m| m.savings_id == sv.id)
                 .cloned()
                 .collect();
-            carteira_core::savings::build(sv, &mine, today)
+            carteira_core::savings::build_with(sv, &mine, today, Some(&idx))
         })
         .collect())
 }
@@ -543,6 +550,50 @@ pub struct DashboardView {
     /// FGTS, conta corrente e cartões benefício: patrimônio que não é
     /// investimento, fora da rentabilidade.
     pub other_balances: Vec<OtherBalance>,
+    /// Saldos sem nenhum lançamento nos últimos meses fechados.
+    pub missing_balances: Vec<MissingBalance>,
+}
+
+/// Saldo que ficou sem lançamento (nem saldo, nem depósito, nem resgate) em
+/// algum dos três últimos meses fechados.
+#[derive(Serialize)]
+pub struct MissingBalance {
+    pub id: String,
+    pub name: String,
+    pub account: String,
+    pub kind: &'static str,
+    /// Dia 1 de cada mês sem lançamento, do mais antigo ao mais recente.
+    pub months: Vec<NaiveDate>,
+}
+
+/// Meses fechados (até três para trás) em que o saldo existia e não teve
+/// nenhum lançamento. A renda fixa calculada pela taxa não precisa.
+fn missing_balances(reports: &[SavingsReport], today: NaiveDate) -> Vec<MissingBalance> {
+    let month_start = today.with_day(1).expect("dia 1 existe");
+    reports
+        .iter()
+        .filter(|r| r.automatic.is_none() && r.savings.open_on(today))
+        .filter_map(|r| {
+            let months: Vec<NaiveDate> = (1..=3)
+                .rev()
+                .filter_map(|k| month_start.checked_sub_months(chrono::Months::new(k)))
+                .filter(|m| r.savings.since.is_some_and(|s| s <= *m))
+                .filter(|m| {
+                    let end = m
+                        .checked_add_months(chrono::Months::new(1))
+                        .expect("mês seguinte");
+                    !r.units_history.iter().any(|(d, _)| d >= m && *d < end)
+                })
+                .collect();
+            (!months.is_empty()).then(|| MissingBalance {
+                id: r.savings.id.clone(),
+                name: r.savings.title().to_string(),
+                account: r.savings.bank().to_string(),
+                kind: r.savings.kind.label(),
+                months,
+            })
+        })
+        .collect()
 }
 
 #[derive(Serialize)]
@@ -765,6 +816,7 @@ pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
         positions,
         timeline: timeline(&ops),
         other_balances: other_balances(v)?,
+        missing_balances: missing_balances(&savings_reports(v)?, today()),
     })
 }
 
@@ -1620,6 +1672,8 @@ pub struct SavingsItem {
     /// Rendimento estimado ainda no saldo (saldo − dinheiro depositado).
     pub earned: Decimal,
     pub last_informed: Option<NaiveDate>,
+    /// Renda fixa calculada pela taxa ("102% do CDI").
+    pub automatic: Option<String>,
     pub checks: Vec<carteira_core::savings::BalanceCheck>,
     pub redemptions: Vec<carteira_core::savings::Redemption>,
     /// Do mais recente para o mais antigo.
@@ -1648,6 +1702,7 @@ pub fn savings_view(v: &Vault) -> Result<SavingsView, String> {
             invested: r.invested,
             earned: r.balance - r.invested,
             last_informed: r.last_informed,
+            automatic: r.automatic.clone(),
             moves: moves
                 .iter()
                 .filter(|m| m.savings_id == r.savings.id)
@@ -2305,5 +2360,70 @@ mod caso_etf_trimestral {
         println!("SUGERIDOS: {datas:?}");
         assert!(datas.contains(&d(2025, 12, 22)));
         assert_eq!(datas.len(), 5);
+    }
+}
+
+#[cfg(test)]
+mod missing_tests {
+    use super::*;
+    use carteira_core::savings::{build, MoveKind, Savings, SavingsKind};
+    use rust_decimal_macros::dec;
+
+    fn d(y: i32, m: u32, day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    }
+
+    #[test]
+    fn avisa_os_meses_fechados_sem_lancamento() {
+        let c = Savings {
+            id: "c".into(),
+            kind: SavingsKind::Cofrinho,
+            account: "Banco X".into(),
+            name: String::new(),
+            rate_pct: dec!(100),
+            tax_free: false,
+            note: None,
+            since: Some(d(2026, 7, 1)),
+            until: None,
+            fixed: None,
+        };
+        let mv = |id: &str, date| SavingsMove {
+            id: id.into(),
+            savings_id: "c".into(),
+            date,
+            kind: MoveKind::Saldo,
+            amount: dec!(100),
+            ir: None,
+            iof: None,
+            note: None,
+        };
+        let today = d(2026, 10, 20);
+        // Saldos em julho e setembro: falta agosto (julho é o mais antigo dos três).
+        let r = build(
+            &c,
+            &[mv("a", d(2026, 7, 31)), mv("b", d(2026, 9, 30))],
+            today,
+        );
+        let m = missing_balances(&[r], today);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].months, vec![d(2026, 8, 1)]);
+        // Tudo informado: nada a avisar.
+        let r = build(
+            &c,
+            &[
+                mv("a", d(2026, 7, 31)),
+                mv("b", d(2026, 8, 31)),
+                mv("c", d(2026, 9, 30)),
+            ],
+            today,
+        );
+        assert!(missing_balances(&[r], today).is_empty());
+        // Antes do "desde" não pede nada.
+        let novo = Savings {
+            since: Some(d(2026, 9, 1)),
+            ..c
+        };
+        let r = build(&novo, &[mv("b", d(2026, 9, 30))], today);
+        assert!(missing_balances(&[r], today).is_empty());
     }
 }

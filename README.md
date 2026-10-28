@@ -54,6 +54,14 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Imposto de renda:** apuração mensal da B3 (isenção de R$ 20 mil, day trade,
   FIIs, prejuízo a compensar) com aviso de DARF; ganho anual no exterior e em
   cripto pela Lei 14.754; posições em 31/12 para Bens e Direitos.
+- **Resumo para o contador:** o ano inteiro na ordem das fichas da declaração
+  (Bens e Direitos, rendimentos isentos, tributação exclusiva, renda variável e
+  exterior), com o que falta lançar antes. Imprima ou salve em PDF para levar
+  ao contador. O app não emite DARF nem preenche a declaração.
+- **CDB, LCI e LCA calculados sozinhos:** informe o valor aplicado, a data e a
+  taxa (102% do CDI, 12% ao ano, IPCA + 6%) e o saldo cresce todo dia pelo CDI
+  e pelo IPCA do Banco Central, com o valor já sem IR. No vencimento, o valor
+  sai da carteira sozinho. Se informar o saldo do extrato, ele vale mais.
 - **Menos digitação:** importa os extratos da B3 (todas as corretoras de uma
   vez): o de negociação traz as compras e vendas, e o de movimentação traz os
   dividendos, JCP e rendimentos, as bonificações e os desdobramentos. Lê também

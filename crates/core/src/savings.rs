@@ -16,6 +16,8 @@ use std::collections::BTreeMap;
 
 use chrono::NaiveDate;
 use rust_decimal::{Decimal, RoundingStrategy};
+
+use crate::fixed_curve::{parse_rate, tax_free_product, unit_curve, Indexes};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Side, BRL};
@@ -287,6 +289,8 @@ pub fn iof_rate(days: i64) -> Decimal {
 struct Lot {
     units: Decimal,
     cost: Decimal,
+    /// Dia do depósito, para o IR regressivo da renda fixa calculada.
+    date: NaiveDate,
 }
 
 fn take(lots: &mut Vec<Lot>, units: Decimal) {
@@ -365,6 +369,9 @@ pub struct SavingsReport {
     pub year_end: Vec<(i32, Decimal)>,
     /// Cotas no fim de cada dia com movimento, para o saldo em qualquer data.
     pub units_history: Vec<(NaiveDate, Decimal)>,
+    /// Renda fixa calculada pela taxa: como o app entendeu a taxa ("102% do
+    /// CDI"). Vazio quando o saldo é só o informado.
+    pub automatic: Option<String>,
 }
 
 impl SavingsReport {
@@ -386,6 +393,28 @@ impl SavingsReport {
 
 /// Monta o saldo a partir dos movimentos e dos saldos informados.
 pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> SavingsReport {
+    build_with(savings, moves, today, None)
+}
+
+/// IR (tabela regressiva) e IOF sobre o rendimento de um lote resgatado
+/// em `date`.
+fn lot_taxes(lot: &Lot, unit: Decimal, date: NaiveDate) -> (Decimal, Decimal) {
+    let gain = (lot.units * unit - lot.cost).max(Decimal::ZERO);
+    let days = (date - lot.date).num_days();
+    let iof = gain * iof_rate(days);
+    ((gain - iof) * ir_rate(days), iof)
+}
+
+/// Como [`build`]; com os índices, a renda fixa com taxa reconhecida cresce
+/// dia a dia pela taxa (veja [`crate::fixed_curve`]). Um saldo informado
+/// continua valendo mais que o calculado, e no vencimento o valor é
+/// resgatado sozinho.
+pub fn build_with(
+    savings: &Savings,
+    moves: &[SavingsMove],
+    today: NaiveDate,
+    idx: Option<&Indexes>,
+) -> SavingsReport {
     let ticker = ticker(&savings.id);
     // Conta encerrada: o saldo some no dia seguinte ao fim do mês do "até".
     let closing = savings
@@ -421,16 +450,34 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
         redemptions: Vec::new(),
         year_end: Vec::new(),
         units_history: Vec::new(),
+        automatic: None,
     };
     let Some(first) = moves.first().map(|m| m.date) else {
         return report;
     };
 
     // Valor da cota: R$ 1, sempre; nada é estimado entre um saldo e outro.
-    let unit = Decimal::ONE;
-    let mut values = vec![(first, unit)];
+    // Na renda fixa com taxa reconhecida, a cota segue a taxa até o
+    // vencimento.
+    let fixed = savings
+        .fixed
+        .as_ref()
+        .filter(|_| savings.kind == SavingsKind::RendaFixa);
+    let spec = fixed.and_then(|f| f.rate.as_deref()).and_then(parse_rate);
+    let maturity = fixed.and_then(|f| f.maturity).filter(|_| spec.is_some());
+    let curve_end = maturity.map_or(today, |m| m.min(today));
+    let curve = match (spec, idx) {
+        (Some(sp), Some(i)) if curve_end >= first => unit_curve(sp, first, curve_end, i),
+        _ => None,
+    };
+    report.automatic = curve.as_ref().and(spec).map(|sp| sp.describe());
+    let auto = report.automatic.is_some();
+    let maturity = maturity.filter(|_| auto);
+    let tax_free = savings.tax_free || fixed.is_some_and(|f| tax_free_product(&f.product));
+    let mut values = curve.unwrap_or_else(|| vec![(first, Decimal::ONE)]);
     if values.last().map(|(d, _)| *d) != Some(today) {
-        values.push((today, unit));
+        let last = values.last().map_or(Decimal::ONE, |(_, u)| *u);
+        values.push((today, last));
     }
     let unit_on = |d: NaiveDate| -> Decimal {
         values
@@ -449,7 +496,67 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
         let end = NaiveDate::from_ymd_opt(y, 12, 31).expect("31/12 existe");
         cents(units(lots) * unit_on(end))
     };
+    let mut matured = false;
+    // No vencimento, tudo volta para a conta, com o IR descontado.
+    let mature = |lots: &mut Vec<Lot>, report: &mut SavingsReport, date: NaiveDate| {
+        let held = lots.iter().map(|l| l.units).sum::<Decimal>();
+        if held.is_zero() {
+            return;
+        }
+        let u = unit_on(date);
+        let gross = held * u;
+        let cost: Decimal = lots.iter().map(|l| l.cost).sum();
+        let (ir, iof) = if tax_free {
+            (Decimal::ZERO, Decimal::ZERO)
+        } else {
+            lots.iter()
+                .map(|l| lot_taxes(l, u, date))
+                .fold((Decimal::ZERO, Decimal::ZERO), |a, b| {
+                    (a.0 + b.0, a.1 + b.1)
+                })
+        };
+        let (ir, iof) = (cents(ir), cents(iof));
+        report.redemptions.push(Redemption {
+            move_id: "vencimento".into(),
+            date,
+            net: cents(gross) - ir - iof,
+            gross: cents(gross),
+            ir,
+            iof,
+            estimated: true,
+            gain: cents(gross - cost),
+        });
+        report.operations.push(Operation {
+            id: format!("{ticker}:vencimento"),
+            account: savings.account.clone(),
+            asset: ticker.clone(),
+            date,
+            side: Side::Venda,
+            quantity: held,
+            price: u,
+            manual_fees: None,
+            note: Some(format!("{} (vencimento)", savings.title())),
+            currency: BRL.into(),
+            from_account: None,
+            residue: None,
+            ir: Some(ir),
+            iof: Some(iof),
+        });
+        lots.clear();
+        match report.units_history.last_mut() {
+            Some((d, q)) if *d == date => *q = Decimal::ZERO,
+            _ => report.units_history.push((date, Decimal::ZERO)),
+        }
+    };
     for m in moves {
+        if let Some(mt) = maturity.filter(|mt| !matured && m.date > *mt) {
+            while mt.year() > last_year {
+                year_end.insert(last_year, snapshot(&lots, last_year));
+                last_year += 1;
+            }
+            mature(&mut lots, &mut report, mt);
+            matured = true;
+        }
         while m.date.year() > last_year {
             year_end.insert(last_year, snapshot(&lots, last_year));
             last_year += 1;
@@ -477,6 +584,7 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
                 lots.push(Lot {
                     units: q,
                     cost: m.amount,
+                    date: m.date,
                 });
                 report.operations.push(Operation {
                     quantity: q,
@@ -530,6 +638,7 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
                     lots.push(Lot {
                         units: q,
                         cost: m.amount,
+                        date: m.date,
                     });
                     report.operations.push(Operation {
                         quantity: q,
@@ -552,7 +661,7 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
                     difference,
                     // Sem rendimento ou com depósitos que ninguém lança (FGTS),
                     // a diferença é só o movimento do período.
-                    suspicious: savings.kind == SavingsKind::Cofrinho
+                    suspicious: (savings.kind == SavingsKind::Cofrinho || auto)
                         && difference.abs() > tolerance,
                 });
                 report.last_informed = Some(m.date);
@@ -573,6 +682,13 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
             Some((d, q)) if *d == m.date => *q = held,
             _ => report.units_history.push((m.date, held)),
         }
+    }
+    if let Some(mt) = maturity.filter(|mt| !matured && *mt <= today) {
+        while mt.year() > last_year {
+            year_end.insert(last_year, snapshot(&lots, last_year));
+            last_year += 1;
+        }
+        mature(&mut lots, &mut report, mt);
     }
     if let Some(c) = closing {
         while c.year() > last_year {
@@ -608,7 +724,18 @@ pub fn build(savings: &Savings, moves: &[SavingsMove], today: NaiveDate) -> Savi
     }
     report.balance = cents(units(&lots) * u);
     report.invested = cents(lots.iter().map(|l| l.cost).sum());
-    report.balance_net = report.balance;
+    // Renda fixa calculada: o líquido desconta o IR (e o IOF) de um resgate hoje.
+    report.balance_net = if auto && !tax_free {
+        let (ir, iof) = lots
+            .iter()
+            .map(|l| lot_taxes(l, u, today))
+            .fold((Decimal::ZERO, Decimal::ZERO), |a, b| {
+                (a.0 + b.0, a.1 + b.1)
+            });
+        report.balance - cents(ir) - cents(iof)
+    } else {
+        report.balance
+    };
     report.year_end = year_end.into_iter().collect();
     report.unit_values = values;
     report
@@ -632,6 +759,8 @@ fn last_day(d: NaiveDate) -> NaiveDate {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Datelike;
+    use rust_decimal::MathematicalOps;
     use rust_decimal_macros::dec;
 
     fn d(m: u32, day: u32) -> NaiveDate {
@@ -664,6 +793,84 @@ mod tests {
             iof: None,
             note: None,
         }
+    }
+
+    fn cdb(rate: &str, product: &str, maturity: Option<NaiveDate>) -> Savings {
+        Savings {
+            kind: SavingsKind::RendaFixa,
+            fixed: Some(FixedIncome {
+                product: product.into(),
+                rate: Some(rate.into()),
+                maturity,
+            }),
+            ..cofrinho()
+        }
+    }
+
+    /// CDI de 0,04% em todos os dias de semana de 2026.
+    fn cdi_2026() -> BTreeMap<NaiveDate, Decimal> {
+        let mut m = BTreeMap::new();
+        let mut x = d(1, 1);
+        while x.year() == 2026 {
+            if x.weekday().number_from_monday() <= 5 {
+                m.insert(x, dec!(0.04));
+            }
+            x += chrono::Duration::days(1);
+        }
+        m
+    }
+
+    #[test]
+    fn cdb_calculado_pela_taxa_com_ir_e_vencimento() {
+        let cdi = cdi_2026();
+        let ipca = BTreeMap::new();
+        let idx = Indexes {
+            cdi: &cdi,
+            ipca: &ipca,
+        };
+        let moves = vec![mv("a", d(3, 2), MoveKind::Deposito, dec!(1000))];
+        let c = cdb("100% do CDI", "CDB", Some(d(6, 1)));
+        // 2/3 (segunda) a 9/3: 5 dias úteis rendidos.
+        let r = build_with(&c, &moves, d(3, 9), Some(&idx));
+        assert_eq!(r.automatic.as_deref(), Some("100% do CDI"));
+        let expected = cents(dec!(1000) * dec!(1.0004).powi(5));
+        assert_eq!(r.balance, expected);
+        // 7 dias: IOF de 76% do rendimento e IR de 22,5% sobre o resto.
+        let gain = expected - dec!(1000);
+        let iof = gain * dec!(0.76);
+        assert_eq!(
+            r.balance_net,
+            expected - cents(iof) - cents((gain - iof) * dec!(0.225))
+        );
+        // O mês fica com o valor calculado, sem saldo informado.
+        assert_eq!(
+            r.balance_on(d(3, 5)),
+            cents(dec!(1000) * dec!(1.0004).powi(3))
+        );
+        // Depois do vencimento, o valor foi resgatado.
+        let r = build_with(&c, &moves, d(7, 1), Some(&idx));
+        assert_eq!(r.balance, Decimal::ZERO);
+        let red = r.redemptions.last().unwrap();
+        assert_eq!(red.date, d(6, 1));
+        assert!(red.estimated && red.ir > Decimal::ZERO);
+        assert_eq!(red.net, red.gross - red.ir);
+        // LCI: isenta, o líquido é o bruto.
+        let r = build_with(
+            &cdb("100% do CDI", "LCI", None),
+            &moves,
+            d(3, 9),
+            Some(&idx),
+        );
+        assert_eq!(r.balance_net, r.balance);
+        // Saldo informado vale mais que o calculado.
+        let mut m2 = moves.clone();
+        m2.push(mv("s", d(3, 9), MoveKind::Saldo, dec!(1001)));
+        let r = build_with(&cdb("100% do CDI", "CDB", None), &m2, d(3, 9), Some(&idx));
+        assert_eq!(r.balance, dec!(1001));
+        // Taxa que o app não entende: só o saldo informado, como antes.
+        let r = build_with(&cdb("não sei", "CDB", None), &moves, d(3, 9), Some(&idx));
+        assert!(r.automatic.is_none());
+        assert_eq!(r.balance, dec!(1000));
     }
 
     #[test]

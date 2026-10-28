@@ -367,6 +367,8 @@ export type DashboardView = {
   names: Record<string, string>;
   /** FGTS, conta corrente e cartões benefício: patrimônio fora da rentabilidade. */
   other_balances: OtherBalance[];
+  /** Saldos sem nenhum lançamento nos últimos meses fechados ("AAAA-MM-01"). */
+  missing_balances?: { id: string; name: string; account: string; kind: string; months: string[] }[];
 };
 
 export type OtherBalance = { id: string; name: string; account: string; kind: string; balance: Dec; last_informed: string | null };
@@ -554,6 +556,8 @@ export type TaxView = {
 };
 
 export const taxApi = {
+  /** Janela de impressão do sistema; fora do app (navegador), a do navegador. */
+  print: () => invoke<void>("print_page").catch(() => window.print()),
   load: () => invoke<TaxView>("taxes"),
   markPaid: (payment: DarfPayment) => invoke<void>("mark_darf_paid", { payment }),
   unmarkPaid: (month: string) => invoke<void>("unmark_darf_paid", { month }),
@@ -772,6 +776,8 @@ export type SavingsItem = {
   invested: Dec;
   earned: Dec;
   last_informed: string | null;
+  /** Renda fixa calculada pela taxa ("102% do CDI"). */
+  automatic: string | null;
   checks: BalanceCheck[];
   redemptions: Redemption[];
   moves: SavingsMove[];
@@ -789,6 +795,8 @@ export const savingsApi = {
   updateMove: (item: SavingsMove) => invoke<SavingsMove>("update_savings_move", { item }),
   removeMove: (id: string) => invoke<void>("remove_savings_move", { id }),
   restoreMove: (id: string) => invoke<SavingsMove>("restore_savings_move", { id }),
+  /** Como o app entende a taxa ("102% do CDI"); null quando não entende. */
+  describeRate: (text: string) => invoke<string | null>("describe_fixed_rate", { text }),
 };
 
 // ---------- bens (imóvel e veículo) e corretagem (0.14.0) ----------
