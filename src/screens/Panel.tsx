@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { EChartsCoreOption } from "echarts/core";
 import {
   dashboardApi,
@@ -119,6 +119,7 @@ function Bridge({
   total,
   income,
   incomeBase,
+  paid,
   fgts,
 }: {
   title: string;
@@ -126,6 +127,8 @@ function Bridge({
   total: number | null;
   income: number | null;
   incomeBase: number | null;
+  /** Proventos recebidos no ano, já dentro do rendimento. */
+  paid: number;
   /** Variação do FGTS no ano; null quando não há FGTS. */
   fgts: number | null;
 }) {
@@ -143,11 +146,17 @@ function Bridge({
     );
   }
   const rest = total - income - (fgts ?? 0);
-  const line = (label: string, value: number, sub: string) => (
+  const line = (
+    label: string,
+    value: number,
+    sub: string,
+    split?: ReactNode,
+  ) => (
     <div className="bridge-line">
       <span>{label}</span>
       <b className={tone(String(value))}>{signed(value)}</b>
       <span className="bridge-sub">{sub}</span>
+      {split}
     </div>
   );
   return (
@@ -157,7 +166,20 @@ function Bridge({
         {line(
           "Rendimento dos investimentos",
           income,
-          `${incomeBase ? `${percent(String(income / incomeBase))} sobre o que estava investido. ` : ""}Compras e vendas não contam, só o quanto os ativos renderam.`,
+          `${incomeBase ? `${percent(String(income / incomeBase))} sobre o que estava investido. ` : ""}Compras e vendas não contam, só o quanto os ativos renderam, com os proventos.`,
+          paid > 0 ? (
+            <span className="bridge-split">
+              <span>
+                Variação de preço{" "}
+                <b className={tone(String(income - paid))}>
+                  {signed(income - paid)}
+                </b>
+              </span>
+              <span>
+                Proventos <b className="pos">{signed(paid)}</b>
+              </span>
+            </span>
+          ) : undefined,
         )}
         {fgts != null && line("FGTS", fgts, "Depósitos e rendimento do FGTS.")}
         {line(
@@ -265,6 +287,7 @@ export default function Panel({
   const income = year.investments_gain
     ? Number(year.investments_gain.value)
     : null;
+  const paid = Number(year.investments_incomes ?? 0);
   const incomeBase = year.investments_gain
     ? Number(year.investments_gain.base)
     : null;
@@ -368,6 +391,7 @@ export default function Panel({
               <span className="muted small">
                 {percent(String(income / incomeBase))} sobre o que estava
                 investido
+                {paid > 0 && `, com ${money(paid.toFixed(2))} de proventos`}
               </span>
             ) : null}
           </div>
@@ -480,6 +504,7 @@ export default function Panel({
           total={yearGain}
           income={income}
           incomeBase={incomeBase}
+          paid={paid}
           fgts={groups.some((g) => g.id === "fgts") ? fgtsChange : null}
         />
       </div>
@@ -550,8 +575,8 @@ export default function Panel({
             </button>
           </div>
           <p className="muted small">
-            Só dos investimentos, descontando aportes e resgates, comparada com
-            o CDI.
+            Só dos investimentos, com os proventos e descontando aportes e
+            resgates, comparada com o CDI.
           </p>
           <div className="panel-returns">
             <Cards view={dash} />

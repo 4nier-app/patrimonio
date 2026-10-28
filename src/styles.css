@@ -237,6 +237,8 @@ tr.total-row td { background: var(--bg); }
 .bridge-line { display: grid; grid-template-columns: 1fr auto; gap: 2px 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); font-weight: 400; }
 .bridge-line b { font-size: 1.15rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bridge-sub { grid-column: 1 / -1; color: var(--muted); font-size: 0.85rem; }
+.bridge-split { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--muted); font-size: 0.85rem; }
+.bridge-split b { font-size: 0.95rem; font-weight: 600; margin-left: 4px; }
 .bridge-total { border-bottom: 0; border-top: 2px solid var(--text); padding-top: 10px; }
 .bridge-total > span:first-child { font-weight: 600; }
 .bridge-total b { font-size: 1.4rem; }

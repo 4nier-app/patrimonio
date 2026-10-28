@@ -388,8 +388,9 @@ export default function Incomes({ refresh, onChanged }: { refresh: number; onCha
           <Intro
             more={
               <>
-                Os proventos ficam somados aqui e não entram na rentabilidade, que mede só a variação de preço. No exterior, os valores em dólar são
-                convertidos pela PTAX do dia do pagamento.
+                Os proventos ficam somados aqui e também entram na rentabilidade e no rendimento do Painel, no mês em que caíram na conta (o
+                valor do patrimônio não muda: o dinheiro já está no saldo da conta). No exterior, os valores em dólar são convertidos pela PTAX do
+                dia do pagamento.
               </>
             }
           >

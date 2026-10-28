@@ -439,6 +439,8 @@ export type EvolutionView = {
   total_gain: EvolutionGain | null;
   investments_gain: EvolutionGain | null;
   investments_since: EvolutionGain | null;
+  /** Proventos líquidos em reais pagos no período, já somados no resultado. */
+  investments_incomes: Dec;
   incomplete: boolean;
 };
 

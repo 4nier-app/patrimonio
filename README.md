@@ -34,10 +34,15 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Alocação ideal:** defina a meta de cada classe (ações, FIIs, exterior,
   cripto, renda fixa, dinheiro…) e veja quanto falta em cada uma e onde pôr o
   próximo aporte, sem precisar vender nada.
+- **Proventos contam no rendimento:** dividendos, JCP e rendimentos de FIIs
+  entram na rentabilidade no mês em que caem na conta, junto com a variação
+  de preço. Um FII que paga todo mês mostra o retorno de verdade, e não só o
+  sobe e desce da cota.
 - **De onde veio a variação do ano:** o Painel separa quanto o patrimônio
-  mudou no ano em rendimento dos investimentos, FGTS e dinheiro que entrou (o
-  que você guardou, menos o que gastou ou retirou). Um ano em que as ações
-  caíram mas o patrimônio subiu fica explicado.
+  mudou no ano em rendimento dos investimentos (variação de preço e
+  proventos), FGTS e dinheiro que entrou (o que você guardou, menos o que
+  gastou ou retirou). Um ano em que as ações caíram mas o patrimônio subiu
+  fica explicado.
 - **Meta de patrimônio:** diga quanto quer ter e até quando; o Painel mostra
   quanto falta, quanto crescer por mês e, no ritmo dos últimos 12 meses,
   quando você chega lá.
@@ -83,8 +88,9 @@ primeira vez:
 - **Linux:** `.deb` (Ubuntu, Debian) ou `.AppImage` (marque como executável).
 
 Para atualizar, use o botão **Atualizar agora** do aviso que aparece no topo
-do app quando sai uma versão nova: ele baixa o instalador daqui, confere a
-assinatura do projeto e instala por cima, sem mexer nos seus dados.
+do app quando sai uma versão nova (no Windows, no Mac e no Linux): ele baixa
+o instalador daqui, confere a assinatura do projeto e instala por cima, sem
+mexer nos seus dados.
 
 Encontrou um erro? [Reporte aqui](https://github.com/4nier-app/patrimonio/issues/new?template=problema.yml),
 sempre com valores fictícios.

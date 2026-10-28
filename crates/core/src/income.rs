@@ -1,7 +1,7 @@
 //! Proventos: dividendos, juros sobre capital próprio, rendimentos de FIIs e
-//! juros recebidos. Ficam guardados à parte e não entram na rentabilidade
-//! (regra da seção 5.1 da arquitetura): o desempenho do ativo é medido só pelo
-//! preço, e os proventos aparecem somados na própria tela.
+//! juros recebidos. Ficam guardados à parte e entram no lucro do mês do
+//! pagamento na rentabilidade (seção 5.1 da arquitetura), como o CDI, que já
+//! inclui todo o rendimento.
 
 use chrono::NaiveDate;
 use rust_decimal::{Decimal, RoundingStrategy};
