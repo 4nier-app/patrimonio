@@ -171,8 +171,8 @@ export default function Returns({ onToday }: { onToday?: () => void }) {
         <div>
           <h2>Rentabilidade</h2>
           <p className="muted">
-            O dinheiro conta do dia da compra ao dia da venda. Valores em reais; no exterior, também em dólar e o efeito do
-            câmbio.{memos ? " Clique num mês ou ano para ver a conta." : ""}
+            O dinheiro conta do dia da compra ao dia da venda, e os proventos lançados entram no mês em que caíram na conta. Valores em
+            reais; no exterior, também em dólar e o efeito do câmbio.{memos ? " Clique num mês ou ano para ver a conta." : ""}
             {onToday && (
               <>
                 {" "}

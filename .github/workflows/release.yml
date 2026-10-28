@@ -55,7 +55,9 @@ jobs:
           - os: ubuntu-22.04
             args: "--bundles appimage,deb"
           - os: macos-latest
-            args: "--target universal-apple-darwin --bundles dmg"
+            # "app" gera o pacote de atualização do Mac (.app.tar.gz); sem ele o
+            # latest.json fica sem o Mac e o "Atualizar agora" não aparece lá.
+            args: "--target universal-apple-darwin --bundles app,dmg"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5

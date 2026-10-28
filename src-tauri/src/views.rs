@@ -399,11 +399,20 @@ pub fn returns(v: &Vault, as_of: NaiveDate) -> Result<ReturnsView, String> {
     let table = prices_for(v, &ops)?;
     let fx = v.value_fx().map_err(s)?;
     let trades = trades_of(&ops);
+    let incomes = v.list_incomes().map_err(s)?;
     let scope = |scope: Scope, asset: Option<String>, currency: &str| {
-        let months = monthly_returns_in(&trades, &table, as_of, &scope, Conversion::ToBrl(&fx));
+        let months = monthly_returns_in(
+            &trades,
+            &incomes,
+            &table,
+            as_of,
+            &scope,
+            Conversion::ToBrl(&fx),
+        );
         let years = yearly_returns(&months);
         let native = (currency != BRL).then(|| {
-            let n_months = monthly_returns_in(&trades, &table, as_of, &scope, Conversion::Native);
+            let n_months =
+                monthly_returns_in(&trades, &incomes, &table, as_of, &scope, Conversion::Native);
             let n_years = yearly_returns(&n_months);
             let fx_months = months
                 .iter()
@@ -614,9 +623,11 @@ pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
     let table = prices_for(v, &ops)?;
     let fx = v.value_fx().map_err(s)?;
     let trades = trades_of(&ops);
+    let incomes = v.list_incomes().map_err(s)?;
 
     let months = monthly_returns_in(
         &trades,
+        &incomes,
         &table,
         as_of,
         &Scope::Carteira,
@@ -724,6 +735,7 @@ pub fn dashboard(v: &Vault, as_of: NaiveDate) -> Result<DashboardView, String> {
         .map(|t| {
             let am = monthly_returns_in(
                 &trades,
+                &incomes,
                 &table,
                 as_of,
                 &Scope::Ativo(t.clone()),
@@ -797,8 +809,10 @@ pub fn dashboard_days(
     let table = prices_for(v, &ops)?;
     let fx = v.value_fx().map_err(s)?;
     let trades = trades_of(&ops);
+    let incomes = v.list_incomes().map_err(s)?;
     let months = monthly_returns_in(
         &trades,
+        &incomes,
         &table,
         as_of,
         &Scope::Carteira,
@@ -829,6 +843,7 @@ pub fn dashboard_days(
         .filter_map(|&d| {
             window_result(
                 &trades,
+                &incomes,
                 &table,
                 start,
                 d,
@@ -917,9 +932,16 @@ pub fn dashboard_days(
             let profits = windows
                 .iter()
                 .map(|(d, _)| {
-                    let now =
-                        window_result(&trades, &table, start, *d, &scope, Conversion::ToBrl(&fx))
-                            .and_then(|w| w.profit);
+                    let now = window_result(
+                        &trades,
+                        &incomes,
+                        &table,
+                        start,
+                        *d,
+                        &scope,
+                        Conversion::ToBrl(&fx),
+                    )
+                    .and_then(|w| w.profit);
                     let p = match (now, before) {
                         (Some(n), Some(b)) => Some(n - b),
                         (Some(n), None) => Some(n),

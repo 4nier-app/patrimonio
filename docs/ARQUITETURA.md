@@ -79,7 +79,7 @@ Todos os valores monetários são `TEXT` decimal (ex.: `"3801.14"`) para não pe
 - **operation_fee**: `operation_id, tipo (EMOLUMENTOS|LIQUIDACAO|CORRETAGEM|IOF|OUTRAS), base, aliquota, valor, fee_rule_id, informado_ou_calculado`
 - **fee_rule**: `id, mercado, tipo_taxa, modalidade (NORMAL|DAY_TRADE), aliquota, vigente_de, vigente_ate, url_fonte` (tabela versionada: quando a B3 mudar a taxa, entra uma nova linha, as operações antigas continuam usando a regra da sua data)
 
-### 4.3 Proventos (armazenados, fora da rentabilidade)
+### 4.3 Proventos (entram na rentabilidade, ver 5.1)
 - **incomes** (migração 0009): `id, account, ticker, kind (DIVIDENDO|JCP|RENDIMENTO|JUROS|OUTRO), pay_date, ex_date, gross, withheld, currency, note, removed_at`. O líquido é `gross − withheld`; no exterior, os valores em reais usam a PTAX venda do dia do pagamento (último boletim até a data), com o líquido em reais = bruto em reais − retido em reais. Cada mudança gera evento `PROVENTO` no log de auditoria. O valor por cota usa a quantidade somada em todas as contas no fim da data com (ou do pagamento).
 
 ### 4.3a Eventos corporativos (bonificação, desdobramento, grupamento)
@@ -135,7 +135,7 @@ Uma cotação nunca é sobrescrita. Se a fonte corrigir um valor, entra nova lin
 ## 5. Motor de rentabilidade
 
 ### 5.1 Regra pedida
-"O capital só começa a contar a partir da data exata da compra e deixa de contar na data exata da venda." Dividendos não entram. Compras são aportes, vendas são retiradas.
+"O capital só começa a contar a partir da data exata da compra e deixa de contar na data exata da venda." Compras são aportes, vendas são retiradas. Desde a 0.25.0, os proventos lançados (líquidos do imposto retido) entram no lucro do mês em que caíram na conta, como o CDI, que já inclui todo o rendimento. O valor de mercado não muda: o dinheiro do provento já está no saldo da conta, e só passa a ser explicado como rendimento do ativo, não como dinheiro novo.
 
 ### 5.2 Fórmula mensal (Modified Dietz por dia)
 Para um ativo (ou a carteira) num mês:
@@ -149,9 +149,13 @@ V1     = valor de mercado em fim  (quantidade × fechamento × PTAX se USD)
 Fᵢ     = fluxo da operação i: compra = +(bruto + taxas); venda = −(bruto − taxas)
 wᵢ     = (dias restantes a partir da data da operação i, inclusive) / D
 
-Lucro/Prejuízo (R$) = V1 − V0 − ΣFᵢ
+P      = proventos líquidos pagos no mês (exterior: câmbio do saldo do dia)
+
+Lucro/Prejuízo (R$) = V1 − V0 − ΣFᵢ + P
 Rentabilidade (%)   = Lucro / (V0 + Σ wᵢ·Fᵢ)
 ```
+
+Provento pago depois que o ativo já foi vendido entra no último mês em que o ativo esteve na carteira. Na Evolução, o resultado de cada ativo soma os proventos do período, e o dinheiro novo dos investimentos desconta os proventos (o dinheiro saiu do ativo para a conta), então rendimento + dinheiro novo continua fechando com a variação do patrimônio.
 
 O denominador é o **capital médio efetivamente exposto**: cada real conta só nos dias em que esteve investido.
 

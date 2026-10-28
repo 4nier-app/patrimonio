@@ -159,6 +159,9 @@ pub struct EvolutionView {
     pub investments_gain: Option<Gain>,
     /// Resultado dos investimentos desde a primeira compra.
     pub investments_since: Option<Gain>,
+    /// Proventos líquidos em reais pagos no período (já somados no
+    /// resultado dos investimentos).
+    pub investments_incomes: Decimal,
     /// Alguma coluna ficou sem cotação ou PTAX de algum ativo.
     pub incomplete: bool,
 }
@@ -263,6 +266,9 @@ struct Inputs<'a> {
     reports: &'a [SavingsReport],
     owned: &'a [carteira_core::owned::OwnedAsset],
     works: &'a [carteira_core::owned::Improvement],
+    /// Proventos: entram no resultado do ativo, não no valor (o dinheiro já
+    /// está no saldo da conta).
+    incomes: &'a [carteira_core::income::Income],
 }
 
 fn build(
@@ -321,9 +327,21 @@ fn build(
     // Ativo comprado e vendido entre duas colunas: não aparece em nenhuma,
     // mas o resultado dele entra no período.
     let (start, end) = (cols[0].date, cols[n - 1].date);
-    for p in inp.ops {
-        let a = &p.operation.asset;
-        if p.operation.date > start && p.operation.date <= end && !savings::is_savings(a) {
+    // O mesmo para um ativo já vendido que pagou provento no período.
+    let paid: Vec<&String> = inp
+        .incomes
+        .iter()
+        .filter(|i| i.pay_date > start && i.pay_date <= end)
+        .filter(|i| inp.ops.iter().any(|p| p.operation.asset == i.asset))
+        .map(|i| &i.asset)
+        .collect();
+    let traded = inp
+        .ops
+        .iter()
+        .filter(|p| p.operation.date > start && p.operation.date <= end)
+        .map(|p| &p.operation.asset);
+    for a in traded.chain(paid) {
+        if !savings::is_savings(a) {
             by_asset.entry(a.clone()).or_insert_with(|| Row {
                 asset: Some(a.clone()),
                 savings_id: None,
@@ -514,6 +532,28 @@ fn build(
         }
     };
     let in_period = |p: &&PricedOperation| p.operation.date > start && p.operation.date <= end;
+    // Provento líquido em reais (no exterior, pelo mesmo câmbio do saldo).
+    let income_brl = |i: &carteira_core::income::Income| -> Option<Decimal> {
+        if i.currency == USD {
+            inp.fx
+                .value_rate(&i.account, i.pay_date)
+                .map(|f| i.net() * f.rate)
+        } else {
+            Some(i.net())
+        }
+    };
+    // Só proventos de ativos com lançamentos, os mesmos que têm linha.
+    let held: std::collections::BTreeSet<&str> =
+        inp.ops.iter().map(|p| p.operation.asset.as_str()).collect();
+    let paid_between = |asset: Option<&str>, from: NaiveDate, to: NaiveDate| -> Decimal {
+        inp.incomes
+            .iter()
+            .filter(|i| i.pay_date > from && i.pay_date <= to)
+            .filter(|i| held.contains(i.asset.as_str()))
+            .filter(|i| asset.is_none_or(|a| a == i.asset))
+            .filter_map(income_brl)
+            .sum()
+    };
     for row in rows.values_mut().flatten() {
         // Saldos sem código (FGTS, conta, benefício) já têm a variação simples.
         if row.asset.is_none() || row.missing[0] || row.missing[n - 1] {
@@ -536,8 +576,10 @@ fn build(
                 }
             }
         }
+        // O provento é resultado do ativo: o dinheiro saiu dele para a conta.
+        let paid = paid_between(row.asset.as_deref(), start, end);
         row.gain = Some(Gain {
-            value: (last - first - net).round_dp(2),
+            value: (last - first - net + paid).round_dp(2),
             base: (first + buys).round_dp(2),
         });
     }
@@ -564,8 +606,9 @@ fn build(
             continue;
         }
         let last = row.values[n - 1].unwrap_or_default();
+        let paid = paid_between(Some(a), NaiveDate::MIN, end);
         row.since = Some(Gain {
-            value: (last - net).round_dp(2),
+            value: (last - net + paid).round_dp(2),
             base: buys.round_dp(2),
         });
     }
@@ -658,10 +701,14 @@ fn build(
                 .iter()
                 .filter(|p| p.operation.date > from && p.operation.date <= to)
                 .filter_map(flow_brl);
-            Some(flows.sum::<Decimal>().round_dp(2))
+            // O provento saiu dos investimentos para a conta: conta como
+            // resgate, e a diferença vira rendimento.
+            let paid = paid_between(None, from, to);
+            Some((flows.sum::<Decimal>() - paid).round_dp(2))
         })
         .collect();
 
+    let investments_incomes = paid_between(None, start, end).round_dp(2);
     let incomplete = groups
         .iter()
         .any(|g| g.rows.iter().any(|r| r.missing.iter().any(|m| *m)));
@@ -676,6 +723,7 @@ fn build(
         total_gain,
         investments_gain,
         investments_since,
+        investments_incomes,
         incomplete,
     })
 }
@@ -835,6 +883,7 @@ pub fn evolution(v: &Vault, year: Option<i32>, today: NaiveDate) -> Result<Evolu
     let reports = crate::views::savings_reports(v)?;
     let owned = v.list_owned().map_err(s)?;
     let works = v.list_improvements().map_err(s)?;
+    let incomes = v.list_incomes().map_err(s)?;
     let Some(first) = first_day(&ops, &reports, &owned) else {
         return Ok(EvolutionView {
             years: Vec::new(),
@@ -847,6 +896,7 @@ pub fn evolution(v: &Vault, year: Option<i32>, today: NaiveDate) -> Result<Evolu
             total_gain: None,
             investments_gain: None,
             investments_since: None,
+            investments_incomes: Decimal::ZERO,
             incomplete: false,
         });
     };
@@ -867,6 +917,7 @@ pub fn evolution(v: &Vault, year: Option<i32>, today: NaiveDate) -> Result<Evolu
         reports: &reports,
         owned: &owned,
         works: &works,
+        incomes: &incomes,
     };
     build(v, &inp, year, years, first, today)
 }
@@ -926,6 +977,97 @@ mod tests {
         assert_eq!(group_of(None, BRL, "").0, "b3");
         assert_eq!(group_of(Some("ETF"), BRL, "").0, "etf");
         assert_eq!(group_of(Some("ETF"), USD, "").0, "exterior");
+    }
+
+    #[test]
+    fn proventos_entram_no_resultado_sem_mudar_o_valor() {
+        use carteira_core::income::{Income, IncomeKind};
+        use carteira_core::model::Side;
+        use carteira_core::operations::Operation;
+        use carteira_storage::{KdfParams, NewQuote};
+        use rust_decimal_macros::dec;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-123",
+            "0.25.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
+        let trade = |asset: &str, date, side, q| Operation {
+            id: String::new(),
+            account: "Corretora X".into(),
+            asset: asset.into(),
+            date,
+            side,
+            quantity: q,
+            price: dec!(10),
+            manual_fees: Some(Decimal::ZERO),
+            note: None,
+            currency: BRL.into(),
+            from_account: None,
+            residue: None,
+            ir: None,
+            iof: None,
+        };
+        v.create_operation(trade("TEST3", d(2026, 1, 5), Side::Compra, dec!(100)))
+            .unwrap();
+        // OUTR3: vendida em janeiro pelo mesmo preço; o provento cai depois.
+        v.create_operation(trade("OUTR3", d(2026, 1, 5), Side::Compra, dec!(10)))
+            .unwrap();
+        v.create_operation(trade("OUTR3", d(2026, 1, 20), Side::Venda, dec!(10)))
+            .unwrap();
+        let q = |t: &str, date| NewQuote {
+            ticker: t.into(),
+            date,
+            close: dec!(10),
+            source: "YAHOO".into(),
+        };
+        v.save_quotes(&[
+            q("TEST3", d(2026, 1, 5)),
+            q("TEST3", d(2026, 1, 30)),
+            q("TEST3", d(2026, 2, 27)),
+            q("TEST3", d(2026, 3, 3)),
+            q("OUTR3", d(2026, 1, 19)),
+        ])
+        .unwrap();
+        let income = |asset: &str, pay, gross| Income {
+            id: String::new(),
+            account: "Corretora X".into(),
+            asset: asset.into(),
+            kind: IncomeKind::Dividendo,
+            pay_date: pay,
+            ex_date: None,
+            gross,
+            withheld: Decimal::ZERO,
+            currency: BRL.into(),
+            note: None,
+        };
+        v.create_income(income("TEST3", d(2026, 2, 10), dec!(40)))
+            .unwrap();
+        v.create_income(income("OUTR3", d(2026, 2, 13), dec!(5)))
+            .unwrap();
+
+        let view = evolution(&v, Some(2026), d(2026, 3, 4)).unwrap();
+        // O valor não muda: a cota ficou parada em R$ 10.
+        assert_eq!(view.investments[0], Some(dec!(1000)));
+        assert_eq!(view.investments[1], Some(dec!(1000)));
+        // Os proventos de fevereiro saem dos investimentos para a conta.
+        assert_eq!(view.new_money[1], Some(dec!(-45)));
+        let rows = &view.groups[0].rows;
+        let row = |a: &str| rows.iter().find(|r| r.asset.as_deref() == Some(a)).unwrap();
+        assert_eq!(row("TEST3").gain.unwrap().value, dec!(40));
+        assert_eq!(row("TEST3").since.unwrap().value, dec!(40));
+        // A OUTR3 já tinha sido vendida, mas o provento é resultado dela.
+        assert_eq!(row("OUTR3").gain.unwrap().value, dec!(5));
+        // O resultado dos investimentos continua batendo com a soma dos meses.
+        let inv = view.investments_gain.unwrap();
+        assert_eq!(inv.value, dec!(45));
+        assert_eq!(view.investments_incomes, dec!(45));
+        let last = view.investments[view.columns.len() - 1].unwrap();
+        let flows: Decimal = view.new_money.iter().flatten().sum();
+        assert_eq!(inv.value, last - dec!(1000) - flows);
     }
 
     #[test]

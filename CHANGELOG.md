@@ -6,6 +6,28 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.25.0] - 2026-10-28
+
+### Alterado
+- Proventos contam no rendimento: dividendos, JCP e rendimentos de FIIs
+  entram na Rentabilidade no mês em que caem na conta, pelo valor líquido,
+  junto com a variação de preço. Antes, só a variação de preço contava, e um
+  FII que paga todo mês parecia render menos do que rende. O valor do
+  patrimônio não muda: na Evolução e no Painel, o provento sai de "dinheiro
+  que entrou" e passa para "rendimento dos investimentos", sem contar duas
+  vezes. Provento pago depois da venda do ativo fica no último mês em que ele
+  estava na carteira. A memória de cálculo mostra cada provento somado.
+- Painel: o rendimento dos investimentos do ano mostra quanto veio da
+  variação de preço e quanto veio de proventos. A visão simples também diz o
+  valor dos proventos.
+- Site e loja com as telas novas.
+
+### Corrigido
+- Mac: o botão "Atualizar agora" passa a funcionar. Antes, a versão nova
+  não trazia o pacote de atualização do Mac, e o app só mostrava o link da
+  página de download. Quem usa Mac instala a 0.25.0 pelo .dmg uma última vez;
+  depois disso, as próximas versões chegam pelo botão.
+
 ## [0.24.0] - 2026-10-27
 
 ### Adicionado

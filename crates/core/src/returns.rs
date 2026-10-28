@@ -3,10 +3,15 @@
 //! Para cada mês usa o método Modified Dietz com pesos diários:
 //!
 //! ```text
-//! Lucro       = V1 − V0 − ΣFᵢ
+//! Lucro       = V1 − V0 − ΣFᵢ + P
 //! Rentab.     = Lucro / (V0 + Σ wᵢ·Fᵢ)
 //! wᵢ          = dias em que o fluxo i esteve na carteira / dias do período
+//! P           = proventos que caíram na conta no mês (líquidos)
 //! ```
+//!
+//! Os proventos entram no mês do pagamento, como o CDI, que já inclui todo o
+//! rendimento. Se o ativo já tinha sido vendido no mês do pagamento, o
+//! provento entra no último mês em que ele esteve na carteira.
 //!
 //! O período começa no 1º dia do mês, ou na data da primeira compra se a
 //! posição não existia no início do mês. Termina no último dia do mês (ou na
@@ -23,11 +28,12 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 
 use crate::format::{brl, number, pct, qty};
+use crate::income::Income;
 use crate::model::{FxRate, FxSource, Quote, Side, Trade, BRL};
 
 /// Identificador e versão da fórmula, gravados em cada resultado.
 pub const FORMULA_ID: &str = "modified-dietz-diario";
-pub const FORMULA_VERSION: u32 = 1;
+pub const FORMULA_VERSION: u32 = 2;
 
 /// Fonte de cotações: fechamento na data ou no último pregão anterior.
 pub trait PriceSource {
@@ -180,6 +186,8 @@ pub struct MonthResult {
     pub flows: Vec<Flow>,
     pub net_flows: Decimal,
     pub weighted_flows: Decimal,
+    /// Proventos líquidos recebidos no mês, na moeda do resultado.
+    pub incomes: Decimal,
     /// `None` quando falta cotação.
     pub profit: Option<Decimal>,
     pub average_capital: Option<Decimal>,
@@ -342,12 +350,13 @@ pub fn monthly_returns(
     as_of: NaiveDate,
     scope: &Scope,
 ) -> Vec<MonthResult> {
-    monthly_returns_in(trades, prices, as_of, scope, Conversion::Native)
+    monthly_returns_in(trades, &[], prices, as_of, scope, Conversion::Native)
 }
 
 /// Como [`monthly_returns`], escolhendo a moeda do resultado.
 pub fn monthly_returns_in(
     trades: &[Trade],
+    incomes: &[Income],
     prices: &dyn PriceSource,
     as_of: NaiveDate,
     scope: &Scope,
@@ -374,7 +383,118 @@ pub fn monthly_returns_in(
         month_start =
             last_day_of_month(month_start.year(), month_start.month()) + Duration::days(1);
     }
+    for i in incomes_in_scope(incomes, &currencies, scope, as_of) {
+        // O mês do pagamento ou, se o ativo já tinha saído, o último mês dele.
+        if let Some(at) = results.iter().rposition(|r| r.period_start <= i.pay_date) {
+            add_income(&mut results[at], i, conv, &out);
+        }
+    }
     results
+}
+
+/// Proventos dos ativos do escopo pagos até `as_of`, em ordem de data.
+fn incomes_in_scope<'a>(
+    incomes: &'a [Income],
+    currencies: &BTreeMap<String, String>,
+    scope: &Scope,
+    as_of: NaiveDate,
+) -> Vec<&'a Income> {
+    let mut out: Vec<&Income> = incomes
+        .iter()
+        .filter(|i| i.pay_date <= as_of)
+        .filter(|i| match scope {
+            Scope::Ativo(a) => &i.asset == a,
+            Scope::Carteira => currencies.contains_key(&i.asset),
+        })
+        .collect();
+    out.sort_by_key(|i| i.pay_date);
+    out
+}
+
+/// Soma um provento ao lucro do mês e refaz a conta da memória de cálculo.
+fn add_income(r: &mut MonthResult, i: &Income, conv: Conversion, out: &str) {
+    let fx = value_fx_for(conv, &i.currency, &i.account, i.pay_date);
+    let net = i.net();
+    let (amount, fx_txt) = match &fx {
+        Ok(Some(f)) => (Some(net * f.rate), fx_label(f)),
+        Ok(None) => (Some(net), String::new()),
+        Err(()) => (None, " × PTAX indisponível".to_string()),
+    };
+    let line = format!(
+        "P {} provento de {}: {}{} = {}",
+        i.pay_date.format("%d/%m/%Y"),
+        i.asset,
+        money(net, &i.currency),
+        fx_txt,
+        amount.map_or("indisponível".to_string(), |a| money(a, out))
+    );
+    // As linhas de provento ficam antes da conta do lucro.
+    let tail = r
+        .explanation
+        .iter()
+        .position(|l| l.starts_with("Lucro = ") || l.starts_with("Resultado indisponível"))
+        .unwrap_or(r.explanation.len());
+    r.explanation.truncate(tail);
+    r.explanation.push(line);
+    match amount {
+        Some(a) => {
+            r.incomes += a;
+            r.profit = r.profit.map(|p| p + a);
+        }
+        None => r.profit = None,
+    }
+    r.rate = match (r.profit, r.average_capital) {
+        (Some(p), Some(c)) if c > Decimal::ZERO => Some(p / c),
+        _ => None,
+    };
+    r.explanation.extend(settle_lines(r, out));
+}
+
+/// Conta do lucro, do capital médio e da rentabilidade, para a memória.
+fn settle_lines(r: &MonthResult, out: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    match (r.profit, r.average_capital) {
+        (Some(p), Some(c)) => {
+            if r.incomes.is_zero() {
+                lines.push(format!(
+                    "Lucro = V1 − V0 − ΣF = {} − {} − {} = {}",
+                    money(r.end.total.unwrap_or_default(), out),
+                    money(r.start.total.unwrap_or_default(), out),
+                    money(r.net_flows, out),
+                    money(p, out)
+                ));
+            } else {
+                lines.push(format!(
+                    "Lucro = V1 − V0 − ΣF + P = {} − {} − {} + {} = {}",
+                    money(r.end.total.unwrap_or_default(), out),
+                    money(r.start.total.unwrap_or_default(), out),
+                    money(r.net_flows, out),
+                    money(r.incomes, out),
+                    money(p, out)
+                ));
+            }
+            lines.push(format!(
+                "Capital médio = V0 + Σ(w·F) = {} + {} = {}",
+                money(r.start.total.unwrap_or_default(), out),
+                money(r.weighted_flows, out),
+                money(c, out)
+            ));
+            lines.push(match r.rate {
+                Some(rate) => format!(
+                    "Rentabilidade = Lucro / Capital médio = {} / {} = {}",
+                    money(p, out),
+                    money(c, out),
+                    pct(rate, 2)
+                ),
+                None => "Rentabilidade indisponível: capital médio não é positivo".to_string(),
+            });
+        }
+        _ => lines.push(
+            "Resultado indisponível: falta cotação de fechamento ou PTAX (atualize as cotações)"
+                .to_string(),
+        ),
+    }
+    lines
 }
 
 type Selection<'a> = (Vec<&'a Trade>, BTreeMap<String, String>, String);
@@ -411,6 +531,7 @@ fn select<'a>(
 /// mês) até `end`, com a mesma fórmula do mês. Serve para ver o mês dia a dia.
 pub fn window_result(
     trades: &[Trade],
+    incomes: &[Income],
     prices: &dyn PriceSource,
     start: NaiveDate,
     end: NaiveDate,
@@ -418,7 +539,13 @@ pub fn window_result(
     conv: Conversion,
 ) -> Option<MonthResult> {
     let (selected, currencies, out) = select(trades, end, scope, conv)?;
-    month_result(&selected, prices, start, end, &currencies, conv, &out)
+    let mut r = month_result(&selected, prices, start, end, &currencies, conv, &out)?;
+    for i in incomes_in_scope(incomes, &currencies, scope, end) {
+        if i.pay_date >= start {
+            add_income(&mut r, i, conv, &out);
+        }
+    }
+    Some(r)
 }
 
 fn month_result(
@@ -626,6 +753,7 @@ fn month_result(
         flows,
         net_flows,
         weighted_flows,
+        incomes: Decimal::ZERO,
         profit,
         average_capital,
         rate,
@@ -1014,6 +1142,7 @@ mod tests {
         let scope = Scope::Ativo("TEST".into());
         let brl = monthly_returns_in(
             &[t.clone()],
+            &[],
             &prices,
             day(2026, 2, 28),
             &scope,
@@ -1021,6 +1150,7 @@ mod tests {
         );
         let usd = monthly_returns_in(
             &[t.clone()],
+            &[],
             &prices,
             day(2026, 2, 28),
             &scope,
@@ -1050,11 +1180,114 @@ mod tests {
         }
         let none = monthly_returns_in(
             &[t],
+            &[],
             &prices,
             day(2026, 2, 28),
             &scope,
             Conversion::ToBrl(&Nada),
         );
         assert!(none.iter().all(|m| m.rate.is_none()));
+    }
+    fn income(asset: &str, pay: NaiveDate, net: Decimal) -> Income {
+        Income {
+            id: format!("p-{asset}-{pay}"),
+            account: "Corretora A".into(),
+            asset: asset.into(),
+            kind: crate::income::IncomeKind::Rendimento,
+            pay_date: pay,
+            ex_date: None,
+            gross: net,
+            withheld: Decimal::ZERO,
+            currency: "BRL".into(),
+            note: None,
+        }
+    }
+
+    #[test]
+    fn proventos_entram_no_lucro_do_mes_do_pagamento() {
+        // Cota parada em R$ 100: sem provento o mês daria zero.
+        let trades = vec![trade(
+            "t1",
+            "FUND11",
+            day(2026, 1, 2),
+            Side::Compra,
+            dec!(100),
+            dec!(100),
+            dec!(0),
+        )];
+        let prices = Prices::new(&[
+            ("FUND11", (2026, 1, 30), dec!(100)),
+            ("FUND11", (2026, 2, 27), dec!(100)),
+        ]);
+        let incomes = vec![income("FUND11", day(2026, 2, 13), dec!(80))];
+        let scope = Scope::Ativo("FUND11".into());
+        let r = monthly_returns_in(
+            &trades,
+            &incomes,
+            &prices,
+            day(2026, 2, 28),
+            &scope,
+            Conversion::Native,
+        );
+        assert_eq!(r[0].profit, Some(dec!(0)));
+        assert_eq!(r[1].incomes, dec!(80));
+        assert_eq!(r[1].profit, Some(dec!(80)));
+        assert_eq!(r[1].rate, Some(dec!(0.008)));
+        assert!(
+            r[1].explanation
+                .iter()
+                .any(|l| l.contains("+ P") && l.contains("R$ 80,00")),
+            "{:?}",
+            r[1].explanation
+        );
+        // Sem a lista de proventos, só a variação de preço.
+        let only_price = monthly_returns(&trades, &prices, day(2026, 2, 28), &scope);
+        assert_eq!(only_price[1].profit, Some(dec!(0)));
+        // A carteira soma o mesmo provento.
+        let all = monthly_returns_in(
+            &trades,
+            &incomes,
+            &prices,
+            day(2026, 2, 28),
+            &Scope::Carteira,
+            Conversion::Native,
+        );
+        assert_eq!(all[1].profit, Some(dec!(80)));
+    }
+
+    #[test]
+    fn provento_pago_depois_da_venda_fica_no_ultimo_mes_do_ativo() {
+        let trades = vec![
+            trade(
+                "t1",
+                "FUND11",
+                day(2026, 1, 2),
+                Side::Compra,
+                dec!(100),
+                dec!(100),
+                dec!(0),
+            ),
+            trade(
+                "t2",
+                "FUND11",
+                day(2026, 1, 20),
+                Side::Venda,
+                dec!(100),
+                dec!(100),
+                dec!(0),
+            ),
+        ];
+        let prices = Prices::new(&[("FUND11", (2026, 1, 19), dec!(100))]);
+        let incomes = vec![income("FUND11", day(2026, 2, 13), dec!(50))];
+        let r = monthly_returns_in(
+            &trades,
+            &incomes,
+            &prices,
+            day(2026, 2, 28),
+            &Scope::Ativo("FUND11".into()),
+            Conversion::Native,
+        );
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].profit, Some(dec!(50)));
     }
 }
