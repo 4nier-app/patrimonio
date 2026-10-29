@@ -6,6 +6,14 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.26.1] - 2026-10-29
+
+### Adicionado
+- Lançamentos mostra de onde veio cada um: "Nota" com a corretora e o
+  número, "Planilha da B3", "Planilha importada" ou "Digitado". Se um
+  lançamento importado foi alterado depois, aparece "alterado depois". Vale
+  também para os lançamentos que já existiam.
+
 ## [0.26.0] - 2026-10-28
 
 ### Adicionado

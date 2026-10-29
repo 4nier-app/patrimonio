@@ -1001,6 +1001,14 @@ fn note_status(hashes: Vec<String>, state: State<AppState>) -> Result<Vec<NoteSt
     })
 }
 
+/// De que nota ou planilha veio cada lançamento importado.
+#[tauri::command]
+fn operation_origins(
+    state: State<AppState>,
+) -> Result<Vec<carteira_storage::OperationOrigin>, String> {
+    with_vault(&state, |v| v.operation_origins())
+}
+
 /// Para cada (nome de pregão, classe), os códigos da B3 que batem.
 #[tauri::command]
 fn resolve_b3_names(
@@ -1313,6 +1321,7 @@ pub fn run() {
             returns_report,
             dashboard,
             note_status,
+            operation_origins,
             resolve_b3_names,
             import_note,
             read_b3_trades,

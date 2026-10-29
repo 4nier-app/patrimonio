@@ -287,6 +287,17 @@ export const notesApi = {
   resolveNames: (items: [string, string][]) => invoke<string[][]>("resolve_b3_names", { items }),
   importNote: (note: NoteImport) => invoke<number>("import_note", { note }),
   saveCsvTemplate: (content: string) => invoke<boolean>("save_csv_template", { content }),
+  origins: () => invoke<OperationOrigin[]>("operation_origins"),
+};
+
+/** De que nota ou planilha veio um lançamento importado. */
+export type OperationOrigin = {
+  operation_id: string;
+  /** Corretora da nota; "B3" na planilha da B3 e "Planilha" na planilha própria. */
+  broker: string;
+  number: string | null;
+  imported_at: string;
+  edited: boolean;
 };
 
 /** Uma compra ou venda do extrato de negociação da B3. */

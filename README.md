@@ -19,6 +19,8 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   S&P 500 e dólar.
 - **Nada é caixa-preta:** cada número pode mostrar a operação, a cotação, o
   câmbio (PTAX), as taxas e a fórmula usada, com os valores substituídos.
+  Cada lançamento diz de onde veio: da nota de corretagem (com o número), da
+  planilha da B3 ou digitado, e se foi alterado depois.
 - **Ganho de cada compra:** na página do ativo e na Evolução (na setinha ▸ de
   cada ativo), cada compra que ainda está na carteira mostra o custo com
   taxas, o valor e o ganho desde a compra (nas vendas, as compras mais antigas

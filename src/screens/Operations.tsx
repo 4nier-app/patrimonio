@@ -4,6 +4,8 @@ import { offerUndo } from "../undo";
 import {
   brokerageApi,
   exitCostApi,
+  notesApi,
+  type OperationOrigin,
   type Brokerage,
   errorMessage,
   market,
@@ -30,6 +32,7 @@ import {
 } from "../format";
 import { currencyOfNewAccount, fundTicker, isFund, isTesouro, normalizeTicker } from "../currency";
 import CashInput from "../components/CashInput";
+import { groupOrigin, originLabel, originTitle } from "../origin";
 import BrokerageBox from "../components/BrokerageBox";
 import ExitCostBox from "../components/ExitCostBox";
 
@@ -210,9 +213,14 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
   const [brokerage, setBrokerage] = useState<Record<string, Brokerage>>({});
   const [exitCost, setExitCost] = useState<Record<string, string>>({});
   const [bump, setBump] = useState(0);
+  const [origins, setOrigins] = useState<Record<string, OperationOrigin>>({});
 
   function load() {
     market.listOperations().then(setList).catch((e) => setError(errorMessage(e)));
+    notesApi
+      .origins()
+      .then((l) => setOrigins(Object.fromEntries(l.map((o) => [o.operation_id, o]))))
+      .catch(() => {});
     market.listAccounts().then(setAccounts).catch(() => {});
     brokerageApi.table().then(setBrokerage).catch(() => {});
     exitCostApi.table().then(setExitCost).catch(() => {});
@@ -511,6 +519,10 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
                   : FUND_SIDE_LABEL[p.operation.side]
                 : SIDE_LABEL[p.operation.side]}
             </span>
+            <div className="muted small" title={originTitle(origins[p.operation.id])}>
+              {originLabel(origins[p.operation.id])}
+              {origins[p.operation.id]?.edited && " · alterado depois"}
+            </div>
           </td>
           <td className="num">
             {quantity(p.operation.quantity)}
@@ -579,6 +591,8 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
                 Na B3, as taxas (liquidação, emolumentos e transferência) são calculadas sobre o total da nota, ou seja, de todos os lançamentos da
                 mesma corretora no mesmo dia, e divididas entre eles. Se a nota trouxer outro valor, informe a taxa à mão. No exterior os valores são em
                 dólar e a conversão para reais usa a PTAX do Banco Central. Fundos de investimento são lançados pelo extrato do banco, em cotas.
+                Abaixo de cada operação aparece de onde ela veio: da nota de corretagem, da planilha da B3 ou digitada; e se foi alterada depois
+                da importação (o antes e o depois ficam em Segurança › Auditoria).
               </>
             }
           >
@@ -1035,6 +1049,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
                     <td>{g.items[0].operation.account}</td>
                     <td colSpan={4}>
                       <strong>{g.items.length} lançamentos neste dia</strong>
+                      <span className="muted small"> · {groupOrigin(g.items.map((p) => origins[p.operation.id]))}</span>
                       <span className="muted small"> · {[...new Set(g.items.map((p) => p.operation.asset))].slice(0, 6).join(", ")}{new Set(g.items.map((p) => p.operation.asset)).size > 6 ? "…" : ""}</span>
                     </td>
                     <td className="num">{money(gross.toFixed(2), cur)}</td>
