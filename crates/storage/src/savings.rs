@@ -156,7 +156,9 @@ impl Vault {
             return Ok(());
         }
         let bank = s.bank().to_lowercase();
-        let cofrinho = s.kind == SavingsKind::Cofrinho;
+        // Cofrinhos e saldos em dólar: vários na mesma empresa (na Nomad,
+        // conta investimento e conta global), só um sem nome.
+        let cofrinho = matches!(s.kind, SavingsKind::Cofrinho | SavingsKind::Dolar);
         if cofrinho && s.own_name().is_some() {
             return Ok(());
         }
@@ -178,6 +180,10 @@ impl Vault {
                 "já existe um cofrinho {} sem nome; dê um nome a este para diferenciar",
                 s.account
             ),
+            SavingsKind::Dolar => format!(
+                "já existe um saldo em dólar {} sem nome; dê um nome a este para diferenciar",
+                s.account
+            ),
             SavingsKind::Fgts => "já existe um FGTS cadastrado".to_string(),
             _ => format!(
                 "já existe um cadastro de {} {}",
@@ -189,8 +195,8 @@ impl Vault {
 
     pub fn create_savings(&mut self, mut s: Savings) -> Result<Savings> {
         prepare(&mut s)?;
-        // Só cofrinho tem nome; o resto é um por banco.
-        if !s.kind.is_investment() {
+        // Só cofrinho e saldo em dólar têm nome; o resto é um por banco.
+        if !s.kind.is_investment() && s.kind != SavingsKind::Dolar {
             s.name.clear();
         }
         self.check_unique(&s, None)?;
@@ -539,6 +545,18 @@ mod tests {
         v.create_savings(cofrinho("")).unwrap();
         assert!(v.create_savings(cofrinho("")).is_err());
         v.create_savings(cofrinho("Viagem")).unwrap();
+
+        // Saldos em dólar: vários na mesma corretora, cada um com seu nome.
+        let dolar = |name: &str| Savings {
+            kind: SavingsKind::Dolar,
+            account: "Nomad".into(),
+            ..fgts(name)
+        };
+        let investimento = v.create_savings(dolar("Conta investimento")).unwrap();
+        assert_eq!(investimento.name, "Conta investimento");
+        v.create_savings(dolar("Conta global")).unwrap();
+        v.create_savings(dolar("")).unwrap();
+        assert!(v.create_savings(dolar("")).is_err());
     }
 
     #[test]
