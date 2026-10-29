@@ -29,7 +29,7 @@ pub use backup::{
 };
 use kdf::DataKey;
 pub use kdf::KdfParams;
-pub use notes::{NoteImport, NoteStatus};
+pub use notes::{NoteImport, NoteStatus, OperationOrigin};
 pub use records::{
     normalize_ticker, Account, Asset, DarfPayment, FxTable, NewFxRate, NewQuote, PriceTable,
     QuoteUpdate, USD_BRL, USD_BRL_COMMERCIAL,

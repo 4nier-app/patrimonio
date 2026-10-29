@@ -189,7 +189,11 @@ function readNote(pages: string[][]): ParsedNote {
   if (net) {
     const signed = (net[2] === "-" || net[4] ? -1n : 1n) * toCents(brNumber(net[3]) ?? "0");
     const expected = sells - buys - feeCents - irrf - irrfDt;
-    if (signed !== expected)
+    // Algumas corretoras (Itaú) mostram o IRRF da venda mas não o descontam
+    // do líquido: o imposto é debitado à parte.
+    if (irrf > 0n && signed === expected + irrf)
+      warnings.push("Nesta nota o IRRF não foi descontado do líquido; a corretora costuma debitá-lo à parte.");
+    else if (signed !== expected)
       problems.push(
         `líquido da nota R$ ${fromCents(signed)} diferente do calculado R$ ${fromCents(expected)} (operações − taxas − IRRF)`,
       );

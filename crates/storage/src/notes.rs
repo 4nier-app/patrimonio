@@ -26,6 +26,18 @@ pub struct NoteImport {
     pub operations: Vec<Operation>,
 }
 
+/// De onde veio um lançamento importado: a nota (ou planilha) e se ele foi
+/// alterado depois da importação.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OperationOrigin {
+    pub operation_id: String,
+    /// Corretora da nota; "B3" na planilha da B3 e "Planilha" na planilha própria.
+    pub broker: String,
+    pub number: Option<String>,
+    pub imported_at: String,
+    pub edited: bool,
+}
+
 /// Situação de uma nota antes de importar.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct NoteStatus {
@@ -115,6 +127,47 @@ impl Vault {
             None,
         )?;
         Ok(created)
+    }
+
+    /// Origem dos lançamentos que vieram de importação. Os que não aparecem
+    /// aqui foram digitados.
+    pub fn operation_origins(&self) -> Result<Vec<OperationOrigin>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT broker, number, operation_ids, imported_at FROM imported_notes ORDER BY imported_at",
+        )?;
+        let notes = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut edited_stmt = self.conn.prepare(
+            "SELECT EXISTS (SELECT 1 FROM event_log WHERE entity = 'OPERACAO' AND entity_id = o.id AND action = 'ALTERADA')
+             FROM operations o WHERE o.id = ?1 AND o.removed_at IS NULL",
+        )?;
+        let mut out = Vec::new();
+        for (broker, number, ids, at) in notes {
+            let ids: Vec<String> = serde_json::from_str(&ids).unwrap_or_default();
+            for id in ids {
+                let edited: Option<bool> = edited_stmt
+                    .query_row([&id], |r| r.get(0))
+                    .optional()?;
+                if let Some(edited) = edited {
+                    out.push(OperationOrigin {
+                        operation_id: id,
+                        broker: broker.clone(),
+                        number: number.clone(),
+                        imported_at: at.clone(),
+                        edited,
+                    });
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Códigos da B3 com esse nome de pregão ("PETROBRAS") cujo número bate com
@@ -209,6 +262,14 @@ mod tests {
             .to_string()
             .contains("já foi importada"));
         assert!(v.verify_integrity().unwrap().ok);
+        let origins = v.operation_origins().unwrap();
+        assert_eq!(origins.len(), 2);
+        assert!(origins.iter().all(|o| o.broker == "Corretora Sintética" && !o.edited));
+        let mut changed = created[0].clone();
+        changed.quantity = dec!(8);
+        v.update_operation(changed, Some("teste")).unwrap();
+        let origins = v.operation_origins().unwrap();
+        assert!(origins.iter().any(|o| o.operation_id == created[0].id && o.edited));
         for o in &created {
             v.remove_operation(&o.id, Some("teste")).unwrap();
         }
