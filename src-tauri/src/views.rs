@@ -72,6 +72,12 @@ pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
         cdi: &cdi,
         ipca: &ipca,
     };
+    // Saldo em dólar: o câmbio da corretora (valor de resgate ou PTAX).
+    let fx = if list.iter().any(|sv| sv.kind.in_dollars()) {
+        Some(v.value_fx().map_err(s)?)
+    } else {
+        None
+    };
     Ok(list
         .iter()
         .map(|sv| {
@@ -80,7 +86,16 @@ pub fn savings_reports(v: &Vault) -> Result<Vec<SavingsReport>, String> {
                 .filter(|m| m.savings_id == sv.id)
                 .cloned()
                 .collect();
-            carteira_core::savings::build_with(sv, &mine, today, Some(&idx))
+            let mut r = carteira_core::savings::build_with(sv, &mine, today, Some(&idx));
+            if let (true, Some(fx)) = (sv.kind.in_dollars(), fx.as_ref()) {
+                use carteira_core::model::FxSource;
+                r.in_reais(
+                    today,
+                    |d| fx.value_rate(&sv.account, d).map(|f| f.rate),
+                    |d| fx.usd_brl_on_or_before(d).map(|f| f.rate),
+                );
+            }
+            r
         })
         .collect())
 }
@@ -603,6 +618,8 @@ pub struct OtherBalance {
     pub account: String,
     pub kind: &'static str,
     pub balance: Decimal,
+    /// Saldo em dólar: o valor em US$ (`balance` já está em reais).
+    pub usd: Option<Decimal>,
     pub last_informed: Option<NaiveDate>,
 }
 
@@ -617,6 +634,7 @@ fn other_balances(v: &Vault) -> Result<Vec<OtherBalance>, String> {
             account: r.savings.bank().to_string(),
             kind: r.savings.kind.label(),
             balance: r.balance,
+            usd: r.usd,
             last_informed: r.last_informed,
         })
         .collect())
@@ -1046,6 +1064,8 @@ pub struct SavingsYearEnd {
     pub account: String,
     pub kind: &'static str,
     pub value: Decimal,
+    /// Saldo em dólar: o valor em US$ em 31/12 (`value` é pela PTAX).
+    pub usd: Option<Decimal>,
 }
 
 pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
@@ -1122,6 +1142,9 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                     account: r.savings.bank().to_string(),
                     kind: r.savings.kind.label(),
                     value: *value,
+                    usd: r.savings.kind.in_dollars().then(|| {
+                        r.units_on(NaiveDate::from_ymd_opt(*year, 12, 31).expect("31/12"))
+                    }),
                 })
                 .collect::<Vec<_>>()
         })
@@ -1138,6 +1161,7 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                     account: String::new(),
                     kind: item.kind.label(),
                     value,
+                    usd: None,
                 });
             }
         }
@@ -1678,6 +1702,9 @@ pub struct SavingsItem {
     pub redemptions: Vec<carteira_core::savings::Redemption>,
     /// Do mais recente para o mais antigo.
     pub moves: Vec<SavingsMove>,
+    /// Saldo em dólar: o valor em US$ e a conta da conversão para reais.
+    pub usd: Option<Decimal>,
+    pub usd_note: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1692,9 +1719,33 @@ pub struct SavingsView {
 pub fn savings_view(v: &Vault) -> Result<SavingsView, String> {
     let mut moves = v.list_savings_moves().map_err(s)?;
     moves.reverse();
-    let items: Vec<SavingsItem> = savings_reports(v)?
+    let reports = savings_reports(v)?;
+    let fx = if reports.iter().any(|r| r.usd.is_some()) {
+        Some(v.value_fx().map_err(s)?)
+    } else {
+        None
+    };
+    let items: Vec<SavingsItem> = reports
         .into_iter()
         .map(|r| SavingsItem {
+            usd_note: r.usd.zip(fx.as_ref()).and_then(|(usd, fx)| {
+                use carteira_core::model::FxSource;
+                let vfx = fx.value_rate(&r.savings.account, today())?;
+                let ptax = fx.usd_brl_on_or_before(today());
+                Some(
+                    carteira_storage::explain_value(usd, r.balance, &vfx, ptax.as_ref())
+                        .unwrap_or_else(|| {
+                            format!(
+                                "US$ {} × PTAX {} ({}) = {}",
+                                carteira_core::format::number(usd, 2),
+                                carteira_core::format::number(vfx.rate, 4),
+                                vfx.date.format("%d/%m/%Y"),
+                                carteira_core::format::brl(r.balance)
+                            )
+                        }),
+                )
+            }),
+            usd: r.usd,
             kind_label: r.savings.kind.label(),
             ticker: r.ticker.clone(),
             balance: r.balance,
@@ -1809,6 +1860,73 @@ mod savings_tests {
         let sv = savings_view(&v).unwrap();
         assert_eq!(sv.total_investments, dec!(900));
         assert_eq!(sv.total_others, dec!(5000), "FGTS sem estimativa");
+    }
+
+    #[test]
+    fn saldo_em_dolar_entra_no_patrimonio_em_reais() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = Vault::create_with_params(
+            tmp.path(),
+            "senha-de-teste-123",
+            "0.2.0",
+            KdfParams::fast_for_tests(),
+        )
+        .unwrap();
+        let d = NaiveDate::from_ymd_opt(2026, 1, 5).unwrap();
+        v.save_fx_rates(&[carteira_storage::NewFxRate {
+            date: d,
+            buy: dec!(5.10),
+            sell: dec!(5.10),
+            source: "PTAX".into(),
+        }])
+        .unwrap();
+        let usd = v
+            .create_savings(Savings {
+                id: String::new(),
+                kind: SavingsKind::Dolar,
+                account: "Corretora US".into(),
+                name: "Conta investimento".into(),
+                rate_pct: dec!(100),
+                tax_free: false,
+                note: None,
+                since: None,
+                until: None,
+                fixed: None,
+            })
+            .unwrap();
+        v.create_savings_move(SavingsMove {
+            id: String::new(),
+            savings_id: usd.id.clone(),
+            date: d,
+            kind: MoveKind::Saldo,
+            amount: dec!(100),
+            ir: None,
+            iof: None,
+            note: None,
+        })
+        .unwrap();
+        let sv = savings_view(&v).unwrap();
+        assert_eq!(sv.items[0].usd, Some(dec!(100)));
+        assert_eq!(sv.total_others, dec!(510), "US$ 100 pela PTAX de 5,10");
+        assert!(sv.items[0].usd_note.as_deref().unwrap().contains("PTAX"));
+        let p = portfolio(&v, today()).unwrap();
+        assert!(p.positions.is_empty(), "não é investimento");
+        let dash = dashboard(&v, today()).unwrap();
+        assert_eq!(dash.other_balances[0].balance, dec!(510));
+        assert_eq!(dash.other_balances[0].usd, Some(dec!(100)));
+        let evo = crate::evolution::evolution(&v, Some(2026), today()).unwrap();
+        let g = evo.groups.iter().find(|g| g.id == "dinheiro").unwrap();
+        let jan = evo
+            .columns
+            .iter()
+            .position(|c| c.date == NaiveDate::from_ymd_opt(2026, 1, 31).unwrap())
+            .unwrap();
+        assert_eq!(g.rows[0].values[jan], Some(dec!(510)));
+        assert_eq!(g.rows[0].usd[jan], Some(dec!(100)));
+        assert!(g.rows[0].notes[jan]
+            .as_deref()
+            .unwrap()
+            .contains("US$ 100,00"));
     }
 }
 

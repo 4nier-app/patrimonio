@@ -12,7 +12,7 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 
 - **Carteira consolidada em reais:** ações, FIIs, Fiagros, FI-Infra, ETFs e BDRs da B3, fundos,
   Tesouro Direto, renda fixa, corretoras do exterior e cripto, com FGTS, conta
-  corrente e bens no patrimônio.
+  corrente, saldos em dólar e bens no patrimônio.
 - **Rentabilidade pelo tempo real de exposição:** o capital conta a partir da
   data exata da compra e deixa de contar na data exata da venda (Modified Dietz
   diário por mês, encadeado no ano). Comparação com CDI, IPCA, Ibovespa,
@@ -33,6 +33,11 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   é o que você teria a mais em reais depois de trazer o dinheiro. Sem o custo,
   vale a PTAX. Os impostos sempre usam a PTAX, como manda
   a Lei 14.754/2023.
+- **Saldo em dólar:** o dinheiro parado na corretora do exterior (na Nomad,
+  a conta investimento e a conta global, cada uma com o seu nome) entra em
+  Contas e reservas digitado em US$, como aparece no app. Ele é convertido
+  pelo valor de resgate da corretora (ou pela PTAX) e conta no patrimônio,
+  não na rentabilidade.
 - **Alocação ideal:** defina a meta de cada classe (ações, FIIs, exterior,
   cripto, renda fixa, dinheiro…) e veja quanto falta em cada uma e onde pôr o
   próximo aporte, sem precisar vender nada.

@@ -18,6 +18,7 @@ const BALANCE_KINDS: { id: SavingsKind; label: string }[] = [
   { id: "CONTA", label: "Conta corrente" },
   { id: "FGTS", label: "FGTS" },
   { id: "COFRINHO", label: "Cofrinho / caixinha" },
+  { id: "DOLAR", label: "Saldo em dólar (US$)" },
 ];
 
 function lastYearEnd(): string {
@@ -281,7 +282,7 @@ export default function FirstUse({ onDone }: { onDone: () => void }) {
           <>
             <h2>Contas e reservas</h2>
             <p className="muted">
-              Agora o dinheiro parado: conta corrente, FGTS e cofrinhos (caixinhas). Informe o saldo de hoje. Nos meses seguintes, você atualiza o
+              Agora o dinheiro parado: conta corrente, FGTS, cofrinhos (caixinhas) e dólares parados numa corretora do exterior (em US$). Informe o saldo de hoje. Nos meses seguintes, você atualiza o
               saldo direto na Evolução, clicando na célula. Se não quiser agora, é só seguir.
             </p>
             <div className="scroll">
@@ -330,7 +331,7 @@ export default function FirstUse({ onDone }: { onDone: () => void }) {
                           <CashInput
                             value={b.amount}
                             decimals={2}
-                            currency="BRL"
+                            currency={b.kind === "DOLAR" ? "USD" : "BRL"}
                             onChange={(v) => setBalances((l) => l.map((x, k) => (k === i ? { ...x, amount: v } : x)))}
                           />
                         )}

@@ -55,6 +55,9 @@ pub enum SavingsKind {
     /// Aplicação de renda fixa (CDB, LCI, LCA, Tesouro Direto): como o
     /// cofrinho, vale o saldo informado, com produto, taxa e vencimento.
     RendaFixa,
+    /// Dinheiro parado numa corretora do exterior: saldo informado em
+    /// dólar, convertido para reais pelo câmbio da corretora.
+    Dolar,
 }
 
 impl SavingsKind {
@@ -65,6 +68,7 @@ impl SavingsKind {
             SavingsKind::Conta => "CONTA",
             SavingsKind::Beneficio => "BENEFICIO",
             SavingsKind::RendaFixa => "RENDA_FIXA",
+            SavingsKind::Dolar => "DOLAR",
         }
     }
 
@@ -75,6 +79,7 @@ impl SavingsKind {
             "CONTA" => SavingsKind::Conta,
             "BENEFICIO" => SavingsKind::Beneficio,
             "RENDA_FIXA" => SavingsKind::RendaFixa,
+            "DOLAR" => SavingsKind::Dolar,
             _ => return None,
         })
     }
@@ -90,7 +95,13 @@ impl SavingsKind {
             SavingsKind::Conta => "Conta corrente",
             SavingsKind::Beneficio => "Cartão benefício",
             SavingsKind::RendaFixa => "Renda fixa",
+            SavingsKind::Dolar => "Saldo em dólar",
         }
+    }
+
+    /// Saldo informado em dólar (as cotas valem US$ 1).
+    pub fn in_dollars(self) -> bool {
+        self == SavingsKind::Dolar
     }
 }
 
@@ -372,6 +383,10 @@ pub struct SavingsReport {
     /// Renda fixa calculada pela taxa: como o app entendeu a taxa ("102% do
     /// CDI"). Vazio quando o saldo é só o informado.
     pub automatic: Option<String>,
+    /// Saldo em dólar: o valor de hoje em US$ (os outros campos já estão em
+    /// reais, convertidos por `in_reais`).
+    #[serde(default)]
+    pub usd: Option<Decimal>,
 }
 
 impl SavingsReport {
@@ -388,6 +403,74 @@ impl SavingsReport {
             .map(|(_, u)| *u)
             .unwrap_or(Decimal::ONE);
         cents(*units * unit)
+    }
+
+    /// Valor da cota em `date` (no saldo em dólar, o câmbio do dia).
+    pub fn unit_on(&self, date: NaiveDate) -> Decimal {
+        self.unit_values
+            .iter()
+            .rev()
+            .find(|(d, _)| *d <= date)
+            .map(|(_, u)| *u)
+            .unwrap_or(Decimal::ONE)
+    }
+
+    /// Cotas no fim de `date`; no saldo em dólar, o valor em US$.
+    pub fn units_on(&self, date: NaiveDate) -> Decimal {
+        self.units_history
+            .iter()
+            .rev()
+            .find(|(d, _)| *d <= date)
+            .map_or(Decimal::ZERO, |(_, u)| *u)
+    }
+
+    /// Saldo em dólar: o relatório sai em US$ (cota de US$ 1) e aqui passa
+    /// para reais. A cota de cada dia vira o câmbio do dia (`rate`), então o
+    /// saldo em qualquer data já sai em reais; o 31/12 usa `year_end_rate`
+    /// (PTAX, para o imposto de renda). Sem câmbio, o valor fica zero.
+    pub fn in_reais(
+        &mut self,
+        today: NaiveDate,
+        rate: impl Fn(NaiveDate) -> Option<Decimal>,
+        year_end_rate: impl Fn(NaiveDate) -> Option<Decimal>,
+    ) {
+        let usd = self.balance;
+        self.usd = Some(usd);
+        let Some(first) = self.units_history.first().map(|(d, _)| *d) else {
+            return;
+        };
+        let mut values = Vec::new();
+        let mut day = first;
+        while day <= today {
+            if let Some(r) = rate(day) {
+                if values.last().is_none_or(|(_, last)| *last != r) {
+                    values.push((day, r));
+                }
+            }
+            day = day.succ_opt().expect("data válida");
+        }
+        // Antes do primeiro câmbio conhecido, vale o primeiro.
+        if let Some(&(d, r)) = values.first() {
+            if d > first {
+                values.insert(0, (first, r));
+            }
+        }
+        self.unit_values = values;
+        let now = rate(today).unwrap_or(Decimal::ZERO);
+        self.balance = cents(usd * now);
+        self.balance_net = self.balance;
+        self.invested = self.balance;
+        self.year_end = self
+            .year_end
+            .iter()
+            .map(|(y, v)| {
+                let dec31 = NaiveDate::from_ymd_opt(*y, 12, 31).expect("31/12 existe");
+                (
+                    *y,
+                    cents(*v * year_end_rate(dec31).unwrap_or(Decimal::ZERO)),
+                )
+            })
+            .collect();
     }
 }
 
@@ -451,6 +534,7 @@ pub fn build_with(
         year_end: Vec::new(),
         units_history: Vec::new(),
         automatic: None,
+        usd: None,
     };
     let Some(first) = moves.first().map(|m| m.date) else {
         return report;
@@ -948,6 +1032,32 @@ mod tests {
             NaiveDate::from_ymd_opt(2027, 1, 10).unwrap(),
         );
         assert_eq!(r2.year_end, vec![(2026, dec!(10600))]);
+    }
+
+    #[test]
+    fn saldo_em_dolar_convertido_pelo_cambio_de_cada_dia() {
+        let usd = Savings {
+            kind: SavingsKind::Dolar,
+            ..cofrinho()
+        };
+        let moves = vec![
+            mv("s1", d(3, 10), MoveKind::Saldo, dec!(100)),
+            mv("s2", d(5, 10), MoveKind::Saldo, dec!(250)),
+        ];
+        let mut r = build(&usd, &moves, NaiveDate::from_ymd_opt(2027, 1, 10).unwrap());
+        // Câmbio de 5 até abril e 6 depois; PTAX de 31/12 = 5,5.
+        r.in_reais(
+            NaiveDate::from_ymd_opt(2027, 1, 10).unwrap(),
+            |day| Some(if day < d(5, 1) { dec!(5) } else { dec!(6) }),
+            |_| Some(dec!(5.5)),
+        );
+        assert_eq!(r.usd, Some(dec!(250)));
+        assert_eq!(r.balance, dec!(1500));
+        assert_eq!(r.balance_on(d(3, 31)), dec!(500));
+        // O saldo de março, visto em junho, vale pelo câmbio de junho.
+        assert_eq!(r.units_on(d(4, 30)) * r.unit_on(d(6, 30)), dec!(600));
+        assert_eq!(r.year_end, vec![(2026, dec!(1375))]);
+        assert!(!r.checks.iter().any(|c| c.suspicious));
     }
 
     #[test]

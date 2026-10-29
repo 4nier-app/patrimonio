@@ -1263,14 +1263,24 @@ fn update_indexes(
             {
                 done.push(format!("{} em dia", def.name))
             }
-            // O IPCA sai uma vez por mês: com o último mês já gravado, uma
-            // falha do Banco Central não atrapalha nada e se resolve na
-            // próxima atualização.
-            Err(_) if monthly && last_saved.is_some_and(|d| d + Duration::days(75) >= today) => {
-                done.push(format!(
-                    "{} em dia (Banco Central fora do ar, nova tentativa na próxima atualização)",
-                    def.name
-                ))
+            // Com o último valor recente já gravado (o IPCA sai uma vez por
+            // mês; o CDI de um dia útil sai no seguinte), uma falha do Banco
+            // Central não atrapalha nada e se resolve na próxima atualização.
+            Err(_)
+                if last_saved
+                    .is_some_and(|d| d + Duration::days(if monthly { 75 } else { 7 }) >= today) =>
+            {
+                done.push(match last_saved.filter(|_| !monthly) {
+                    Some(d) => format!(
+                        "{} até {} (Banco Central fora do ar, nova tentativa na próxima atualização)",
+                        def.name,
+                        d.format("%d/%m/%Y")
+                    ),
+                    None => format!(
+                        "{} em dia (Banco Central fora do ar, nova tentativa na próxima atualização)",
+                        def.name
+                    ),
+                })
             }
             Err(e) => failed.push(format!("{}: {}", def.name, describe(&e))),
         }
@@ -1304,6 +1314,7 @@ mod tests {
 
     struct Fake {
         b3_up: bool,
+        bcb_up: std::cell::Cell<bool>,
         monthly_calls: RefCell<Vec<(i32, u32)>>,
         yahoo_calls: RefCell<Vec<(String, NaiveDate)>>,
         ptax_calls: RefCell<Vec<(NaiveDate, NaiveDate)>>,
@@ -1314,6 +1325,7 @@ mod tests {
     fn fake(b3_up: bool) -> Fake {
         Fake {
             b3_up,
+            bcb_up: std::cell::Cell::new(true),
             monthly_calls: RefCell::default(),
             yahoo_calls: RefCell::default(),
             ptax_calls: RefCell::default(),
@@ -1389,6 +1401,9 @@ mod tests {
             _from: NaiveDate,
             to: NaiveDate,
         ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError> {
+            if !self.bcb_up.get() {
+                return Err(ProviderError::Network("HTTP 503".into()));
+            }
             // Como o SGS: dia ainda não publicado responde 404.
             if _from + Duration::days(2) > to {
                 return Err(ProviderError::NotFound("sgs".into()));
@@ -1774,6 +1789,27 @@ mod tests {
             .unwrap();
         assert!(line.ok, "{line:?}");
         assert!(line.message.contains("CDI em dia"), "{line:?}");
+
+        // Banco Central fora do ar com o CDI recente já gravado: não é falha.
+        f.bcb_up.set(false);
+        let down = update_all(&vault, &f, today + Duration::days(3)).unwrap();
+        let line = down
+            .iter()
+            .find(|l| l.source.starts_with("Índices"))
+            .unwrap();
+        assert!(line.ok, "{line:?}");
+        assert!(
+            line.message
+                .contains("CDI até 10/03/2026 (Banco Central fora do ar"),
+            "{line:?}"
+        );
+        // Fora do ar por muito tempo: aí é falha.
+        let late = update_all(&vault, &f, today + Duration::days(20)).unwrap();
+        let line = late
+            .iter()
+            .find(|l| l.source.starts_with("Índices"))
+            .unwrap();
+        assert!(!line.ok, "{line:?}");
     }
 
     #[test]

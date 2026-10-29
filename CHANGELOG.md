@@ -6,6 +6,23 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.27.0] - 2026-10-29
+
+### Adicionado
+- Contas e reservas tem "Saldo em dólar": o dinheiro parado numa corretora
+  ou conta no exterior, digitado em US$ como aparece no app. Pode haver mais
+  de um por corretora, cada um com o seu nome (na Nomad, a conta
+  investimento e a conta global). O valor em reais usa o valor de resgate da
+  corretora (ou a PTAX, se o custo para trazer ao Brasil não foi informado),
+  com a conta escrita embaixo. Entra no patrimônio, no Painel e na Evolução
+  (linha Dinheiro, editável em US$), não na rentabilidade. Nos impostos, o
+  saldo de 31/12 aparece em dólar vezes a PTAX daquele dia.
+
+### Corrigido
+- Com o site do Banco Central fora do ar, o CDI aparecia como falha na
+  atualização mesmo já estando em dia. Agora mostra até que dia está e tenta
+  de novo na próxima atualização, como o IPCA.
+
 ## [0.26.1] - 2026-10-29
 
 ### Adicionado

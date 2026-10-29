@@ -401,13 +401,15 @@ export default function Evolution() {
                                             savingsId: r.savings_id!,
                                             name: r.name,
                                             date: c.date,
-                                            amount:
-                                              r.values[i] == null
-                                                ? ""
-                                                : Number(r.values[i]) === 0
-                                                  ? cashZero(2)
-                                                  : toCashMask(r.values[i]!, 2).text,
+                                            // Saldo em dólar: informado em US$.
+                                            amount: (() => {
+                                              const usd = !!r.usd?.length;
+                                              const v = usd ? r.usd[i] : r.values[i];
+                                              const c = usd ? "USD" : "BRL";
+                                              return v == null ? "" : Number(v) === 0 ? cashZero(2, c) : toCashMask(v, 2, c).text;
+                                            })(),
                                             month: c.kind === "MONTH",
+                                            currency: r.usd?.length ? "USD" : "BRL",
                                           })
                                       : undefined
                                   }
@@ -505,7 +507,7 @@ export default function Evolution() {
   );
 }
 
-type Editing = { savingsId: string; name: string; date: string; amount: string; month: boolean };
+type Editing = { savingsId: string; name: string; date: string; amount: string; month: boolean; currency: "BRL" | "USD" };
 
 /** Saldo informado numa data: grava como "Saldo informado" em Contas e reservas. */
 function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () => void; onSaved: () => void }) {
@@ -571,8 +573,8 @@ function BalanceDialog({ edit, onClose, onSaved }: { edit: Editing; onClose: () 
       </div>
       <form onSubmit={save}>
         <label>
-          Saldo que o app do banco mostrava nesse dia
-          <CashInput value={amount} decimals={2} currency="BRL" onChange={setAmount} required />
+          {edit.currency === "USD" ? "Saldo em dólar que o app mostrava nesse dia" : "Saldo que o app do banco mostrava nesse dia"}
+          <CashInput value={amount} decimals={2} currency={edit.currency} onChange={setAmount} required />
         </label>
         {error && <p className="error">{error}</p>}
         <div className="actions">

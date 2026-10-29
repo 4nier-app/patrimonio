@@ -6,6 +6,7 @@
 
 use std::collections::BTreeMap;
 
+use carteira_core::format::{brl as brl_fmt, number};
 use carteira_core::model::{FxSource, BRL, USD};
 use carteira_core::operations::{trades_of, PricedOperation};
 use carteira_core::portfolio::positions_with_fx;
@@ -66,6 +67,8 @@ pub struct Row {
     /// compras mais antigas saem primeiro nas vendas). Vazio quando há uma
     /// compra só.
     pub lots: Vec<LotRow>,
+    /// Saldo em dólar: o valor em US$ em cada coluna (vazio nos outros).
+    pub usd: Vec<Option<Decimal>>,
 }
 
 /// Uma compra do ativo, mês a mês. A soma das compras dá a linha do ativo.
@@ -309,6 +312,7 @@ fn build(
                 notes: vec![None; n],
                 value_label: None,
                 lots: Vec::new(),
+                usd: Vec::new(),
             });
             match p.market_value_brl {
                 Some(val) => row.values[i] = Some(val),
@@ -355,6 +359,7 @@ fn build(
                 notes: vec![None; n],
                 value_label: None,
                 lots: Vec::new(),
+                usd: Vec::new(),
             });
         }
     }
@@ -396,7 +401,8 @@ fn build(
         .find(|c| c.kind != ColumnKind::Base)
         .map_or(start, |c| c.date.with_day(1).expect("dia 1 existe"));
     for r in inp.reports {
-        let values: Vec<Option<Decimal>> = cols
+        // Valor e a data do saldo usado em cada coluna.
+        let dated: Vec<Option<(Decimal, NaiveDate)>> = cols
             .iter()
             .map(|c| {
                 // Conta encerrada: depois do mês de encerramento não há saldo.
@@ -408,7 +414,7 @@ fn build(
                 if r.automatic.is_some() {
                     let started = r.units_history.first().is_some_and(|(d, _)| *d <= c.date);
                     let v = r.balance_on(c.date);
-                    return (started && !v.is_zero()).then_some(v);
+                    return (started && !v.is_zero()).then_some((v, c.date));
                 }
                 // Só o saldo informado (ou movimentado) no próprio mês, sem
                 // estimar nem repetir nos meses seguintes. Ontem e hoje
@@ -422,9 +428,71 @@ fn build(
                     .iter()
                     .rev()
                     .find(|(d, _)| *d <= c.date && *d >= from)?;
-                Some(r.balance_on(last.0))
+                // Saldo em dólar: o câmbio é o da coluna, não o do dia do
+                // saldo informado.
+                let at = if r.savings.kind.in_dollars() {
+                    c.date.min(today)
+                } else {
+                    last.0
+                };
+                Some(((r.units_on(last.0) * r.unit_on(at)).round_dp(2), at))
             })
             .collect();
+        let values: Vec<Option<Decimal>> = dated.iter().map(|x| x.map(|(v, _)| v)).collect();
+        // Saldo em dólar: o valor em US$ e a conta de cada coluna (US$ × câmbio).
+        let usd: Vec<Option<Decimal>> = if r.savings.kind.in_dollars() {
+            dated
+                .iter()
+                .zip(&cols)
+                .map(|(x, c)| {
+                    x.as_ref()?;
+                    let from = match c.kind {
+                        ColumnKind::Yesterday | ColumnKind::Today => NaiveDate::MIN,
+                        _ => c.date.with_day(1).expect("dia 1 existe"),
+                    };
+                    r.units_history
+                        .iter()
+                        .rev()
+                        .find(|(d, _)| *d <= c.date && *d >= from)
+                        .map(|(_, u)| *u)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let notes: Vec<Option<String>> = if r.savings.kind.in_dollars() {
+            dated
+                .iter()
+                .zip(&cols)
+                .map(|(x, c)| {
+                    let (brl, at) = (*x)?;
+                    let from = match c.kind {
+                        ColumnKind::Yesterday | ColumnKind::Today => NaiveDate::MIN,
+                        _ => c.date.with_day(1).expect("dia 1 existe"),
+                    };
+                    let (_, usd) = *r
+                        .units_history
+                        .iter()
+                        .rev()
+                        .find(|(d, _)| *d <= c.date && *d >= from)?;
+                    let vfx = inp.fx.value_rate(&r.savings.account, at)?;
+                    let ptax = inp.fx.usd_brl_on_or_before(at);
+                    Some(
+                        explain_value(usd, brl, &vfx, ptax.as_ref()).unwrap_or_else(|| {
+                            format!(
+                                "US$ {} × PTAX {} ({}) = {}",
+                                number(usd, 2),
+                                number(vfx.rate, 4),
+                                vfx.date.format("%d/%m/%Y"),
+                                brl_fmt(brl)
+                            )
+                        }),
+                    )
+                })
+                .collect()
+        } else {
+            vec![None; n]
+        };
         // Entre o "desde" e o "até" a linha aparece sempre, mesmo vazia, para
         // o usuário informar os meses direto na tabela.
         let active = r.savings.active_between(shown_from, end);
@@ -454,7 +522,9 @@ fn build(
         let key = match r.savings.kind {
             SavingsKind::Cofrinho | SavingsKind::RendaFixa => ("rf", "Renda fixa".to_string()),
             SavingsKind::Fgts => ("fgts", "FGTS".to_string()),
-            SavingsKind::Conta | SavingsKind::Beneficio => ("dinheiro", "Dinheiro".to_string()),
+            SavingsKind::Conta | SavingsKind::Beneficio | SavingsKind::Dolar => {
+                ("dinheiro", "Dinheiro".to_string())
+            }
         };
         rows.entry(key).or_default().push(Row {
             asset: r.savings.kind.is_investment().then(|| r.ticker.clone()),
@@ -493,9 +563,10 @@ fn build(
                 .collect(),
             gain,
             since,
-            notes: vec![None; n],
-            value_label: None,
+            notes,
+            value_label: r.usd.map(|u| format!("US$ {} hoje", number(u, 2))),
             lots: Vec::new(),
+            usd,
         });
     }
 
@@ -521,6 +592,7 @@ fn build(
                 notes: vec![None; n],
                 value_label: None,
                 lots: Vec::new(),
+                usd: Vec::new(),
             });
     }
 
@@ -863,6 +935,7 @@ fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
         notes: vec![None; n],
         value_label: None,
         lots: Vec::new(),
+        usd: Vec::new(),
     };
     held.into_iter().chain(std::iter::once(merged)).collect()
 }
@@ -1397,6 +1470,7 @@ mod tests {
             notes: Vec::new(),
             value_label: None,
             lots: Vec::new(),
+            usd: Vec::new(),
         };
         let rows = vec![
             row("AAAA3", vec![Some(dec!(100)), Some(dec!(120))], dec!(20)),

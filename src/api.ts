@@ -382,7 +382,7 @@ export type DashboardView = {
   missing_balances?: { id: string; name: string; account: string; kind: string; months: string[] }[];
 };
 
-export type OtherBalance = { id: string; name: string; account: string; kind: string; balance: Dec; last_informed: string | null };
+export type OtherBalance = { id: string; name: string; account: string; kind: string; balance: Dec; usd: Dec | null; last_informed: string | null };
 
 /** Dias úteis de um mês: resultado de cada dia, no mesmo formato dos meses. */
 export type DaysView = { days: DashMonth[]; benchmarks: Benchmark[]; contributions: AssetMonths[] };
@@ -415,6 +415,8 @@ export type EvolutionRow = {
   value_label: string | null;
   /** Compras em aberto, mês a mês (vazio quando há uma compra só). */
   lots: EvolutionLot[];
+  /** Saldo em dólar: o valor em US$ em cada coluna (vazio nos outros). */
+  usd: (Dec | null)[];
 };
 /** Uma compra do ativo na Evolução; nas vendas, as compras mais antigas saem primeiro. */
 export type EvolutionLot = {
@@ -563,7 +565,7 @@ export type TaxView = {
   names: Record<string, string>;
   warnings: string[];
   darf_code: string;
-  savings_year_end: { year: number; name: string; account: string; kind: string; value: Dec }[];
+  savings_year_end: { year: number; name: string; account: string; kind: string; value: Dec; usd: Dec | null }[];
 };
 
 export const taxApi = {
@@ -742,7 +744,7 @@ export const incomesApi = {
 
 // ---------- saldos e reservas (etapa 10) ----------
 
-export type SavingsKind = "COFRINHO" | "FGTS" | "CONTA" | "BENEFICIO" | "RENDA_FIXA";
+export type SavingsKind = "COFRINHO" | "FGTS" | "CONTA" | "BENEFICIO" | "RENDA_FIXA" | "DOLAR";
 
 /** Renda fixa (CDB, LCI, LCA, Tesouro): produto, taxa como texto e vencimento. */
 export type FixedIncome = { product: string; rate: string | null; maturity: string | null };
@@ -792,6 +794,9 @@ export type SavingsItem = {
   checks: BalanceCheck[];
   redemptions: Redemption[];
   moves: SavingsMove[];
+  /** Saldo em dólar: o valor em US$ e a conta da conversão para reais. */
+  usd: Dec | null;
+  usd_note: string | null;
 };
 
 export type SavingsView = { items: SavingsItem[]; total_investments: Dec; total_others: Dec; cdi_until: string | null };
