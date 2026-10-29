@@ -166,6 +166,10 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   const nameOf = (n: string) => n.trim().toLowerCase();
   const nameTaken = (n: string) => all.some((it) => sameSlot(it) && !!nameOf(n) && nameOf(it.savings.name) === nameOf(n));
   const sameName = form?.kind === "DOLAR" && nameTaken(form.name);
+  const nomadFree = NOMAD_ACCOUNTS.filter((n) => !nameTaken(n));
+  // As duas contas da Nomad já cadastradas: não cabe outro saldo dela.
+  const nomadFull = isNomad && nomadFree.length === 0;
+  const nomadName = isNomad && nomadFree.length === 1 ? nomadFree[0] : form?.name ?? "";
   // Um cadastro antigo repetido continua podendo ser alterado.
   const original = all.find((it) => it.savings.id === form?.id)?.savings;
   const kept = !!original && original.kind === form?.kind && bankOf(original.kind, original.account) === bankOf(form.kind, form.account);
@@ -185,7 +189,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       kind: form.kind,
       // FGTS não tem banco.
       account: form.kind === "FGTS" ? "" : form.account.trim(),
-      name: showName ? form.name.trim() : "",
+      name: showName ? nomadName.trim() : "",
       rate_pct: parseDecimalInput(form.rate) ?? "100",
       tax_free: form.taxFree,
       note: null,
@@ -334,6 +338,11 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   }
 
   const items = view?.items ?? [];
+  const nomadTaken = NOMAD_ACCOUNTS.filter((n) =>
+    items.some(
+      (it) => it.savings.kind === "DOLAR" && it.savings.id !== form?.id && it.savings.account.trim().toLowerCase() === "nomad" && it.savings.name.trim().toLowerCase() === n.toLowerCase(),
+    ),
+  ).length;
   // No saldo em dólar, primeiro as corretoras em dólar já usadas nos lançamentos.
   const accountNames = [
     ...new Set([
@@ -341,7 +350,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       ...(form?.kind ? ISSUERS[form.kind] : []),
       ...(form?.kind === "DOLAR" ? [] : accounts.map((a) => a.name)),
     ]),
-  ];
+  ].filter((a) => !(form?.kind === "DOLAR" && a.toLowerCase() === "nomad" && nomadTaken === NOMAD_ACCOUNTS.length));
   const cur = (it: SavingsItem): "BRL" | "USD" => (it.savings.kind === "DOLAR" ? "USD" : "BRL");
 
   function moveForm(it: SavingsItem) {
@@ -535,15 +544,14 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     )}
                   </>
                 )}
-                {showName && isNomad && (
+                {showName && isNomad && !nomadFull && (
                   <label>
                     Qual conta
-                    <select value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required>
-                      <option value="">Escolha</option>
-                      {NOMAD_ACCOUNTS.map((n) => (
-                        <option key={n} value={n} disabled={nameTaken(n)}>
+                    <select value={nomadName} onChange={(e) => setForm({ ...form, name: e.target.value })} required>
+                      {nomadFree.length > 1 && <option value="">Escolha</option>}
+                      {nomadFree.map((n) => (
+                        <option key={n} value={n}>
                           {n}
-                          {nameTaken(n) ? " (já cadastrada)" : ""}
                         </option>
                       ))}
                     </select>
@@ -593,6 +601,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               </div>
             </>
           )}
+          {nomadFull && <p className="error">A conta investimento e a conta global da Nomad já estão cadastradas.</p>}
           {sameName && <p className="error">Já existe um saldo em dólar {form.account.trim()} com esse nome.</p>}
           {duplicate && (
             <p className="error">
@@ -605,7 +614,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           {error && <p className="error">{error}</p>}
           <div className="actions">
             {form.kind && (
-              <button type="submit" disabled={busy || duplicate || sameName}>
+              <button type="submit" disabled={busy || duplicate || sameName || nomadFull}>
                 {busy ? "Salvando…" : form.id ? "Salvar alteração" : "Cadastrar"}
               </button>
             )}
