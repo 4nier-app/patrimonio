@@ -14,6 +14,12 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   lançamento importado foi alterado depois, aparece "alterado depois". Vale
   também para os lançamentos que já existiam.
 
+### Corrigido
+- Notas do Itaú com venda deixavam de ser importadas com "Os totais da nota
+  não conferem": o Itaú mostra o IRRF ("dedo-duro") mas não o desconta do
+  líquido da nota. Agora a nota é aceita e o app avisa que o IRRF é debitado
+  à parte.
+
 ## [0.26.0] - 2026-10-28
 
 ### Adicionado

@@ -146,6 +146,13 @@ describe("nota SINACOR", () => {
     expect(n.warnings.join(" ")).toContain("IRRF");
   });
 
+  it("aceita nota com IRRF fora do líquido", () => {
+    const pages = sinacorSemRS.map((p) => p.map((l) => (l.startsWith("Líquido para") ? "Líquido para 14/04/2026  1.001,50 D" : l)));
+    const [n] = readNotes(pages);
+    expect(n.check.ok).toBe(true);
+    expect(n.warnings.join(" ")).toContain("não foi descontado do líquido");
+  });
+
   it("aguenta texto repetido e ignora a repetição", () => {
     const [n] = readNotes(sinacorRepetido);
     expect(n.number).toBe("555");
