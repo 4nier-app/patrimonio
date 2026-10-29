@@ -178,6 +178,12 @@ function Body({
                   </td>
                   <td className="num">
                     <strong>{money(b.value)}</strong>
+                    {b.usd != null && (
+                      <div className="muted small">
+                        {money(b.usd, "USD")} × PTAX de 31/12 · confirme o código
+                        com o contador
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

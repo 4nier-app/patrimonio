@@ -23,6 +23,7 @@ const KINDS: { id: SavingsKind; title: string; text: string; example: string }[]
   { id: "FGTS", title: "FGTS", text: "Saldo total do FGTS, como aparece no app do FGTS.", example: "Um só, com o total de todas as contas" },
   { id: "CONTA", title: "Conta corrente", text: "Dinheiro parado na conta, sem rendimento.", example: "Ex.: Itaú, Bradesco" },
   { id: "BENEFICIO", title: "Cartão benefício", text: "Saldo de vale-refeição ou alimentação.", example: "Ex.: Swile, Alelo, VR" },
+  { id: "DOLAR", title: "Saldo em dólar", text: "Dinheiro parado numa corretora ou conta no exterior, em US$.", example: "Ex.: Nomad (conta investimento, conta global)" },
   { id: "RENDA_FIXA", title: "Renda fixa", text: "CDB, LCI, LCA e outros títulos: o app calcula o saldo pela taxa.", example: "Tesouro Direto com preço automático: Lançamentos › Tesouro Direto" },
 ];
 
@@ -34,6 +35,7 @@ const ISSUERS: Record<SavingsKind, string[]> = {
   CONTA: ["Itaú", "Bradesco", "Banco do Brasil", "Caixa", "Santander", "Nubank", "Inter"],
   BENEFICIO: ["Swile", "Alelo", "VR", "Ticket", "Pluxee", "Caju", "Flash"],
   RENDA_FIXA: ["Itaú", "XP", "BTG", "Rico", "Nubank", "Inter", "Tesouro Direto"],
+  DOLAR: ["Nomad", "Avenue", "Wise", "Inter", "C6 Bank"],
 };
 
 const NAME_HINT: Record<SavingsKind, string> = {
@@ -42,6 +44,7 @@ const NAME_HINT: Record<SavingsKind, string> = {
   CONTA: "Ex.: Conta conjunta (em branco: mostra só o banco)",
   BENEFICIO: "Ex.: Refeição",
   RENDA_FIXA: "Ex.: CDB 2027 (em branco: mostra o produto)",
+  DOLAR: "Ex.: Conta investimento ou Conta global",
 };
 
 const MOVE_LABEL: Record<SavingsMoveKind, string> = { DEPOSITO: "Depósito", RESGATE: "Resgate", SALDO: "Saldo informado" };
@@ -151,7 +154,9 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
     it.savings.id !== form.id &&
     it.savings.kind === form.kind &&
     bankOf(it.savings.kind, it.savings.account) === bankOf(form.kind!, form.account);
-  const isCofrinho = form?.kind === "COFRINHO";
+  // Cofrinhos e saldos em dólar podem ser vários na mesma empresa (na Nomad:
+  // conta investimento e conta global).
+  const isCofrinho = form?.kind === "COFRINHO" || form?.kind === "DOLAR";
   const fgtsTaken = all.some((it) => it.savings.kind === "FGTS");
   const needsName = isCofrinho && unnamed.some(sameSlot);
   // Um cadastro antigo repetido continua podendo ser alterado.
@@ -322,7 +327,15 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   }
 
   const items = view?.items ?? [];
-  const accountNames = [...new Set([...(form?.kind ? ISSUERS[form.kind] : []), ...accounts.map((a) => a.name)])];
+  // No saldo em dólar, primeiro as corretoras em dólar já usadas nos lançamentos.
+  const accountNames = [
+    ...new Set([
+      ...(form?.kind === "DOLAR" ? accounts.filter((a) => a.currency === "USD").map((a) => a.name) : []),
+      ...(form?.kind ? ISSUERS[form.kind] : []),
+      ...(form?.kind === "DOLAR" ? [] : accounts.map((a) => a.name)),
+    ]),
+  ];
+  const cur = (it: SavingsItem): "BRL" | "USD" => (it.savings.kind === "DOLAR" ? "USD" : "BRL");
 
   function moveForm(it: SavingsItem) {
     if (!move || move.savingsId !== it.savings.id) return null;
@@ -347,8 +360,14 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
             <input type="date" value={move.date} max={today()} onChange={(e) => setMove({ ...move, date: e.target.value })} required />
           </label>
           <label>
-            {move.kind === "SALDO" ? "Saldo que o app do banco mostra" : move.kind === "DEPOSITO" ? "Valor depositado" : "Valor que caiu na conta"}
-            <CashInput value={move.amount} decimals={2} currency="BRL" onChange={(v) => setMove({ ...move, amount: v })} required />
+            {move.kind === "SALDO"
+              ? cur(it) === "USD"
+                ? "Saldo em dólar que o app mostra"
+                : "Saldo que o app do banco mostra"
+              : move.kind === "DEPOSITO"
+                ? "Valor depositado"
+                : "Valor que caiu na conta"}
+            <CashInput value={move.amount} decimals={2} currency={cur(it)} onChange={(v) => setMove({ ...move, amount: v })} required />
           </label>
           {move.kind === "RESGATE" && invests(it.savings.kind) && (
             <>
@@ -408,11 +427,11 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                 informada (por exemplo 102% do CDI, 12% ao ano ou IPCA + 6%), o app calcula o saldo todo dia pelo CDI e pelo IPCA do Banco Central,
                 mostra quanto sobraria já sem o IR e, no vencimento, tira o valor da carteira sozinho. Se você informar o saldo do extrato, ele vale
                 mais que o calculado. Cofrinhos e renda fixa
-                entram na carteira e na rentabilidade; FGTS, conta corrente e cartões benefício entram só no patrimônio. O saldo de 31/12 de cada um aparece em Impostos, para Bens e Direitos.
+                entram na carteira e na rentabilidade; FGTS, conta corrente, cartões benefício e saldos em dólar entram só no patrimônio. O saldo em dólar é informado em US$ e convertido pelo câmbio da corretora (valor de resgate ou PTAX). O saldo de 31/12 de cada um aparece em Impostos, para Bens e Direitos.
               </>
             }
           >
-            Cofrinhos, renda fixa, FGTS, conta corrente e cartões benefício, pelo saldo que você vê no app do banco.
+            Cofrinhos, renda fixa, FGTS, conta corrente, cartões benefício e saldos em dólar, pelo saldo que você vê no app do banco.
           </Intro>
         </div>
         {!form && (
@@ -451,7 +470,11 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               <div className="grid">
                 {form.kind !== "FGTS" && (
                 <label>
-                  {form.kind === "BENEFICIO" ? "Empresa do cartão" : form.kind === "RENDA_FIXA" ? "Banco ou corretora" : "Banco"}
+                  {form.kind === "BENEFICIO"
+                    ? "Empresa do cartão"
+                    : form.kind === "RENDA_FIXA" || form.kind === "DOLAR"
+                      ? "Banco ou corretora"
+                      : "Banco"}
                   <input list="saldos-bancos" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} required />
                   <datalist id="saldos-bancos">
                     {accountNames.map((a) => (
@@ -507,7 +530,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                 )}
                 {showName && (
                   <label>
-                    {needsName ? "Nome (para diferenciar do outro cofrinho)" : "Nome (opcional)"}
+                    {needsName ? `Nome (para diferenciar do outro ${form.kind === "DOLAR" ? "saldo" : "cofrinho"})` : "Nome (opcional)"}
                     <input
                       value={form.name}
                       placeholder={NAME_HINT[form.kind]}
@@ -535,6 +558,13 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     onChange={(e) => setForm({ ...form, until: e.target.value })}
                   />
                 </label>
+                {form.kind === "DOLAR" && (
+                  <p className="muted small">
+                    Informe o saldo em US$, como aparece no app. O app converte para reais pelo câmbio da corretora: com o custo para trazer ao Brasil
+                    informado em Lançamentos (na Nomad, 1,38%), pelo valor de resgate; sem ele, pela PTAX. O saldo entra no patrimônio, não na
+                    rentabilidade.
+                  </p>
+                )}
                 <p className="muted small">
                   Entre esses meses, a linha aparece em Evolução mesmo vazia, para você informar os saldos. Depois do
                   "até", o saldo some e não conta mais no patrimônio.
@@ -574,7 +604,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
             <strong>{money(view.total_investments)}</strong>
           </div>
           <div>
-            <span className="muted small">Outros saldos (FGTS, conta, benefício)</span>
+            <span className="muted small">Outros saldos (FGTS, conta, benefício, dólar)</span>
             <strong>{money(view.total_others)}</strong>
           </div>
         </div>
@@ -617,6 +647,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                         {[s.fixed.rate, s.fixed.maturity && `vence em ${date(s.fixed.maturity)}`].filter(Boolean).join(" · ")}
                       </p>
                     )}
+                    {it.usd_note && <p className="muted small" style={{ whiteSpace: "pre-line" }}>{it.usd_note}</p>}
                     {it.automatic && (
                       <p className="small">
                         Saldo calculado todo dia pela taxa ({it.automatic}).
@@ -632,7 +663,14 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                   </div>
                   <div className="savings-balance">
                     <span className="muted small">{isCofrinho ? "Saldo" : "Último saldo informado"}</span>
-                    <strong>{money(it.balance)}</strong>
+                    {it.usd != null && <strong>{money(it.usd, "USD")}</strong>}
+                    {it.usd != null ? (
+                      <span className="small" title={it.usd_note ?? undefined}>
+                        {money(it.balance)} em reais
+                      </span>
+                    ) : (
+                      <strong>{money(it.balance)}</strong>
+                    )}
                     {isCofrinho && Number(it.earned) !== 0 && (
                       <span className={`small ${tone(it.earned)}`}>
                         rendimento {money(it.earned)}

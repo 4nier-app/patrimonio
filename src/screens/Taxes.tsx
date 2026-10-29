@@ -504,7 +504,10 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
                           <div className="muted small">{b.account}</div>
                         </td>
                         <td>{b.kind}</td>
-                        <td className="num">{money(b.value)}</td>
+                        <td className="num">
+                          {money(b.value)}
+                          {b.usd != null && <div className="muted small">{money(b.usd, "USD")} × PTAX de 31/12</div>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
