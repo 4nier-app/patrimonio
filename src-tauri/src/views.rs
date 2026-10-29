@@ -1916,10 +1916,17 @@ mod savings_tests {
         assert_eq!(dash.other_balances[0].usd, Some(dec!(100)));
         let evo = crate::evolution::evolution(&v, Some(2026), today()).unwrap();
         let g = evo.groups.iter().find(|g| g.id == "dinheiro").unwrap();
-        let jan = evo.columns.iter().position(|c| c.date == NaiveDate::from_ymd_opt(2026, 1, 31).unwrap()).unwrap();
+        let jan = evo
+            .columns
+            .iter()
+            .position(|c| c.date == NaiveDate::from_ymd_opt(2026, 1, 31).unwrap())
+            .unwrap();
         assert_eq!(g.rows[0].values[jan], Some(dec!(510)));
         assert_eq!(g.rows[0].usd[jan], Some(dec!(100)));
-        assert!(g.rows[0].notes[jan].as_deref().unwrap().contains("US$ 100,00"));
+        assert!(g.rows[0].notes[jan]
+            .as_deref()
+            .unwrap()
+            .contains("US$ 100,00"));
     }
 }
 

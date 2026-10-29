@@ -153,9 +153,7 @@ impl Vault {
         for (broker, number, ids, at) in notes {
             let ids: Vec<String> = serde_json::from_str(&ids).unwrap_or_default();
             for id in ids {
-                let edited: Option<bool> = edited_stmt
-                    .query_row([&id], |r| r.get(0))
-                    .optional()?;
+                let edited: Option<bool> = edited_stmt.query_row([&id], |r| r.get(0)).optional()?;
                 if let Some(edited) = edited {
                     out.push(OperationOrigin {
                         operation_id: id,
@@ -264,12 +262,16 @@ mod tests {
         assert!(v.verify_integrity().unwrap().ok);
         let origins = v.operation_origins().unwrap();
         assert_eq!(origins.len(), 2);
-        assert!(origins.iter().all(|o| o.broker == "Corretora Sintética" && !o.edited));
+        assert!(origins
+            .iter()
+            .all(|o| o.broker == "Corretora Sintética" && !o.edited));
         let mut changed = created[0].clone();
         changed.quantity = dec!(8);
         v.update_operation(changed, Some("teste")).unwrap();
         let origins = v.operation_origins().unwrap();
-        assert!(origins.iter().any(|o| o.operation_id == created[0].id && o.edited));
+        assert!(origins
+            .iter()
+            .any(|o| o.operation_id == created[0].id && o.edited));
         for o in &created {
             v.remove_operation(&o.id, Some("teste")).unwrap();
         }

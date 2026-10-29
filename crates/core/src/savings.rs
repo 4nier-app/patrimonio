@@ -465,7 +465,10 @@ impl SavingsReport {
             .iter()
             .map(|(y, v)| {
                 let dec31 = NaiveDate::from_ymd_opt(*y, 12, 31).expect("31/12 existe");
-                (*y, cents(*v * year_end_rate(dec31).unwrap_or(Decimal::ZERO)))
+                (
+                    *y,
+                    cents(*v * year_end_rate(dec31).unwrap_or(Decimal::ZERO)),
+                )
             })
             .collect();
     }

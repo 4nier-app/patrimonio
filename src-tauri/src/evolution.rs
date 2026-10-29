@@ -6,11 +6,11 @@
 
 use std::collections::BTreeMap;
 
+use carteira_core::format::{brl as brl_fmt, number};
 use carteira_core::model::{FxSource, BRL, USD};
 use carteira_core::operations::{trades_of, PricedOperation};
 use carteira_core::portfolio::positions_with_fx;
 use carteira_core::savings::{self, SavingsKind, SavingsReport};
-use carteira_core::format::{brl as brl_fmt, number};
 use carteira_storage::{explain_value, PriceTable, ValueFx, Vault};
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
 use rust_decimal::Decimal;
@@ -430,7 +430,11 @@ fn build(
                     .find(|(d, _)| *d <= c.date && *d >= from)?;
                 // Saldo em dólar: o câmbio é o da coluna, não o do dia do
                 // saldo informado.
-                let at = if r.savings.kind.in_dollars() { c.date.min(today) } else { last.0 };
+                let at = if r.savings.kind.in_dollars() {
+                    c.date.min(today)
+                } else {
+                    last.0
+                };
                 Some(((r.units_on(last.0) * r.unit_on(at)).round_dp(2), at))
             })
             .collect();
@@ -446,7 +450,11 @@ fn build(
                         ColumnKind::Yesterday | ColumnKind::Today => NaiveDate::MIN,
                         _ => c.date.with_day(1).expect("dia 1 existe"),
                     };
-                    r.units_history.iter().rev().find(|(d, _)| *d <= c.date && *d >= from).map(|(_, u)| *u)
+                    r.units_history
+                        .iter()
+                        .rev()
+                        .find(|(d, _)| *d <= c.date && *d >= from)
+                        .map(|(_, u)| *u)
                 })
                 .collect()
         } else {
@@ -462,12 +470,24 @@ fn build(
                         ColumnKind::Yesterday | ColumnKind::Today => NaiveDate::MIN,
                         _ => c.date.with_day(1).expect("dia 1 existe"),
                     };
-                    let (_, usd) = *r.units_history.iter().rev().find(|(d, _)| *d <= c.date && *d >= from)?;
+                    let (_, usd) = *r
+                        .units_history
+                        .iter()
+                        .rev()
+                        .find(|(d, _)| *d <= c.date && *d >= from)?;
                     let vfx = inp.fx.value_rate(&r.savings.account, at)?;
                     let ptax = inp.fx.usd_brl_on_or_before(at);
-                    Some(explain_value(usd, brl, &vfx, ptax.as_ref()).unwrap_or_else(|| {
-                        format!("US$ {} × PTAX {} ({}) = {}", number(usd, 2), number(vfx.rate, 4), vfx.date.format("%d/%m/%Y"), brl_fmt(brl))
-                    }))
+                    Some(
+                        explain_value(usd, brl, &vfx, ptax.as_ref()).unwrap_or_else(|| {
+                            format!(
+                                "US$ {} × PTAX {} ({}) = {}",
+                                number(usd, 2),
+                                number(vfx.rate, 4),
+                                vfx.date.format("%d/%m/%Y"),
+                                brl_fmt(brl)
+                            )
+                        }),
+                    )
                 })
                 .collect()
         } else {

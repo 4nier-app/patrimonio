@@ -18,6 +18,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   (linha Dinheiro, editável em US$), não na rentabilidade. Nos impostos, o
   saldo de 31/12 aparece em dólar vezes a PTAX daquele dia.
 
+### Corrigido
+- Com o site do Banco Central fora do ar, o CDI aparecia como falha na
+  atualização mesmo já estando em dia. Agora mostra até que dia está e tenta
+  de novo na próxima atualização, como o IPCA.
+
 ## [0.26.1] - 2026-10-29
 
 ### Adicionado
