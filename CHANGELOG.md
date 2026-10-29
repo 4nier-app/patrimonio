@@ -6,6 +6,32 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.26.0] - 2026-10-28
+
+### Adicionado
+- Impostos › Resumo para o contador: o ano-base inteiro na ordem das fichas
+  da declaração. Bens e Direitos mostra cada ativo com o custo em 31/12 e a
+  discriminação escrita; grupo e código aparecem quando são certos (ações,
+  FIIs, criptomoedas, conta corrente). Também estão os rendimentos isentos
+  (dividendos, rendimentos de FIIs e bonificações), a tributação exclusiva
+  (JCP), a renda variável mês a mês e o exterior pela Lei 14.754. No topo, o
+  que falta resolver antes: proventos que faltam lançar e DARF em aberto. O
+  botão "Imprimir ou salvar em PDF" leva o resumo ao contador, com o aviso de
+  que é uma estimativa no topo de cada página. O app não emite DARF nem
+  preenche a declaração.
+- CDB, LCI e LCA calculados sozinhos: no cadastro da renda fixa, informe o
+  valor aplicado, a data e a taxa (102% do CDI, CDI + 1%, 12% ao ano ou
+  IPCA + 6%). O saldo cresce todo dia pelo CDI e pelo IPCA do Banco Central,
+  só nos dias úteis. O cartão mostra quanto sobraria resgatando hoje, já sem
+  IR e IOF (LCI e LCA são isentas). No vencimento, o valor sai da carteira
+  sozinho, já sem o IR. Um saldo informado do extrato continua valendo mais
+  que o calculado, e o app avisa se a diferença for grande.
+
+### Alterado
+- Painel: o aviso de saldo não informado agora vale também para cofrinhos e
+  renda fixa sem taxa, e lista os meses fechados (até três) que ficaram sem
+  nenhum lançamento.
+
 ## [0.25.0] - 2026-10-28
 
 ### Alterado

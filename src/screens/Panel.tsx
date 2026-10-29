@@ -304,6 +304,24 @@ export default function Panel({
   const stale = (dash.other_balances ?? []).filter(
     (o) => !o.last_informed || o.last_informed < startIso,
   );
+  // Um aviso por saldo: os meses fechados sem lançamento e, no FGTS, conta e
+  // benefício, o mês atual ainda sem saldo.
+  const missing = dash.missing_balances ?? [];
+  const balanceLines = [
+    ...stale.map((o) => ({
+      id: o.id,
+      name: o.name,
+      account: o.account,
+      months: [...(missing.find((m) => m.id === o.id)?.months ?? []), startIso],
+    })),
+    ...missing.filter((m) => !stale.some((o) => o.id === m.id)),
+  ];
+  const monthsText = (months: string[]) => {
+    const names = months.map((m) => monthLabel(Number(m.slice(5, 7))));
+    return names.length > 1
+      ? `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`
+      : names[0];
+  };
 
   // Corretoras em dólar pelo valor de resgate, com a conta de cada ativo no ⓘ.
   const resgate = dash.positions.filter((p) => isResgate(p.value_fx));
@@ -312,7 +330,7 @@ export default function Panel({
     .map((p) => `${p.asset}: ${resgateNote(p)}`)
     .join("\n\n");
 
-  const alerts = (darfs.length > 0 || stale.length > 0) && (
+  const alerts = (darfs.length > 0 || balanceLines.length > 0) && (
     <div className="card panel-alerts">
       <h3>Pendências</h3>
       <ul>
@@ -330,11 +348,11 @@ export default function Panel({
             </button>
           </li>
         ))}
-        {stale.map((o) => (
+        {balanceLines.map((o) => (
           <li key={o.id}>
             Saldo de {o.name}
             {o.account && ` (${o.account})`} ainda não informado em{" "}
-            {monthLabel(monthStart.getMonth() + 1)}.{" "}
+            {monthsText(o.months)}.{" "}
             <button
               type="button"
               className="link"

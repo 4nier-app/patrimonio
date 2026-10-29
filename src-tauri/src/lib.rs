@@ -141,6 +141,20 @@ fn switch_profile(state: &State<AppState>, id: &str) -> Result<(), String> {
 }
 
 /// Troca o perfil na tela de entrada (com a carteira bloqueada).
+/// Abre a janela de impressão do sistema (no Mac, o window.print da página
+/// não abre nada). Dela dá para salvar em PDF.
+#[tauri::command]
+fn print_page(webview: tauri::Webview) -> Result<(), String> {
+    webview.print().map_err(|e| e.to_string())
+}
+
+/// Como o app entendeu a taxa da renda fixa ("102% do CDI"); vazio quando
+/// não entendeu e o saldo fica só pelo informado.
+#[tauri::command]
+fn describe_fixed_rate(text: String) -> Option<String> {
+    carteira_core::fixed_curve::parse_rate(&text).map(|r| r.describe())
+}
+
 #[tauri::command]
 fn select_profile(id: String, state: State<AppState>) -> Result<(), String> {
     switch_profile(&state, &id)
@@ -1224,6 +1238,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             vault_status,
+            print_page,
+            describe_fixed_rate,
             backup_reminder,
             snooze_backup_reminder,
             first_use,

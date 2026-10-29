@@ -23,6 +23,7 @@ import ImportB3 from "./ImportB3";
 import Allocation from "./Allocation";
 import Security from "./Security";
 import Taxes, { pendingDarfs } from "./Taxes";
+import TaxSummary from "./TaxSummary";
 import { isSavings } from "../currency";
 import { setThemePref, themePref, type ThemePref } from "../theme";
 import { ADVANCED_TABS, setSimpleView, simpleView } from "../viewMode";
@@ -62,6 +63,10 @@ const SECTIONS = {
     { id: "eventos", label: "Eventos (bonificação, desdobramento)" },
     { id: "proventos", label: "Proventos" },
   ],
+  impostos: [
+    { id: "apuracao", label: "Apuração" },
+    { id: "resumo", label: "Resumo para o contador" },
+  ],
   seguranca: [
     { id: "seguranca", label: "Senha e backup" },
     { id: "auditoria", label: "Auditoria" },
@@ -100,7 +105,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  const [section, setSection] = useState<Record<string, Section>>({ carteira: "posicoes", evolucao: "patrimonio", lancamentos: "manual", seguranca: "seguranca" });
+  const [section, setSection] = useState<Record<string, Section>>({ carteira: "posicoes", evolucao: "patrimonio", lancamentos: "manual", impostos: "apuracao", seguranca: "seguranca" });
   function setTab(t: Tab, s?: Section) {
     if (assetRef.current && window.history.state?.asset) window.history.back();
     setAsset(null);
@@ -358,7 +363,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
           {darfs.length === 1
             ? `DARF de ${money(darfs[0].darf)} ${darfs[0].status === "ATRASADO" ? "venceu" : "vence"} em ${date(darfs[0].due_date)}.`
             : `${darfs.length} DARFs a pagar, somando ${money(String(darfs.reduce((t, m) => t + Number(m.darf), 0)))}.`} É uma estimativa: confira com um contador.{" "}
-          <button className="link" onClick={() => setTab("impostos")}>
+          <button className="link" onClick={() => setTab("impostos", "apuracao")}>
             Ver Impostos
           </button>
         </div>
@@ -429,7 +434,13 @@ export default function Home({ status, onLocked, onChanged }: Props) {
             </>
           )}
           {!asset && tab === "carteira" && current === "alocacao" && <Allocation refresh={refresh} />}
-          {!asset && tab === "impostos" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
+          {!asset && tab === "impostos" && current === "apuracao" && <Taxes refresh={refresh} onChanged={loadTaxes} />}
+          {!asset && tab === "impostos" && current === "resumo" && (
+            <TaxSummary
+              refresh={refresh}
+              onGo={(to) => (to === "proventos" ? setTab("lancamentos", "proventos") : setTab("impostos", "apuracao"))}
+            />
+          )}
           {!asset && tab === "seguranca" && current === "auditoria" && <Audit status={status} />}
           {!asset && tab === "seguranca" && current === "seguranca" && (
             <Security

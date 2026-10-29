@@ -23,7 +23,7 @@ const KINDS: { id: SavingsKind; title: string; text: string; example: string }[]
   { id: "FGTS", title: "FGTS", text: "Saldo total do FGTS, como aparece no app do FGTS.", example: "Um só, com o total de todas as contas" },
   { id: "CONTA", title: "Conta corrente", text: "Dinheiro parado na conta, sem rendimento.", example: "Ex.: Itaú, Bradesco" },
   { id: "BENEFICIO", title: "Cartão benefício", text: "Saldo de vale-refeição ou alimentação.", example: "Ex.: Swile, Alelo, VR" },
-  { id: "RENDA_FIXA", title: "Renda fixa", text: "CDB, LCI, LCA e outros títulos, pelo saldo do extrato.", example: "Tesouro Direto com preço automático: Lançamentos › Tesouro Direto" },
+  { id: "RENDA_FIXA", title: "Renda fixa", text: "CDB, LCI, LCA e outros títulos: o app calcula o saldo pela taxa.", example: "Tesouro Direto com preço automático: Lançamentos › Tesouro Direto" },
 ];
 
 const PRODUCTS = ["CDB", "LCI", "LCA", "RDB", "LC", "Debênture", "CRI", "CRA", "Tesouro (pelo saldo do extrato)"];
@@ -60,6 +60,9 @@ type NewForm = {
   product: string;
   rateDesc: string;
   maturity: string;
+  /** Renda fixa nova: a aplicação, lançada junto com o cadastro. */
+  applied: string;
+  appliedOn: string;
 };
 const thisMonth = () => {
   const d = new Date();
@@ -77,6 +80,8 @@ const EMPTY_NEW = (): NewForm => ({
   product: "",
   rateDesc: "",
   maturity: "",
+  applied: "",
+  appliedOn: "",
 });
 /** "2024-09-01" → "09/2024". */
 const monthLabel = (d: string) => `${d.slice(5, 7)}/${d.slice(0, 4)}`;
@@ -100,6 +105,16 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   const [view, setView] = useState<SavingsView | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [form, setForm] = useState<NewForm | null>(null);
+  // Como o app entendeu a taxa digitada na renda fixa.
+  const [rateRead, setRateRead] = useState<string | null>(null);
+  useEffect(() => {
+    const text = form?.rateDesc.trim() ?? "";
+    if (!text) return setRateRead(null);
+    savingsApi
+      .describeRate(text)
+      .then(setRateRead)
+      .catch(() => setRateRead(null));
+  }, [form?.rateDesc]);
   const [move, setMove] = useState<MoveForm | null>(null);
   const [lastDate, setLastDate] = useState(today());
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -175,8 +190,25 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
         await savingsApi.update(item);
         changed("Alteração salva.");
       } else {
-        await savingsApi.create(item);
-        changed(`${item.name || item.fixed?.product || "Saldo"} cadastrado. Informe o saldo de cada mês em Evolução › Patrimônio, clicando na célula.`);
+        const created = await savingsApi.create(item);
+        const applied = form.kind === "RENDA_FIXA" ? parseDecimalInput(form.applied) : null;
+        if (applied != null && Number(applied) > 0 && form.appliedOn) {
+          await savingsApi.createMove({
+            id: "",
+            savings_id: created.id,
+            date: form.appliedOn,
+            kind: "DEPOSITO",
+            amount: applied,
+            ir: null,
+            iof: null,
+            note: null,
+          });
+        }
+        changed(
+          form.kind === "RENDA_FIXA" && rateRead && applied != null
+            ? `${item.fixed?.product} cadastrado. O app calcula o saldo todo dia pela taxa (${rateRead}).`
+            : `${item.name || item.fixed?.product || "Saldo"} cadastrado. Informe o saldo de cada mês em Evolução › Patrimônio, clicando na célula.`,
+        );
       }
       setForm(null);
     } catch (err) {
@@ -282,6 +314,8 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
       product: s.fixed?.product ?? "",
       rateDesc: s.fixed?.rate ?? "",
       maturity: s.fixed?.maturity ?? "",
+      applied: "",
+      appliedOn: "",
     });
     setSaved(null);
     window.scrollTo({ top: 0 });
@@ -370,8 +404,10 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               <>
                 O que vale é o saldo que o banco mostra: informe o saldo de cada mês clicando no mês, em Evolução › Patrimônio. O app não estima nada
                 entre um saldo e outro. No cofrinho, lance também os depósitos e resgates, para o rendimento não contar dinheiro novo; se o saldo informado
-                ficar muito longe do esperado, o app avisa, porque provavelmente faltou lançar um deles. Na renda fixa (CDB, LCI, LCA, Tesouro) é igual:
-                a aplicação é um depósito, o resgate ou vencimento é um resgate, e o saldo do mês vem do extrato da corretora. Cofrinhos e renda fixa
+                ficar muito longe do esperado, o app avisa, porque provavelmente faltou lançar um deles. Na renda fixa (CDB, LCI, LCA) com a taxa
+                informada (por exemplo 102% do CDI, 12% ao ano ou IPCA + 6%), o app calcula o saldo todo dia pelo CDI e pelo IPCA do Banco Central,
+                mostra quanto sobraria já sem o IR e, no vencimento, tira o valor da carteira sozinho. Se você informar o saldo do extrato, ele vale
+                mais que o calculado. Cofrinhos e renda fixa
                 entram na carteira e na rentabilidade; FGTS, conta corrente e cartões benefício entram só no patrimônio. O saldo de 31/12 de cada um aparece em Impostos, para Bens e Direitos.
               </>
             }
@@ -436,13 +472,37 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                       </datalist>
                     </label>
                     <label>
-                      Taxa (opcional, só para lembrar)
-                      <input value={form.rateDesc} placeholder="Ex.: 110% do CDI, IPCA + 6%" onChange={(e) => setForm({ ...form, rateDesc: e.target.value })} />
+                      Taxa
+                      <input value={form.rateDesc} placeholder="Ex.: 102% do CDI, 12% ao ano, IPCA + 6%" onChange={(e) => setForm({ ...form, rateDesc: e.target.value })} />
+                      <span className="muted small">
+                        {!form.rateDesc.trim()
+                          ? "Com a taxa, o app calcula o saldo todo dia pelo CDI e pelo IPCA do Banco Central."
+                          : rateRead
+                            ? `Entendi: ${rateRead}. O saldo é calculado todo dia.`
+                            : "Não entendi essa taxa: o saldo fica só pelo que você informar do extrato."}
+                      </span>
                     </label>
                     <label>
-                      Vencimento (opcional)
+                      Vencimento
                       <input type="date" value={form.maturity} onChange={(e) => setForm({ ...form, maturity: e.target.value })} />
+                      <span className="muted small">No vencimento, o valor sai sozinho, já sem o IR.</span>
                     </label>
+                    {!form.id && (
+                      <>
+                        <label>
+                          Valor aplicado
+                          <CashInput value={form.applied} decimals={2} currency="BRL" onChange={(v) => setForm({ ...form, applied: v })} />
+                        </label>
+                        <label>
+                          Data da aplicação
+                          <input
+                            type="date"
+                            value={form.appliedOn}
+                            onChange={(e) => setForm({ ...form, appliedOn: e.target.value, since: e.target.value.slice(0, 7) || form.since })}
+                          />
+                        </label>
+                      </>
+                    )}
                   </>
                 )}
                 {showName && (
@@ -555,6 +615,12 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     {s.fixed && (s.fixed.rate || s.fixed.maturity) && (
                       <p className="muted small">
                         {[s.fixed.rate, s.fixed.maturity && `vence em ${date(s.fixed.maturity)}`].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                    {it.automatic && (
+                      <p className="small">
+                        Saldo calculado todo dia pela taxa ({it.automatic}).
+                        {Number(it.balance_net) !== Number(it.balance) && ` Resgatando hoje, já sem IR e IOF: ${money(it.balance_net)}.`}
                       </p>
                     )}
                     <p className="muted small">

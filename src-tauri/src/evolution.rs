@@ -403,6 +403,13 @@ fn build(
                 if !r.savings.open_on(c.date) {
                     return None;
                 }
+                // Renda fixa calculada pela taxa: o valor de cada data,
+                // desde a aplicação (depois do vencimento, nada).
+                if r.automatic.is_some() {
+                    let started = r.units_history.first().is_some_and(|(d, _)| *d <= c.date);
+                    let v = r.balance_on(c.date);
+                    return (started && !v.is_zero()).then_some(v);
+                }
                 // Só o saldo informado (ou movimentado) no próprio mês, sem
                 // estimar nem repetir nos meses seguintes. Ontem e hoje
                 // mostram o último saldo.
