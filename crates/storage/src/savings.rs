@@ -159,6 +159,21 @@ impl Vault {
         // Cofrinhos e saldos em dólar: vários na mesma empresa (na Nomad,
         // conta investimento e conta global), só um sem nome.
         let cofrinho = matches!(s.kind, SavingsKind::Cofrinho | SavingsKind::Dolar);
+        if let (SavingsKind::Dolar, Some(name)) = (s.kind, s.own_name()) {
+            let name = name.to_lowercase();
+            let repeated = self.list_savings()?.iter().any(|o| {
+                o.id != s.id
+                    && o.kind == s.kind
+                    && o.bank().to_lowercase() == bank
+                    && o.own_name().is_some_and(|n| n.to_lowercase() == name)
+            });
+            if repeated {
+                return Err(bad(format!(
+                    "já existe um saldo em dólar {} com esse nome",
+                    s.account
+                )));
+            }
+        }
         if cofrinho && s.own_name().is_some() {
             return Ok(());
         }
@@ -555,6 +570,8 @@ mod tests {
         let investimento = v.create_savings(dolar("Conta investimento")).unwrap();
         assert_eq!(investimento.name, "Conta investimento");
         v.create_savings(dolar("Conta global")).unwrap();
+        assert!(v.create_savings(dolar("conta global")).is_err());
+        v.update_savings(investimento.clone()).unwrap();
         v.create_savings(dolar("")).unwrap();
         assert!(v.create_savings(dolar("")).is_err());
     }

@@ -38,6 +38,8 @@ const ISSUERS: Record<SavingsKind, string[]> = {
   DOLAR: ["Nomad", "Avenue", "Wise", "Inter", "C6 Bank"],
 };
 
+const NOMAD_ACCOUNTS = ["Conta investimento", "Conta global"];
+
 const NAME_HINT: Record<SavingsKind, string> = {
   COFRINHO: "Ex.: Reserva de emergência",
   FGTS: "",
@@ -159,6 +161,11 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
   const isCofrinho = form?.kind === "COFRINHO" || form?.kind === "DOLAR";
   const fgtsTaken = all.some((it) => it.savings.kind === "FGTS");
   const needsName = isCofrinho && unnamed.some(sameSlot);
+  // Na Nomad o saldo em dólar é a conta investimento ou a conta global, uma de cada.
+  const isNomad = form?.kind === "DOLAR" && form.account.trim().toLowerCase() === "nomad";
+  const nameOf = (n: string) => n.trim().toLowerCase();
+  const nameTaken = (n: string) => all.some((it) => sameSlot(it) && !!nameOf(n) && nameOf(it.savings.name) === nameOf(n));
+  const sameName = form?.kind === "DOLAR" && nameTaken(form.name);
   // Um cadastro antigo repetido continua podendo ser alterado.
   const original = all.find((it) => it.savings.id === form?.id)?.savings;
   const kept = !!original && original.kind === form?.kind && bankOf(original.kind, original.account) === bankOf(form.kind, form.account);
@@ -528,7 +535,21 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
                     )}
                   </>
                 )}
-                {showName && (
+                {showName && isNomad && (
+                  <label>
+                    Qual conta
+                    <select value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required>
+                      <option value="">Escolha</option>
+                      {NOMAD_ACCOUNTS.map((n) => (
+                        <option key={n} value={n} disabled={nameTaken(n)}>
+                          {n}
+                          {nameTaken(n) ? " (já cadastrada)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {showName && !isNomad && (
                   <label>
                     {needsName ? `Nome (para diferenciar do outro ${form.kind === "DOLAR" ? "saldo" : "cofrinho"})` : "Nome (opcional)"}
                     <input
@@ -572,6 +593,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
               </div>
             </>
           )}
+          {sameName && <p className="error">Já existe um saldo em dólar {form.account.trim()} com esse nome.</p>}
           {duplicate && (
             <p className="error">
               {form.kind === "FGTS"
@@ -583,7 +605,7 @@ export default function Savings({ onChanged }: { onChanged: () => void }) {
           {error && <p className="error">{error}</p>}
           <div className="actions">
             {form.kind && (
-              <button type="submit" disabled={busy || duplicate}>
+              <button type="submit" disabled={busy || duplicate || sameName}>
                 {busy ? "Salvando…" : form.id ? "Salvar alteração" : "Cadastrar"}
               </button>
             )}
