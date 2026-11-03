@@ -6,6 +6,14 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.28.0] - 2026-11-03
+
+### Adicionado
+- Link discreto "Apoie o projeto" ao lado da versão, no topo do aplicativo.
+  Ele abre no navegador a nova seção do site com o link para o apoia.se.
+  É opcional: o aplicativo funciona igual para quem apoia e para quem não
+  apoia. A versão da Microsoft Store não mostra o link.
+
 ## [0.27.1] - 2026-11-03
 
 ### Corrigido

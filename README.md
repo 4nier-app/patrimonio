@@ -189,6 +189,13 @@ entregar a declaração, confira com um contador. O uso das informações é de
 responsabilidade de quem usa o aplicativo. Não há garantia de nenhum tipo
 (veja a licença).
 
+## Apoie o projeto
+
+O 4Nier é e continuará gratuito, sem anúncios e sem coletar seus dados. Se o
+aplicativo te ajuda, você pode contribuir com qualquer valor em
+[apoia.se/app4nier](https://apoia.se/app4nier). É opcional: o aplicativo
+funciona igual para quem apoia e para quem não apoia.
+
 ## Licença
 
 [GPL-3.0-or-later](LICENSE). Você pode usar, estudar, modificar e redistribuir;

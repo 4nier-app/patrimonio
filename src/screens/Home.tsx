@@ -278,7 +278,12 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               {t.label}
             </button>
           ))}
-          <span className="app-version" title="Versão instalada do 4Nier">
+          {!status.store && (
+            <button className="app-support" onClick={() => api.openSupport()} title="Abre a página para apoiar o 4Nier no navegador">
+              Apoie o projeto
+            </button>
+          )}
+          <span className={status.store ? "app-version" : "app-version app-version-after"} title="Versão instalada do 4Nier">
             Versão {status.app_version}
           </span>
         </nav>
