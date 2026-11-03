@@ -951,6 +951,7 @@ fn update_funds(
     let mut downloaded = 0;
     let mut saved = 0;
     let mut failures = Vec::new();
+    let mut pending = Vec::new();
     for (file, tickers) in &files {
         let mut key = format!(
             "{}|{}",
@@ -992,6 +993,11 @@ fn update_funds(
                 downloaded += 1;
                 saved += quotes.len();
             }
+            // A CVM só publica o arquivo do mês alguns dias úteis depois do
+            // dia 1: até lá, as cotas do mês anterior bastam e não é falha.
+            Err(ProviderError::NotFound(_)) if *file == recent[0] && today.day() <= 15 => {
+                pending.push(file.label());
+            }
             Err(e) => {
                 let msg = format!("{}: {}", file.label(), describe(&e));
                 with(vault, |v| {
@@ -1012,6 +1018,11 @@ fn update_funds(
     } else {
         format!("{saved} cotas de {funds} fundo(s) em {downloaded} arquivo(s)")
     };
+    for label in &pending {
+        message.push_str(&format!(
+            "; {label} ainda não publicado pela CVM (nova tentativa na próxima atualização)"
+        ));
+    }
     if !failures.is_empty() {
         message.push_str(&format!("; falhas: {}", failures.join("; ")));
     }
@@ -1319,6 +1330,7 @@ mod tests {
         yahoo_calls: RefCell<Vec<(String, NaiveDate)>>,
         ptax_calls: RefCell<Vec<(NaiveDate, NaiveDate)>>,
         cvm_calls: RefCell<Vec<String>>,
+        cvm_missing: RefCell<Option<String>>,
         tesouro_calls: std::cell::Cell<u32>,
     }
 
@@ -1330,6 +1342,7 @@ mod tests {
             yahoo_calls: RefCell::default(),
             ptax_calls: RefCell::default(),
             cvm_calls: RefCell::default(),
+            cvm_missing: RefCell::default(),
             tesouro_calls: std::cell::Cell::new(0),
         }
     }
@@ -1429,6 +1442,11 @@ mod tests {
             wanted: &BTreeSet<String>,
         ) -> Result<Vec<cvm::DailyQuota>, ProviderError> {
             self.cvm_calls.borrow_mut().push(url.to_string());
+            if let Some(m) = self.cvm_missing.borrow().as_deref() {
+                if url.ends_with(&format!("{m}.zip")) {
+                    return Err(ProviderError::NotFound(url.to_string()));
+                }
+            }
             // Uma cota no dia 15 de cada mês do arquivo, igual ao número do mês.
             let months: Vec<(i32, u32)> = if url.contains("/HIST/") {
                 let y: i32 = url[url.len() - 8..url.len() - 4].parse().unwrap();
@@ -1699,6 +1717,53 @@ mod tests {
             .borrow()
             .iter()
             .any(|c| c.0.contains("11.222") || c.0.contains("11222")));
+    }
+
+    #[test]
+    fn mes_da_cvm_ainda_nao_publicado_nao_e_falha() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vault = setup(tmp.path());
+        {
+            let mut g = vault.lock().unwrap();
+            let v = g.as_mut().unwrap();
+            v.create_operation(Operation {
+                id: String::new(),
+                account: "Banco".into(),
+                asset: "11222333000181".into(),
+                date: NaiveDate::from_ymd_opt(2026, 9, 10).unwrap(),
+                side: Side::Compra,
+                quantity: Decimal::from(100),
+                price: Decimal::from(10),
+                manual_fees: None,
+                note: None,
+                currency: "BRL".into(),
+                from_account: None,
+                residue: None,
+                ir: None,
+                iof: None,
+            })
+            .unwrap();
+        }
+        let f = fake(true);
+        *f.cvm_missing.borrow_mut() = Some("202611".into());
+        let fundos = |today| {
+            update_all(&vault, &f, today)
+                .unwrap()
+                .into_iter()
+                .find(|l| l.source.starts_with("Fundos"))
+                .unwrap()
+        };
+        let line = fundos(NaiveDate::from_ymd_opt(2026, 11, 3).unwrap());
+        assert!(line.ok, "{line:?}");
+        assert!(line.message.contains("11/2026 ainda não publicado pela CVM"), "{line:?}");
+        assert!(!line.message.contains("falhas"), "{line:?}");
+        // Na metade do mês sem o arquivo, aí sim é falha.
+        let line = fundos(NaiveDate::from_ymd_opt(2026, 11, 20).unwrap());
+        assert!(!line.ok, "{line:?}");
+        // Arquivo de um mês passado faltando continua sendo falha.
+        *f.cvm_missing.borrow_mut() = Some("202610".into());
+        let line = fundos(NaiveDate::from_ymd_opt(2026, 11, 4).unwrap());
+        assert!(!line.ok && line.message.contains("10/2026"), "{line:?}");
     }
 
     #[test]

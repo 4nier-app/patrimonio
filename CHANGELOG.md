@@ -6,6 +6,14 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.27.1] - 2026-11-03
+
+### Corrigido
+- Nos primeiros dias de cada mês, a cota dos fundos aparecia como falha na
+  atualização porque a CVM ainda não publicou o arquivo do mês. Agora mostra
+  "ainda não publicado pela CVM", usa as cotas do mês anterior e tenta de
+  novo na próxima atualização.
+
 ## [0.27.0] - 2026-10-29
 
 ### Adicionado
