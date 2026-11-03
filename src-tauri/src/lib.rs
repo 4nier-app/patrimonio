@@ -32,6 +32,8 @@ const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Versão da Microsoft Store (gerada com `CARTEIRA_LOJA` definida): a própria
 /// loja atualiza o aplicativo, então ele não procura versão nova no GitHub.
 const STORE: bool = option_env!("CARTEIRA_LOJA").is_some();
+/// Seção "Apoie o projeto" do site; o link do apoia.se fica só lá, para trocar sem nova versão.
+const SUPPORT_PAGE: &str = "https://4nier-app.github.io/patrimonio/#apoie";
 const AUTO_BACKUP_DAYS: i64 = 7;
 const AUTO_BACKUP_KEEP: usize = 5;
 /// Dias sem backup salvo fora do computador até o aviso aparecer.
@@ -1153,6 +1155,14 @@ fn open_releases(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Abre no navegador a seção "Apoie o projeto" do site.
+#[tauri::command]
+fn open_support(app: tauri::AppHandle) -> Result<(), String> {
+    app.opener()
+        .open_url(SUPPORT_PAGE, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 /// Baixa a versão nova do GitHub, confere a assinatura do projeto e instala
 /// por cima; os dados ficam onde estão e o app reabre sozinho. Se não der (sem
 /// internet, ou instalação .deb no Linux), a tela oferece a página de download.
@@ -1347,6 +1357,7 @@ pub fn run() {
             update_notice,
             set_update_notice,
             open_releases,
+            open_support,
             install_update,
         ])
         .run(tauri::generate_context!())

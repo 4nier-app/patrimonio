@@ -88,7 +88,10 @@ button.secondary { background: transparent; color: var(--text); border: 1px soli
 }
 .topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 /* Versão instalada: no fim da linha das abas, à direita. */
+.app-support { margin-left: auto; align-self: center; background: none; border: 0; padding: 0 10px 0 0; color: rgba(255, 255, 255, 0.7); font-size: 12px; white-space: nowrap; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.app-support:hover { color: #fff; }
 .app-version { margin-left: auto; align-self: center; padding-right: 4px; color: rgba(255, 255, 255, 0.55); font-size: 12px; white-space: nowrap; }
+.app-version-after { margin-left: 0; }
 .topbar-actions { display: flex; gap: 8px; }
 .topbar-actions button { background: var(--brand-green); color: #08201f; }
 .topbar-actions button.secondary { background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); }
