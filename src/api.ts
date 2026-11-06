@@ -520,6 +520,10 @@ export type TaxMonth = {
   groups: GroupMonth[];
   gross_tax: Dec;
   irrf_month: Dec;
+  /** Parte do IR na fonte que é de day trade. */
+  irrf_dt: Dec;
+  /** Parte do IR na fonte que é de vendas de FII/Fiagro. */
+  irrf_fii: Dec;
   irrf_before: Dec;
   irrf_used: Dec;
   irrf_after: Dec;

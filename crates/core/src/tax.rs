@@ -205,6 +205,11 @@ pub struct MonthTax {
     pub gross_tax: Decimal,
     /// IRRF estimado retido no mês (dedo-duro + day trade).
     pub irrf_month: Decimal,
+    /// Parte de `irrf_month` que é de day trade (1%).
+    pub irrf_dt: Decimal,
+    /// Parte de `irrf_month` que é de vendas de FII/Fiagro (dedo-duro).
+    /// O resto é o dedo-duro das outras operações comuns.
+    pub irrf_fii: Decimal,
     /// IRRF de meses anteriores ainda não usado.
     pub irrf_before: Decimal,
     pub irrf_used: Decimal,
@@ -603,12 +608,25 @@ pub fn b3_months(priced: &[PricedOperation], kind_of: KindOf, until: NaiveDate) 
         if irrf_month <= Decimal::ONE {
             irrf_month = Decimal::ZERO;
         }
+        // Parte do dedo-duro que veio de FII, só para mostrar como no
+        // programa do IR (que tem uma tela própria para FII).
+        let fii_sales: Decimal = sales
+            .iter()
+            .filter(|s| !s.day_trade && s.group == Group::Fii)
+            .map(|s| s.gross)
+            .sum();
+        let irrf_fii = if irrf_month.is_zero() {
+            Decimal::ZERO
+        } else {
+            cents(fii_sales * irrf_common_rate()).min(irrf_month)
+        };
         let dt = cents(run.irrf_dt.get(&key).copied().unwrap_or_default());
-        irrf_month += if dt <= Decimal::ONE {
+        let irrf_dt = if dt <= Decimal::ONE {
             Decimal::ZERO
         } else {
             dt
         };
+        irrf_month += irrf_dt;
         let irrf_before = irrf_carry;
         let available = irrf_before + irrf_month;
         let irrf_used = available.min(gross_tax);
@@ -632,6 +650,8 @@ pub fn b3_months(priced: &[PricedOperation], kind_of: KindOf, until: NaiveDate) 
                 groups,
                 gross_tax,
                 irrf_month,
+                irrf_dt,
+                irrf_fii,
                 irrf_before,
                 irrf_used,
                 irrf_after,
@@ -1021,6 +1041,7 @@ mod tests {
         assert_eq!(g.tax, dec!(2100));
         // Dedo-duro: 0,005% de 25.000 = 1,25.
         assert_eq!(mar.irrf_month, dec!(1.25));
+        assert_eq!((mar.irrf_dt, mar.irrf_fii), (dec!(0), dec!(0)));
         assert_eq!(mar.darf, dec!(2098.75));
         assert_eq!(mar.due_date, d(2026, 4, 30));
     }
@@ -1116,6 +1137,7 @@ mod tests {
         assert_eq!(feb.exempt_profit, dec!(1100));
         // IRRF de day trade: 1% de 200 = 2,00.
         assert_eq!(feb.irrf_month, dec!(2));
+        assert_eq!((feb.irrf_dt, feb.irrf_fii), (dec!(2), dec!(0)));
         assert_eq!(feb.darf, dec!(38));
     }
 
@@ -1168,6 +1190,58 @@ mod tests {
         let comum = jan.groups.iter().find(|g| g.group == Group::Comum).unwrap();
         assert_eq!(comum.tax, dec!(30));
         assert_eq!(jan.darf, dec!(50));
+    }
+
+    #[test]
+    fn irrf_separado_entre_fii_e_acoes_soma_o_total() {
+        let ops = vec![
+            op(
+                "X",
+                "FUND11",
+                d(2026, 1, 5),
+                Side::Compra,
+                dec!(300),
+                dec!(100),
+                dec!(0),
+            ),
+            op(
+                "X",
+                "ABCD3",
+                d(2026, 1, 5),
+                Side::Compra,
+                dec!(3000),
+                dec!(10),
+                dec!(0),
+            ),
+            // FII: 300 × 110 = 33.000 → dedo-duro 1,65.
+            op(
+                "X",
+                "FUND11",
+                d(2026, 1, 20),
+                Side::Venda,
+                dec!(300),
+                dec!(110),
+                dec!(0),
+            ),
+            // Ações: 3.000 × 11 = 33.000 → dedo-duro 1,65.
+            op(
+                "X",
+                "ABCD3",
+                d(2026, 1, 20),
+                Side::Venda,
+                dec!(3000),
+                dec!(11),
+                dec!(0),
+            ),
+        ];
+        let r = b3_months(&ops, &kinds, d(2026, 1, 31));
+        let jan = &r.months[0];
+        assert_eq!(jan.irrf_month, dec!(3.30));
+        assert_eq!(jan.irrf_fii, dec!(1.65));
+        assert_eq!(jan.irrf_dt, dec!(0));
+        // A separação é só para mostrar: o DARF continua o mesmo.
+        assert_eq!(jan.gross_tax, dec!(600) + dec!(450));
+        assert_eq!(jan.darf, dec!(1050) - dec!(3.30));
     }
 
     #[test]

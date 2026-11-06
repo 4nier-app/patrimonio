@@ -24,6 +24,7 @@ import Allocation from "./Allocation";
 import Security from "./Security";
 import Taxes, { pendingDarfs } from "./Taxes";
 import TaxSummary from "./TaxSummary";
+import TaxScreens from "./TaxScreens";
 import { isSavings } from "../currency";
 import { setThemePref, themePref, type ThemePref } from "../theme";
 import { ADVANCED_TABS, setSimpleView, simpleView } from "../viewMode";
@@ -66,6 +67,7 @@ const SECTIONS = {
   impostos: [
     { id: "apuracao", label: "Apuração" },
     { id: "resumo", label: "Resumo para o contador" },
+    { id: "telas", label: "Telas do IR" },
   ],
   seguranca: [
     { id: "seguranca", label: "Senha e backup" },
@@ -446,6 +448,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               onGo={(to) => (to === "proventos" ? setTab("lancamentos", "proventos") : setTab("impostos", "apuracao"))}
             />
           )}
+          {!asset && tab === "impostos" && current === "telas" && <TaxScreens refresh={refresh} />}
           {!asset && tab === "seguranca" && current === "auditoria" && <Audit status={status} />}
           {!asset && tab === "seguranca" && current === "seguranca" && (
             <Security
