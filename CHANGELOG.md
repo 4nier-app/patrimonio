@@ -6,6 +6,21 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.29.0] - 2026-11-06
+
+### Adicionado
+- Nova aba Impostos › Telas do IR: os valores do ano no mesmo formato das
+  telas do programa do IR, ficha por ficha, para copiar para a declaração.
+  Tem Renda Variável (Operações Comuns / Day-Trade, mês a mês, e Operações
+  em FII ou Fiagro), Rendimentos Isentos e Não Tributáveis, Rendimentos
+  Sujeitos à Tributação Exclusiva e Bens e Direitos (com o lucro ou prejuízo
+  das aplicações no exterior). Branco é o que você digita no programa, cinza
+  é o que o programa calcula e o contorno verde marca o valor a digitar.
+  Mês sem venda aparece mais claro: não precisa digitar nada nele.
+- O IR retido na fonte agora é separado em day trade, dedo-duro das
+  operações comuns e dedo-duro de FII, como o programa do IR pede. O valor
+  do DARF não muda.
+
 ## [0.28.0] - 2026-11-03
 
 ### Adicionado
