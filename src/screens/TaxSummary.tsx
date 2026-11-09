@@ -117,17 +117,20 @@ function Body({
     months.some((m) => m.groups.some((x) => x.group === g.id)),
   );
 
+  const open = new Date() <= new Date(`${year}-12-31T23:59:59`);
+  const end = open ? "hoje (prévia do fim do ano)" : `em 31/12/${year}`;
+
   return (
     <div className="resumo-body">
       <section className="card resumo-ficha">
         <div className="resumo-head">
           <h3>Bens e Direitos</h3>
           <span className="muted small">
-            situação em 31/12/{year}, pelo custo de aquisição
+            situação {end}, pelo custo de aquisição
           </span>
         </div>
         {positions.length === 0 && balances.length === 0 ? (
-          <p className="muted small">Nada na carteira em 31/12/{year}.</p>
+          <p className="muted small">Nada na carteira {end}.</p>
         ) : (
           <table className="resumo-table">
             <tbody>
@@ -180,7 +183,7 @@ function Body({
                     <strong>{money(b.value)}</strong>
                     {b.usd != null && (
                       <div className="muted small">
-                        {money(b.usd, "USD")} × PTAX de 31/12 · confirme o código
+                        {money(b.usd, "USD")} × PTAX de {open ? "hoje" : "31/12"} · confirme o código
                         com o contador
                       </div>
                     )}
