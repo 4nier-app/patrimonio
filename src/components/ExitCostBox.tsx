@@ -8,9 +8,9 @@ export function pctText(v: Dec | number): string {
 }
 
 /** Máscara de calculadora para o percentual: só números, 2 casas ("100" → "1,00"). */
-export function pctTyping(raw: string): string {
+export function pctTyping(raw: string, maxDigits = 4): string {
   const all = raw.replace(/\D/g, "");
-  const digits = all.replace(/^0+/, "").slice(0, 4);
+  const digits = all.replace(/^0+/, "").slice(0, maxDigits);
   if (!digits) return all ? "0,00" : "";
   const padded = digits.padStart(3, "0");
   return `${padded.slice(0, -2)},${padded.slice(-2)}`;

@@ -12,7 +12,8 @@ use rust_decimal::Decimal;
 use crate::records::{bad, date, dec, new_id};
 use crate::{now_iso, Result, Vault};
 
-const SELECT: &str = "SELECT id, kind, name, bought_on, price, sold_on, note FROM assets_owned";
+const SELECT: &str =
+    "SELECT id, kind, name, bought_on, price, sold_on, note, share FROM assets_owned";
 const SELECT_WORK: &str =
     "SELECT id, owned_id, done_on, amount, description FROM asset_improvements";
 
@@ -33,6 +34,7 @@ fn row_to_owned(r: &rusqlite::Row<'_>) -> rusqlite::Result<OwnedAsset> {
             .map(|s| date(s, 5))
             .transpose()?,
         note: r.get(6)?,
+        share: dec(r.get(7)?, 7)?,
     })
 }
 
@@ -81,8 +83,8 @@ impl Vault {
         a.id = new_id()?.replacen("op-", "bm-", 1);
         let now = now_iso();
         self.conn.execute(
-            "INSERT INTO assets_owned (id, kind, name, bought_on, price, sold_on, note, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+            "INSERT INTO assets_owned (id, kind, name, bought_on, price, sold_on, note, share, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?9, ?8, ?8)",
             params![
                 a.id,
                 a.kind.as_str(),
@@ -91,7 +93,8 @@ impl Vault {
                 a.price.to_string(),
                 a.sold_on.map(|d| d.to_string()),
                 a.note,
-                now
+                now,
+                a.share.normalize().to_string()
             ],
         )?;
         self.append_event(
@@ -125,7 +128,7 @@ impl Vault {
         }
         self.conn.execute(
             "UPDATE assets_owned SET name = ?2, bought_on = ?3, price = ?4, sold_on = ?5, note = ?6,
-               updated_at = ?7 WHERE id = ?1",
+               updated_at = ?7, share = ?8 WHERE id = ?1",
             params![
                 a.id,
                 a.name,
@@ -133,7 +136,8 @@ impl Vault {
                 a.price.to_string(),
                 a.sold_on.map(|d| d.to_string()),
                 a.note,
-                now_iso()
+                now_iso(),
+                a.share.normalize().to_string()
             ],
         )?;
         self.append_event(
@@ -368,9 +372,17 @@ mod tests {
                 price: dec!(300000),
                 sold_on: None,
                 note: None,
+                share: dec!(100),
             })
             .unwrap();
         assert_eq!(casa.name, "Casa");
+        // A parte do bem fica guardada.
+        v.update_owned(OwnedAsset {
+            share: dec!(50),
+            ..casa.clone()
+        })
+        .unwrap();
+        assert_eq!(v.get_owned(&casa.id).unwrap().unwrap().share, dec!(50));
         let obra = v
             .create_improvement(Improvement {
                 id: String::new(),

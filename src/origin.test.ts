@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupOrigin, originLabel } from "./origin";
+import { groupOrigin, originKind, originLabel } from "./origin";
 import type { OperationOrigin } from "./api";
 
 const o = (broker: string, number: string | null = null): OperationOrigin => ({
@@ -16,6 +16,12 @@ describe("origem do lançamento", () => {
     expect(originLabel(o("B3"))).toBe("Planilha da B3");
     expect(originLabel(o("Planilha"))).toBe("Planilha importada");
     expect(originLabel(o("Corretora Teste", "123"))).toBe("Nota Corretora Teste nº 123");
+  });
+  it("separa para o filtro", () => {
+    expect(originKind(undefined)).toBe("digitado");
+    expect(originKind(o("B3"))).toBe("b3");
+    expect(originKind(o("Planilha"))).toBe("planilha");
+    expect(originKind(o("Corretora Teste", "123"))).toBe("nota");
   });
   it("resume o grupo do dia", () => {
     expect(groupOrigin([o("B3"), o("B3")])).toBe("Planilha da B3");

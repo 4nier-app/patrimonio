@@ -570,10 +570,13 @@ fn build(
         });
     }
 
-    // Bens: o custo (compra + obras) em cada coluna; some depois da venda.
+    // Bens: o custo (compra + obras) em cada coluna, só a parte da pessoa
+    // quando o bem é em comum; some depois da venda.
     for b in inp.owned {
-        let values: Vec<Option<Decimal>> =
-            cols.iter().map(|c| b.cost_on(inp.works, c.date)).collect();
+        let values: Vec<Option<Decimal>> = cols
+            .iter()
+            .map(|c| b.my_cost_on(inp.works, c.date))
+            .collect();
         if values.iter().all(Option::is_none) {
             continue;
         }
@@ -583,7 +586,11 @@ fn build(
                 asset: None,
                 savings_id: None,
                 name: b.name.clone(),
-                detail: Some(b.kind.label().to_string()),
+                detail: Some(if b.shared() {
+                    format!("{} · sua parte {}%", b.kind.label(), b.share.normalize())
+                } else {
+                    b.kind.label().to_string()
+                }),
                 values,
                 missing: vec![false; n],
                 outside: vec![false; n],
@@ -1405,6 +1412,7 @@ mod tests {
             price,
             sold_on,
             note: None,
+            share: dec!(100),
         };
         let casa = v
             .create_owned(bem(
@@ -1449,6 +1457,19 @@ mod tests {
         assert_eq!(row("Carro").values[at(1)], Some(dec!(80000)));
         assert_eq!(row("Carro").values[view.columns.len() - 1], None);
         assert_eq!(view.total[at(2)], Some(dec!(405000)));
+
+        // Casa em comum com o cônjuge (50%): o patrimônio soma só a metade.
+        v.update_owned(OwnedAsset {
+            share: dec!(50),
+            ..casa.clone()
+        })
+        .unwrap();
+        let view = evolution(&v, Some(2026), d(2026, 3, 4)).unwrap();
+        let g = view.groups.iter().find(|g| g.id == "bens").unwrap();
+        let casa_row = g.rows.iter().find(|r| r.name == "Casa").unwrap();
+        assert_eq!(casa_row.values[at(2)], Some(dec!(162500)));
+        assert_eq!(casa_row.detail.as_deref(), Some("Imóvel · sua parte 50%"));
+        assert_eq!(view.total[at(2)], Some(dec!(242500)));
     }
 
     #[test]

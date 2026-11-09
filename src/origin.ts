@@ -12,6 +12,23 @@ export function originLabel(o: OperationOrigin | undefined): string {
   return `Nota ${o.broker}${o.number ? ` nº ${o.number}` : ""}`;
 }
 
+export type OriginKind = "digitado" | "nota" | "b3" | "planilha";
+
+/** Tipo de origem, para o filtro da lista de lançamentos. */
+export function originKind(o: OperationOrigin | undefined): OriginKind {
+  if (!o) return "digitado";
+  if (o.broker === "B3") return "b3";
+  if (o.broker === "Planilha") return "planilha";
+  return "nota";
+}
+
+export const ORIGIN_FILTERS: { id: OriginKind; label: string }[] = [
+  { id: "digitado", label: "Digitados" },
+  { id: "nota", label: "Nota de corretagem" },
+  { id: "b3", label: "Planilha da B3" },
+  { id: "planilha", label: "Planilha importada" },
+];
+
 export function originTitle(o: OperationOrigin | undefined): string {
   if (!o) return "Lançado na mão, nesta tela.";
   const when = `Importado em ${formatDateTime(o.imported_at)}.`;

@@ -832,6 +832,9 @@ export type OwnedAsset = {
   price: Dec;
   sold_on: string | null;
   note: string | null;
+  /** Parte do bem que é da pessoa, em % (100 = bem só dela). O patrimônio usa
+   * esta parte; Impostos usa o valor total. */
+  share: Dec;
 };
 
 /** Obra ou reforma do imóvel: soma ao custo. */

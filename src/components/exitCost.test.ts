@@ -7,6 +7,9 @@ describe("custo para trazer ao Brasil", () => {
     expect(pctTyping("100")).toBe("1,00");
     expect(pctTyping("1,005")).toBe("10,05");
     expect(pctTyping("0")).toBe("0,00");
+    // Parte do bem: até 100,00.
+    expect(pctTyping("10000", 5)).toBe("100,00");
+    expect(pctTyping("5000", 5)).toBe("50,00");
     expect(pctTyping("")).toBe("");
     expect(pctTyping("123456")).toBe("12,34");
   });
