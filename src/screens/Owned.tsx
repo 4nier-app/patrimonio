@@ -19,6 +19,11 @@ const EMPTY = (): Form => ({ id: "", kind: null, name: "", bought: today(), pric
 
 /** Parte do bem em número (100 quando não informada). */
 const shareOf = (a: OwnedAsset) => (a.share == null ? 100 : Number(a.share));
+/** Máscara da parte do bem: duas casas decimais, no máximo 100,00. */
+const shareTyping = (raw: string) => {
+  const v = pctTyping(raw, 5);
+  return Number(v.replace(",", ".")) > 100 ? "100,00" : v;
+};
 const pct = (v: number) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 
 type WorkForm = { id: string; ownedId: string; date: string; amount: string; description: string };
@@ -242,7 +247,7 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
                     inputMode="numeric"
                     value={form.share}
                     placeholder="100,00"
-                    onChange={(e) => setForm({ ...form, share: pctTyping(e.target.value, 5) })}
+                    onChange={(e) => setForm({ ...form, share: shareTyping(e.target.value) })}
                     required
                   />
                 </label>
