@@ -347,7 +347,8 @@ export function bens(
   }
 
   const bal = (y: number) =>
-    view.savings_year_end.filter((x) => x.year === y && x.kind !== "Cartão benefício");
+    // FGTS e cartão benefício não precisam ir para a declaração.
+    view.savings_year_end.filter((x) => x.year === y && x.kind !== "Cartão benefício" && x.kind !== "FGTS");
   const id = (x: { kind: string; name: string; account: string }) =>
     `${x.kind}|${x.name}|${x.account}`;
   const balNow = bal(year);

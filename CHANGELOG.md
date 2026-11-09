@@ -6,6 +6,21 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.30.1] - 2026-11-09
+
+### Alterado
+- Impostos › Bens e Direitos (Telas do IR e Resumo para o contador): enquanto
+  o ano não termina, a última coluna mostra a situação de hoje, como prévia.
+  Contas, cofrinhos e FGTS aparecem com o último saldo informado, e o saldo
+  em dólar pela PTAX de hoje. Depois de 31/12 a coluna volta a ser a situação
+  em 31/12, que é a que vai para a declaração.
+- Impostos › Bens e Direitos: o saldo do FGTS deixa de aparecer, porque não
+  precisa ser declarado (o fundo FMP-FGTS continua, porque é uma aplicação).
+
+### Corrigido
+- Impostos: o IRRF estimado (dedo-duro de 0,005% das vendas) agora corta os
+  centavos, como a corretora faz. Antes podia sair 1 centavo acima da nota.
+
 ## [0.30.0] - 2026-11-09
 
 ### Adicionado

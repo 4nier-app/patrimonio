@@ -449,17 +449,19 @@ function BensDireitos({ data, year }: { data: Data; year: number }) {
   const [sel, setSel] = useState<string | null>(null);
   const b: Bem | undefined = list.find((x) => x.key === sel) ?? list[0];
   const q = (v: string | null) => v ?? "?";
+  const open = new Date() <= new Date(`${year}-12-31T23:59:59`);
+  const end = open ? "hoje (prévia)" : `em 31/12/${year}`;
   return (
     <>
       <div className="irf-title">Declaração de Bens e Direitos</div>
-      {new Date() <= new Date(`${year}-12-31T23:59:59`) && (
+      {open && (
         <p className="irf-empty">
-          O ano de {year} ainda não terminou: a situação em 31/12/{year} só aparece depois
-          do fim do ano.
+          O ano de {year} ainda não terminou: a última coluna mostra a situação de hoje, como prévia.
+          Na declaração vai a situação em 31/12/{year}.
         </p>
       )}
       {list.length === 0 ? (
-        <p className="irf-empty">Nada na carteira em 31/12/{year - 1} nem em 31/12/{year}.</p>
+        <p className="irf-empty">Nada na carteira em 31/12/{year - 1} nem {end}.</p>
       ) : (
         <>
           <div className="irf-scroll">
@@ -470,7 +472,7 @@ function BensDireitos({ data, year }: { data: Data; year: number }) {
                   <th>Código</th>
                   <th>Discriminação</th>
                   <th className="v">Situação em 31/12/{year - 1} (R$)</th>
-                  <th className="v">Situação em 31/12/{year} (R$)</th>
+                  <th className="v">Situação {end} (R$)</th>
                 </tr>
               </thead>
               <tbody>
@@ -532,7 +534,7 @@ function BensDireitos({ data, year }: { data: Data; year: number }) {
                 <Field label={`Situação em 31/12/${year - 1}`}>
                   <Box input v={b.before} />
                 </Field>
-                <Field label={`Situação em 31/12/${year}`}>
+                <Field label={`Situação ${end}`}>
                   <Box input v={b.after} />
                 </Field>
                 {b.profit != null && (
@@ -635,7 +637,10 @@ export default function TaxScreens({ refresh }: { refresh: number }) {
                 ações", e FIIs e Fiagros têm a sua aba. O CNPJ de quem pagou os proventos não
                 aparece porque não há fonte gratuita: veja no informe de rendimentos da
                 corretora. Quando o grupo e o código de um bem não são certos, aparece "?":
-                confirme com o contador. Nada aqui é enviado para a Receita.
+                confirme com o contador. Em Bens e Direitos, enquanto o ano não termina, a
+                última coluna mostra a situação de hoje como prévia (saldos informados e dólar
+                pela PTAX de hoje); na declaração vai a de 31/12. Nada aqui é enviado para a
+                Receita.
               </>
             }
           >

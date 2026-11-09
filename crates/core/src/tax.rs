@@ -82,6 +82,11 @@ fn cents(v: Decimal) -> Decimal {
     v.round_dp_with_strategy(2, RoundingStrategy::MidpointAwayFromZero)
 }
 
+/// A corretora calcula o dedo-duro truncando os centavos (12,475 → 12,47).
+fn cents_down(v: Decimal) -> Decimal {
+    v.round_dp_with_strategy(2, RoundingStrategy::ToZero)
+}
+
 fn month_of(d: NaiveDate) -> String {
     format!("{:04}-{:02}", d.year(), d.month())
 }
@@ -604,7 +609,7 @@ pub fn b3_months(priced: &[PricedOperation], kind_of: KindOf, until: NaiveDate) 
             }
         }
         let common_sales: Decimal = sales.iter().filter(|s| !s.day_trade).map(|s| s.gross).sum();
-        let mut irrf_month = cents(common_sales * irrf_common_rate());
+        let mut irrf_month = cents_down(common_sales * irrf_common_rate());
         if irrf_month <= Decimal::ONE {
             irrf_month = Decimal::ZERO;
         }
@@ -618,7 +623,7 @@ pub fn b3_months(priced: &[PricedOperation], kind_of: KindOf, until: NaiveDate) 
         let irrf_fii = if irrf_month.is_zero() {
             Decimal::ZERO
         } else {
-            cents(fii_sales * irrf_common_rate()).min(irrf_month)
+            cents_down(fii_sales * irrf_common_rate()).min(irrf_month)
         };
         let dt = cents(run.irrf_dt.get(&key).copied().unwrap_or_default());
         let irrf_dt = if dt <= Decimal::ONE {
@@ -1044,6 +1049,34 @@ mod tests {
         assert_eq!((mar.irrf_dt, mar.irrf_fii), (dec!(0), dec!(0)));
         assert_eq!(mar.darf, dec!(2098.75));
         assert_eq!(mar.due_date, d(2026, 4, 30));
+    }
+
+    #[test]
+    fn dedo_duro_trunca_os_centavos_como_a_corretora() {
+        // 0,005% de 24.950,10 = 1,247505: a corretora cobra 1,24 (não 1,25).
+        let ops = vec![
+            op(
+                "X",
+                "ABCD3",
+                d(2026, 3, 2),
+                Side::Compra,
+                dec!(1000),
+                dec!(10),
+                dec!(0),
+            ),
+            op(
+                "X",
+                "ABCD3",
+                d(2026, 3, 10),
+                Side::Venda,
+                dec!(1000),
+                dec!(24.9501),
+                dec!(0),
+            ),
+        ];
+        let r = b3_months(&ops, &kinds, d(2026, 3, 31));
+        let mar = r.months.iter().find(|m| m.month == "2026-03").unwrap();
+        assert_eq!(mar.irrf_month, dec!(1.24));
     }
 
     #[test]

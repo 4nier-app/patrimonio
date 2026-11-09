@@ -1149,6 +1149,32 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                 .collect::<Vec<_>>()
         })
         .collect();
+    // Ano em andamento: a situação de hoje, como prévia do 31/12 (dólar pela
+    // PTAX de hoje, como no imposto).
+    for r in savings_reports(v)? {
+        if r.year_end.iter().any(|(y, _)| *y == as_of.year()) {
+            continue;
+        }
+        let dollars = r.savings.kind.in_dollars();
+        let usd = dollars.then(|| r.units_on(as_of));
+        let value = match usd {
+            Some(u) => fx
+                .usd_brl_on_or_before(as_of)
+                .map_or(Decimal::ZERO, |f| (u * f.rate).round_dp(2)),
+            None => r.balance_on(as_of),
+        };
+        if value.is_zero() {
+            continue;
+        }
+        savings_year_end.push(SavingsYearEnd {
+            year: as_of.year(),
+            name: r.savings.title().to_string(),
+            account: r.savings.bank().to_string(),
+            kind: r.savings.kind.label(),
+            value,
+            usd,
+        });
+    }
     // Imóveis e veículos: custo em 31/12 (compra + obras até a data).
     let works = v.list_improvements().map_err(s)?;
     for item in v.list_owned().map_err(s)? {
