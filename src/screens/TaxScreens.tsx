@@ -637,7 +637,10 @@ export default function TaxScreens({ refresh }: { refresh: number }) {
                 ações", e FIIs e Fiagros têm a sua aba. O CNPJ de quem pagou os proventos não
                 aparece porque não há fonte gratuita: veja no informe de rendimentos da
                 corretora. Quando o grupo e o código de um bem não são certos, aparece "?":
-                confirme com o contador. Nada aqui é enviado para a Receita.
+                confirme com o contador. Em Bens e Direitos, enquanto o ano não termina, a
+                última coluna mostra a situação de hoje como prévia (saldos informados e dólar
+                pela PTAX de hoje); na declaração vai a de 31/12. Nada aqui é enviado para a
+                Receita.
               </>
             }
           >
