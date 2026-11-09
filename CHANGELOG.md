@@ -17,6 +17,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   continua com 100%.
 - Painel: abaixo do patrimônio total, uma linha com o patrimônio sem os bens
   (imóveis e veículos). Aparece só para quem tem bens cadastrados.
+- Lançamentos: filtro "Origem" na lista, para ver só os digitados, os que
+  vieram de nota de corretagem, da planilha da B3 ou de planilha importada.
 
 ## [0.29.0] - 2026-11-06
 

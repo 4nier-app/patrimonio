@@ -32,7 +32,7 @@ import {
 } from "../format";
 import { currencyOfNewAccount, fundTicker, isFund, isTesouro, normalizeTicker } from "../currency";
 import CashInput from "../components/CashInput";
-import { groupOrigin, originLabel, originTitle } from "../origin";
+import { groupOrigin, originKind, originLabel, originTitle, ORIGIN_FILTERS, type OriginKind } from "../origin";
 import BrokerageBox from "../components/BrokerageBox";
 import ExitCostBox from "../components/ExitCostBox";
 
@@ -457,12 +457,13 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
     }
   }
 
-  // Filtros da lista: ano (o mais recente ao abrir), mês, conta e ativo.
+  // Filtros da lista: ano (o mais recente ao abrir), mês, conta, origem e ativo.
   const years = useMemo(() => [...new Set(list.map((p) => Number(p.operation.date.slice(0, 4))))].sort(), [list]);
   const [fYear, setFYear] = useState<number | "todos" | null>(null);
   const [fMonth, setFMonth] = useState(0);
   const [fAccount, setFAccount] = useState("");
   const [fAsset, setFAsset] = useState("");
+  const [fOrigin, setFOrigin] = useState<OriginKind | "">("");
   const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (fYear == null && years.length) setFYear(years[years.length - 1]);
@@ -472,6 +473,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
     if (fYear != null && fYear !== "todos" && Number(o.date.slice(0, 4)) !== fYear) return false;
     if (fMonth && Number(o.date.slice(5, 7)) !== fMonth) return false;
     if (fAccount && o.account !== fAccount) return false;
+    if (fOrigin && originKind(origins[o.id]) !== fOrigin) return false;
     const q = fAsset.trim().toUpperCase();
     return !q || o.asset.includes(q) || (names[o.asset] ?? "").includes(q);
   });
@@ -997,6 +999,17 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
             {[...new Set(list.map((p) => p.operation.account))].sort().map((a) => (
               <option key={a} value={a}>
                 {a}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Origem
+          <select value={fOrigin} onChange={(e) => setFOrigin(e.target.value as OriginKind | "")}>
+            <option value="">Todas</option>
+            {ORIGIN_FILTERS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
               </option>
             ))}
           </select>
