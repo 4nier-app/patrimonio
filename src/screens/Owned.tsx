@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Intro from "../components/Intro";
 import CashInput from "../components/CashInput";
+import { pctTyping } from "../components/ExitCostBox";
 import { offerUndo } from "../undo";
 import { errorMessage, ownedApi, type Improvement, type OwnedAsset, type OwnedKind, type OwnedRow } from "../api";
 import { date, money, parseDecimalInput, toCashMask } from "../format";
@@ -14,7 +15,7 @@ const KINDS: { id: OwnedKind; title: string; text: string }[] = [
 ];
 
 type Form = { id: string; kind: OwnedKind | null; name: string; bought: string; price: string; sold: string; share: string };
-const EMPTY = (): Form => ({ id: "", kind: null, name: "", bought: today(), price: "", sold: "", share: "100" });
+const EMPTY = (): Form => ({ id: "", kind: null, name: "", bought: today(), price: "", sold: "", share: "100,00" });
 
 /** Parte do bem em número (100 quando não informada). */
 const shareOf = (a: OwnedAsset) => (a.share == null ? 100 : Number(a.share));
@@ -119,7 +120,7 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
   }
 
   function editOwned(a: OwnedAsset) {
-    setForm({ id: a.id, kind: a.kind, name: a.name, bought: a.bought_on, price: cash(a.price), sold: a.sold_on ?? "", share: String(shareOf(a)).replace(".", ",") });
+    setForm({ id: a.id, kind: a.kind, name: a.name, bought: a.bought_on, price: cash(a.price), sold: a.sold_on ?? "", share: pctTyping(shareOf(a).toFixed(2), 5) });
     setSaved(null);
     setError(null);
     window.scrollTo({ top: 0 });
@@ -238,9 +239,10 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
                 <label>
                   Sua parte do bem (%)
                   <input
-                    inputMode="decimal"
+                    inputMode="numeric"
                     value={form.share}
-                    onChange={(e) => setForm({ ...form, share: e.target.value.replace(/[^0-9,]/g, "") })}
+                    placeholder="100,00"
+                    onChange={(e) => setForm({ ...form, share: pctTyping(e.target.value, 5) })}
                     required
                   />
                 </label>
