@@ -105,7 +105,7 @@ function Cell({
   /** Conta do valor de resgate (corretora em dólar), mostrada no ⓘ. */
   note?: string | null;
   strong?: boolean;
-  /** Sem a % de variação (total com bens). */
+  /** Sem a % de variação (total com bens; saldos digitados). */
   noRate?: boolean;
   /** Saldo: clicar abre o campo para informar o valor nessa data. */
   onEdit?: () => void;
@@ -356,7 +356,7 @@ export default function Evolution() {
                               {g.investment && <span className="evo-count">{assetsLabel(heldCount(g, todayColumn(view)))}</span>}
                             </th>
                             {shown.map(({ c, i }) => (
-                              <Cell key={c.date} values={g.total} i={i} strong />
+                              <Cell key={c.date} values={g.total} i={i} strong noRate={g.rows.some((r) => r.savings_id)} />
                             ))}
                             <Gain gain={g.gain} strong />
                             <Gain gain={g.since} strong plain />
@@ -392,6 +392,8 @@ export default function Evolution() {
                                   i={i}
                                   missing={r.missing[i]}
                                   note={r.notes?.[i]}
+                                  // Saldo digitado: o app não sabe o que foi depósito e o que foi rendimento.
+                                  noRate={!!r.savings_id}
                                   onEdit={
                                     // 31/12 do ano anterior e "todos os anos" só mostram;
                                     // o saldo se informa no mês dele, dentro do período do saldo.
