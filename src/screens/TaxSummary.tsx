@@ -103,7 +103,7 @@ function Body({
   const names = { ...data.names, ...view.names };
   const positions = view.annual.positions[String(year)] ?? [];
   const balances = view.savings_year_end.filter(
-    (x) => x.year === year && x.kind !== "Cartão benefício",
+    (x) => x.year === year && x.kind !== "Cartão benefício" && x.kind !== "FGTS",
   );
   const inc = incomeLines(incomes, year);
   const bonus = bonificacoes(events, year);

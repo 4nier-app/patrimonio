@@ -14,6 +14,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   Contas, cofrinhos e FGTS aparecem com o último saldo informado, e o saldo
   em dólar pela PTAX de hoje. Depois de 31/12 a coluna volta a ser a situação
   em 31/12, que é a que vai para a declaração.
+- Impostos › Bens e Direitos: o saldo do FGTS deixa de aparecer, porque não
+  precisa ser declarado (o fundo FMP-FGTS continua, porque é uma aplicação).
 
 ### Corrigido
 - Impostos: o IRRF estimado (dedo-duro de 0,005% das vendas) agora corta os

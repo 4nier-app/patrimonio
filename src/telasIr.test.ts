@@ -164,4 +164,16 @@ describe("telas do IR: bens e direitos", () => {
     expect(b[0]).toMatchObject({ key: "ETFX", before: 1000, after: 0, country: "249 - Estados Unidos", profit: 150, group: null });
     expect(b[1]).toMatchObject({ key: "TEST3", before: 100, after: 220, group: "03", code: "01", ticker: "TEST3", profit: null });
   });
+  it("deixa o FGTS e o cartão benefício de fora", () => {
+    const view = {
+      annual: { positions: {}, foreign: [], warnings: [] },
+      savings_year_end: [
+        { year: 2026, name: "FGTS", account: "", kind: "FGTS", value: "500" },
+        { year: 2026, name: "Benefício", account: "Banco A", kind: "Cartão benefício", value: "80" },
+        { year: 2026, name: "Conta corrente", account: "Banco A", kind: "Conta corrente", value: "300" },
+      ],
+    } as unknown as TaxView;
+    const b = bens(view, {}, {}, 2026);
+    expect(b.map((x) => x.key)).toEqual(["Conta corrente|Conta corrente|Banco A"]);
+  });
 });
