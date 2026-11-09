@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useEffect, useState } from "react";
+import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import YearPager from "../components/YearPager";
 import { errorMessage, evolutionApi, savingsApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
 import CashInput from "../components/CashInput";
@@ -230,6 +230,46 @@ const incomes = (view: EvolutionView, pairs: Pair[]): (string | null)[] =>
     return (Number(d) - n).toFixed(2);
   });
 
+/** Fixa colunas da tabela (posição sticky), medindo a largura de cada uma. */
+function StickyColumns({ tableRef, left, right, deps }: { tableRef: React.RefObject<HTMLTableElement | null>; left: number[]; right: number[]; deps: string }) {
+  const [css, setCss] = useState("");
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    if (!table) return;
+    const measure = () => {
+      const head = table.querySelectorAll<HTMLTableCellElement>("thead tr:first-child > th");
+      const width = (k: number) => head[k - 1]?.getBoundingClientRect().width ?? 0;
+      const rules: string[] = [];
+      let x = 0;
+      left.forEach((k, j) => {
+        const edge = j === left.length - 1 ? "box-shadow: 6px 0 6px -6px rgba(0,0,0,.35); padding-right: 10px; border-right: 1px solid var(--border);" : "";
+        rules.push(`.evo-table tr > :nth-child(${k}) { position: sticky; left: ${x}px; z-index: 2; ${edge} }`);
+        x += width(k);
+      });
+      x = 0;
+      right.forEach((k, j) => {
+        const edge = j === right.length - 1;
+        rules.push(`.evo-table tr > :nth-child(${k}) { position: sticky; right: ${x}px; z-index: 2; }`);
+        if (edge) rules.push(`.evo-table tr > :nth-child(${k}) { padding-left: 10px; }`);
+        if (edge) rules.push(`.evo-table tr > :nth-child(${k}):not(.today) { box-shadow: -6px 0 6px -6px rgba(0,0,0,.35); } .evo-table tr > :nth-child(${k}).today { box-shadow: inset 2px 0 var(--accent), inset -2px 0 var(--accent), -6px 0 6px -6px rgba(0,0,0,.35); }`);
+        x += width(k);
+      });
+      const all = [...left, ...right].map((k) => `.evo-table tr > :nth-child(${k})`).join(", ");
+      rules.push(`${all} { background-color: var(--surface); }`);
+      rules.push(left.concat(right).map((k) => `.evo-table tr.evo-group > :nth-child(${k})`).join(", ") + " { background-color: var(--bg); }");
+      rules.push(left.concat(right).map((k) => `.evo-table tr > :nth-child(${k}).today`).join(", ") + " { background-image: linear-gradient(color-mix(in srgb, var(--accent) 9%, transparent), color-mix(in srgb, var(--accent) 9%, transparent)); }");
+      rules.push(left.concat(right).map((k) => `.evo-table tr.evo-lot > :nth-child(${k})`).join(", ") + " { background-image: linear-gradient(color-mix(in srgb, var(--accent) 4%, transparent), color-mix(in srgb, var(--accent) 4%, transparent)); }");
+      setCss(rules.join("\n"));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(table);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deps]);
+  return <style>{css}</style>;
+}
+
 export default function Evolution() {
   const [year, setYear] = useState<number | null | undefined>(undefined);
   const [view, setView] = useState<EvolutionView | null>(null);
@@ -238,6 +278,7 @@ export default function Evolution() {
   // Compras dentro de cada ativo: sempre começam fechadas.
   const [lotsOpen, setLotsOpen] = useState<string[]>([]);
   const [edit, setEdit] = useState<Editing | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -306,6 +347,12 @@ export default function Evolution() {
   const order = displayOrder(cols);
   const shown = order.map((i) => ({ c: cols[i], i }));
   const inOrder = <T,>(values: T[]): T[] => order.map((i) => values[i]);
+  // Colunas fixas: nome e 31/12 à esquerda; hoje, ontem e resultados à
+  // direita. Só os meses fechados rolam para os lados.
+  const leftCols = [1, ...(shown[0]?.c.kind === "BASE" ? [2] : [])];
+  const rightCols: number[] = [shown.length + 3, shown.length + 2];
+  for (let k = shown.length - 1; k >= 0 && (shown[k].c.kind === "TODAY" || shown[k].c.kind === "YESTERDAY"); k--) rightCols.push(k + 2);
+  const stickyKey = `${leftCols.join(",")}|${rightCols.join(",")}`;
 
   return (
     <Pairs.Provider value={pairs}>
@@ -317,7 +364,8 @@ export default function Evolution() {
           )}
           <div className="card evo-card">
             <div className="evo-scroll">
-              <table className="evo-table">
+              <StickyColumns tableRef={tableRef} left={leftCols} right={rightCols} deps={`${stickyKey}|${collapsed.join()}|${lotsOpen.join()}`} />
+              <table className="evo-table" ref={tableRef}>
                 <thead>
                   <tr>
                     <th className="evo-name">Em R$</th>
