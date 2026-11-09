@@ -1158,7 +1158,16 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                 savings_year_end.push(SavingsYearEnd {
                     year,
                     name: item.name.clone(),
-                    account: String::new(),
+                    // Impostos usa o valor total do bem; quando é em comum,
+                    // a discriminação diz de quem é.
+                    account: if item.shared() {
+                        format!(
+                            "Bem em comum com o cônjuge (sua parte {}%)",
+                            item.share.normalize()
+                        )
+                    } else {
+                        String::new()
+                    },
                     kind: item.kind.label(),
                     value,
                     usd: None,

@@ -13,8 +13,12 @@ const KINDS: { id: OwnedKind; title: string; text: string }[] = [
   { id: "VEICULO", title: "Veículo", text: "Carro, moto. Entra pelo valor pago na compra." },
 ];
 
-type Form = { id: string; kind: OwnedKind | null; name: string; bought: string; price: string; sold: string };
-const EMPTY = (): Form => ({ id: "", kind: null, name: "", bought: today(), price: "", sold: "" });
+type Form = { id: string; kind: OwnedKind | null; name: string; bought: string; price: string; sold: string; share: string };
+const EMPTY = (): Form => ({ id: "", kind: null, name: "", bought: today(), price: "", sold: "", share: "100" });
+
+/** Parte do bem em número (100 quando não informada). */
+const shareOf = (a: OwnedAsset) => (a.share == null ? 100 : Number(a.share));
+const pct = (v: number) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 
 type WorkForm = { id: string; ownedId: string; date: string; amount: string; description: string };
 
@@ -59,6 +63,8 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
     if (!form?.kind) return;
     const price = parseDecimalInput(form.price);
     if (price == null || Number(price) <= 0) return setError("Informe o valor pago na compra.");
+    const share = Number(form.share.replace(",", "."));
+    if (!(share > 0 && share <= 100)) return setError("A sua parte do bem precisa ficar entre 1% e 100%.");
     const item: OwnedAsset = {
       id: form.id,
       kind: form.kind,
@@ -67,6 +73,7 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
       price,
       sold_on: form.sold || null,
       note: null,
+      share: String(share),
     };
     void run(async () => {
       if (form.id) await ownedApi.update(item);
@@ -112,7 +119,7 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
   }
 
   function editOwned(a: OwnedAsset) {
-    setForm({ id: a.id, kind: a.kind, name: a.name, bought: a.bought_on, price: cash(a.price), sold: a.sold_on ?? "" });
+    setForm({ id: a.id, kind: a.kind, name: a.name, bought: a.bought_on, price: cash(a.price), sold: a.sold_on ?? "", share: String(shareOf(a)).replace(".", ",") });
     setSaved(null);
     setError(null);
     window.scrollTo({ top: 0 });
@@ -121,6 +128,8 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
   const items = rows ?? [];
   const active = items.filter((r) => !r.item.sold_on || r.item.sold_on > today());
   const total = active.reduce((s, r) => s + Number(r.cost), 0);
+  const mine = active.reduce((s, r) => s + (Number(r.cost) * shareOf(r.item)) / 100, 0);
+  const anyShared = active.some((r) => shareOf(r.item) < 100);
 
   function workForm(r: OwnedRow) {
     if (!work || work.ownedId !== r.item.id) return null;
@@ -169,7 +178,7 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
               <>
                 O valor de cada bem é o custo: o que você pagou na compra, mais as obras e reformas do imóvel, cada uma a partir da data em que foi
                 feita. É assim que a Receita pede em Bens e Direitos. O app não estima valor de mercado. Depois da data de venda, o bem sai do
-                patrimônio.
+                patrimônio. Se o bem é em comum com o cônjuge, informe a sua parte: o patrimônio soma só ela, e Impostos mostra o valor total.
               </>
             }
           >
@@ -226,7 +235,20 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
                   Data da venda (só se vendeu)
                   <input type="date" value={form.sold} min={form.bought} onChange={(e) => setForm({ ...form, sold: e.target.value })} />
                 </label>
+                <label>
+                  Sua parte do bem (%)
+                  <input
+                    inputMode="decimal"
+                    value={form.share}
+                    onChange={(e) => setForm({ ...form, share: e.target.value.replace(/[^0-9,]/g, "") })}
+                    required
+                  />
+                </label>
               </div>
+              <p className="muted small">
+                Bem em comum com o cônjuge? Coloque a sua parte, por exemplo 50%. O patrimônio soma só a sua parte; em Impostos o bem continua com o
+                valor total, porque normalmente um dos dois declara o bem inteiro.
+              </p>
               {form.kind === "IMOVEL" && !form.id && (
                 <p className="muted small">Depois de cadastrar, use "Nova obra" para somar reformas e benfeitorias ao custo.</p>
               )}
@@ -252,9 +274,15 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
       {active.length > 0 && (
         <div className="savings-totals">
           <div>
-            <span className="muted small">Total em bens (custo)</span>
-            <strong>{money(String(total))}</strong>
+            <span className="muted small">{anyShared ? "Total em bens (sua parte)" : "Total em bens (custo)"}</span>
+            <strong>{money(String(anyShared ? mine : total))}</strong>
           </div>
+          {anyShared && (
+            <div>
+              <span className="muted small">Valor total dos bens (para o IR)</span>
+              <strong>{money(String(total))}</strong>
+            </div>
+          )}
         </div>
       )}
 
@@ -272,6 +300,7 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
                 <div className="savings-head">
                   <div>
                     <span className="tag">{house ? "Imóvel" : "Veículo"}</span>
+                    {shareOf(a) < 100 && <span className="tag">Em comum · sua parte {pct(shareOf(a))}</span>}
                     <h3>{a.name}</h3>
                     <p className="muted small">
                       Comprado em {date(a.bought_on)} por {money(a.price)}
@@ -281,6 +310,11 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
                   <div className="savings-balance">
                     <span className="muted small">{house && r.works.length > 0 ? "Custo (compra + obras)" : "Custo"}</span>
                     <strong>{money(r.cost)}</strong>
+                    {shareOf(a) < 100 && (
+                      <span className="muted small">
+                        sua parte: <b>{money(String((Number(r.cost) * shareOf(a)) / 100))}</b>
+                      </span>
+                    )}
                   </div>
                 </div>
 

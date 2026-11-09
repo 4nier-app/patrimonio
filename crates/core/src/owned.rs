@@ -50,6 +50,15 @@ pub struct OwnedAsset {
     /// Data da venda: depois dela o bem sai do patrimônio.
     pub sold_on: Option<NaiveDate>,
     pub note: Option<String>,
+    /// Parte do bem que é da pessoa, em % (100 = só dela). Bem em comum com o
+    /// cônjuge: o patrimônio soma só esta parte; Impostos usa o valor total,
+    /// porque normalmente um dos dois declara o bem inteiro.
+    #[serde(default = "full_share")]
+    pub share: Decimal,
+}
+
+pub fn full_share() -> Decimal {
+    Decimal::ONE_HUNDRED
 }
 
 /// Obra ou reforma do imóvel: soma ao custo a partir da data.
@@ -73,6 +82,9 @@ impl OwnedAsset {
         if self.sold_on.is_some_and(|s| s < self.bought_on) {
             return Err("a venda é antes da compra".into());
         }
+        if self.share <= Decimal::ZERO || self.share > Decimal::ONE_HUNDRED {
+            return Err("a sua parte do bem precisa ficar entre 1% e 100%".into());
+        }
         Ok(())
     }
 
@@ -88,6 +100,17 @@ impl OwnedAsset {
             .map(|i| i.amount)
             .sum();
         Some(self.price + works)
+    }
+
+    /// A parte da pessoa no custo em `date` (o que entra no patrimônio).
+    pub fn my_cost_on(&self, improvements: &[Improvement], date: NaiveDate) -> Option<Decimal> {
+        self.cost_on(improvements, date)
+            .map(|c| (c * self.share / Decimal::ONE_HUNDRED).round_dp(2))
+    }
+
+    /// O bem é em comum (a pessoa tem menos de 100%).
+    pub fn shared(&self) -> bool {
+        self.share < Decimal::ONE_HUNDRED
     }
 }
 
@@ -128,6 +151,7 @@ mod tests {
             price: dec!(300000),
             sold_on: Some(d(2026, 6, 1)),
             note: None,
+            share: dec!(100),
         };
         let obra = Improvement {
             id: "o1".into(),
@@ -141,6 +165,29 @@ mod tests {
         assert_eq!(casa.cost_on(&works, d(2021, 12, 31)), Some(dec!(300000)));
         assert_eq!(casa.cost_on(&works, d(2022, 12, 31)), Some(dec!(350000)));
         assert_eq!(casa.cost_on(&works, d(2026, 6, 1)), None);
+        // Casa em comum com o cônjuge: o patrimônio soma só a metade.
+        let metade = OwnedAsset {
+            share: dec!(50),
+            ..casa.clone()
+        };
+        assert!(metade.shared());
+        assert_eq!(
+            metade.my_cost_on(&works, d(2022, 12, 31)),
+            Some(dec!(175000))
+        );
+        assert_eq!(metade.cost_on(&works, d(2022, 12, 31)), Some(dec!(350000)));
+        assert!(OwnedAsset {
+            share: dec!(0),
+            ..casa.clone()
+        }
+        .validate()
+        .is_err());
+        assert!(OwnedAsset {
+            share: dec!(101),
+            ..casa.clone()
+        }
+        .validate()
+        .is_err());
         assert!(obra.validate(&casa).is_ok());
         let carro = OwnedAsset {
             kind: OwnedKind::Veiculo,

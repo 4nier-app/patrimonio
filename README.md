@@ -50,6 +50,10 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   proventos), FGTS e dinheiro que entrou (o que você guardou, menos o que
   gastou ou retirou). Um ano em que as ações caíram mas o patrimônio subiu
   fica explicado.
+- **Imóveis e veículos com a sua parte:** a casa e o carro entram pelo valor
+  pago (mais as obras). Se o bem é em comum com o cônjuge, informe a sua parte
+  (por exemplo, 50%): o patrimônio soma só ela, e Impostos mostra o valor
+  total para a declaração. O Painel mostra também o patrimônio sem os bens.
 - **Meta de patrimônio:** diga quanto quer ter e até quando; o Painel mostra
   quanto falta, quanto crescer por mês e, no ritmo dos últimos 12 meses,
   quando você chega lá.

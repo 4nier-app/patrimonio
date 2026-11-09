@@ -6,6 +6,18 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.30.0] - 2026-11-09
+
+### Adicionado
+- Bens: novo campo "Sua parte do bem (%)" no imóvel e no veículo. Para o
+  bem em comum com o cônjuge, informe a sua parte (por exemplo, 50%). O
+  patrimônio (Painel, Evolução e Meta) soma só a sua parte; em Impostos o
+  bem continua com o valor total, porque normalmente um dos dois declara o
+  bem inteiro, e a discriminação diz que é em comum. Quem não preencher
+  continua com 100%.
+- Painel: abaixo do patrimônio total, uma linha com o patrimônio sem os bens
+  (imóveis e veículos). Aparece só para quem tem bens cadastrados.
+
 ## [0.29.0] - 2026-11-06
 
 ### Adicionado

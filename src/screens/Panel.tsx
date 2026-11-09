@@ -472,6 +472,12 @@ export default function Panel({
           <strong>
             {total == null ? "sem cotação" : money(total.toFixed(2))}
           </strong>
+          {noOwned && liquidNow != null && (
+            <span className="panel-noowned">
+              Sem os bens (imóveis e veículos):{" "}
+              <b>{money(liquidNow.toFixed(2))}</b>
+            </span>
+          )}
           <div className="panel-changes">
             <Change
               label={noOwned ? "variação no mês, sem bens" : "variação no mês"}
