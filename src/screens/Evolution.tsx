@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useEffect, useState } from "react";
+import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import YearPager from "../components/YearPager";
 import { errorMessage, evolutionApi, savingsApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
 import CashInput from "../components/CashInput";
@@ -230,6 +230,49 @@ const incomes = (view: EvolutionView, pairs: Pair[]): (string | null)[] =>
     return (Number(d) - n).toFixed(2);
   });
 
+/**
+ * Fixa colunas da tabela (posição sticky), medindo a largura de cada uma.
+ * Aplica direto nas células (sem <style>), porque o app instalado só aceita
+ * estilos das folhas do próprio app.
+ */
+function StickyColumns({ tableRef, left, right, deps }: { tableRef: React.RefObject<HTMLTableElement | null>; left: number[]; right: number[]; deps: string }) {
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    if (!table) return;
+    const apply = () => {
+      const head = table.querySelectorAll<HTMLTableCellElement>("thead tr:first-child > th");
+      const width = (k: number) => head[k - 1]?.getBoundingClientRect().width ?? 0;
+      const pos = new Map<number, { side: "left" | "right"; at: number; edge: boolean }>();
+      let x = 0;
+      left.forEach((k, j) => {
+        pos.set(k, { side: "left", at: x, edge: j === left.length - 1 });
+        x += width(k);
+      });
+      x = 0;
+      right.forEach((k, j) => {
+        pos.set(k, { side: "right", at: x, edge: j === right.length - 1 });
+        x += width(k);
+      });
+      table.querySelectorAll<HTMLTableRowElement>("tr").forEach((row) => {
+        Array.from(row.cells).forEach((cell, i) => {
+          const p = pos.get(i + 1);
+          cell.classList.toggle("evo-stick", !!p);
+          cell.classList.toggle("evo-stick-l", !!p && p.side === "left" && p.edge);
+          cell.classList.toggle("evo-stick-r", !!p && p.side === "right" && p.edge);
+          cell.style.left = p?.side === "left" ? `${p.at}px` : "";
+          cell.style.right = p?.side === "right" ? `${p.at}px` : "";
+        });
+      });
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(table);
+    return () => ro.disconnect();
+  });
+  void deps;
+  return null;
+}
+
 export default function Evolution() {
   const [year, setYear] = useState<number | null | undefined>(undefined);
   const [view, setView] = useState<EvolutionView | null>(null);
@@ -238,6 +281,7 @@ export default function Evolution() {
   // Compras dentro de cada ativo: sempre começam fechadas.
   const [lotsOpen, setLotsOpen] = useState<string[]>([]);
   const [edit, setEdit] = useState<Editing | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -306,6 +350,12 @@ export default function Evolution() {
   const order = displayOrder(cols);
   const shown = order.map((i) => ({ c: cols[i], i }));
   const inOrder = <T,>(values: T[]): T[] => order.map((i) => values[i]);
+  // Colunas fixas: nome e 31/12 à esquerda; hoje, ontem e resultados à
+  // direita. Só os meses fechados rolam para os lados.
+  const leftCols = [1, ...(shown[0]?.c.kind === "BASE" ? [2] : [])];
+  const rightCols: number[] = [shown.length + 3, shown.length + 2];
+  for (let k = shown.length - 1; k >= 0 && (shown[k].c.kind === "TODAY" || shown[k].c.kind === "YESTERDAY"); k--) rightCols.push(k + 2);
+  const stickyKey = `${leftCols.join(",")}|${rightCols.join(",")}`;
 
   return (
     <Pairs.Provider value={pairs}>
@@ -317,7 +367,8 @@ export default function Evolution() {
           )}
           <div className="card evo-card">
             <div className="evo-scroll">
-              <table className="evo-table">
+              <StickyColumns tableRef={tableRef} left={leftCols} right={rightCols} deps={`${stickyKey}|${collapsed.join()}|${lotsOpen.join()}`} />
+              <table className="evo-table" ref={tableRef}>
                 <thead>
                   <tr>
                     <th className="evo-name">Em R$</th>
