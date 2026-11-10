@@ -781,3 +781,11 @@ p.pos, strong.pos { color: var(--ok); }
   .irf-form { grid-template-columns: 1fr; }
 }
 .irf-table th { text-transform: none; letter-spacing: 0; }
+/* Evolução: colunas fixas (nome, 31/12, hoje, ontem e resultados); só os meses rolam. */
+.evo-table tr > .evo-stick { position: sticky; z-index: 2; background-color: var(--surface); }
+.evo-table tr.evo-group > .evo-stick { background-color: var(--bg); }
+.evo-table .evo-stick.today { background-image: linear-gradient(color-mix(in srgb, var(--accent) 9%, transparent), color-mix(in srgb, var(--accent) 9%, transparent)); }
+.evo-table tr.evo-lot > .evo-stick { background-image: linear-gradient(color-mix(in srgb, var(--accent) 4%, transparent), color-mix(in srgb, var(--accent) 4%, transparent)); }
+.evo-table .evo-stick-l { padding-right: 10px; border-right: 1px solid var(--border); box-shadow: 6px 0 6px -6px rgba(0, 0, 0, 0.35); }
+.evo-table .evo-stick-r { padding-left: 10px; box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.35); }
+.evo-table .evo-stick-r.today { box-shadow: inset 2px 0 var(--accent), inset -2px 0 var(--accent), -6px 0 6px -6px rgba(0, 0, 0, 0.35); }

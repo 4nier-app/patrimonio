@@ -230,44 +230,47 @@ const incomes = (view: EvolutionView, pairs: Pair[]): (string | null)[] =>
     return (Number(d) - n).toFixed(2);
   });
 
-/** Fixa colunas da tabela (posição sticky), medindo a largura de cada uma. */
+/**
+ * Fixa colunas da tabela (posição sticky), medindo a largura de cada uma.
+ * Aplica direto nas células (sem <style>), porque o app instalado só aceita
+ * estilos das folhas do próprio app.
+ */
 function StickyColumns({ tableRef, left, right, deps }: { tableRef: React.RefObject<HTMLTableElement | null>; left: number[]; right: number[]; deps: string }) {
-  const [css, setCss] = useState("");
   useLayoutEffect(() => {
     const table = tableRef.current;
     if (!table) return;
-    const measure = () => {
+    const apply = () => {
       const head = table.querySelectorAll<HTMLTableCellElement>("thead tr:first-child > th");
       const width = (k: number) => head[k - 1]?.getBoundingClientRect().width ?? 0;
-      const rules: string[] = [];
+      const pos = new Map<number, { side: "left" | "right"; at: number; edge: boolean }>();
       let x = 0;
       left.forEach((k, j) => {
-        const edge = j === left.length - 1 ? "box-shadow: 6px 0 6px -6px rgba(0,0,0,.35); padding-right: 10px; border-right: 1px solid var(--border);" : "";
-        rules.push(`.evo-table tr > :nth-child(${k}) { position: sticky; left: ${x}px; z-index: 2; ${edge} }`);
+        pos.set(k, { side: "left", at: x, edge: j === left.length - 1 });
         x += width(k);
       });
       x = 0;
       right.forEach((k, j) => {
-        const edge = j === right.length - 1;
-        rules.push(`.evo-table tr > :nth-child(${k}) { position: sticky; right: ${x}px; z-index: 2; }`);
-        if (edge) rules.push(`.evo-table tr > :nth-child(${k}) { padding-left: 10px; }`);
-        if (edge) rules.push(`.evo-table tr > :nth-child(${k}):not(.today) { box-shadow: -6px 0 6px -6px rgba(0,0,0,.35); } .evo-table tr > :nth-child(${k}).today { box-shadow: inset 2px 0 var(--accent), inset -2px 0 var(--accent), -6px 0 6px -6px rgba(0,0,0,.35); }`);
+        pos.set(k, { side: "right", at: x, edge: j === right.length - 1 });
         x += width(k);
       });
-      const all = [...left, ...right].map((k) => `.evo-table tr > :nth-child(${k})`).join(", ");
-      rules.push(`${all} { background-color: var(--surface); }`);
-      rules.push(left.concat(right).map((k) => `.evo-table tr.evo-group > :nth-child(${k})`).join(", ") + " { background-color: var(--bg); }");
-      rules.push(left.concat(right).map((k) => `.evo-table tr > :nth-child(${k}).today`).join(", ") + " { background-image: linear-gradient(color-mix(in srgb, var(--accent) 9%, transparent), color-mix(in srgb, var(--accent) 9%, transparent)); }");
-      rules.push(left.concat(right).map((k) => `.evo-table tr.evo-lot > :nth-child(${k})`).join(", ") + " { background-image: linear-gradient(color-mix(in srgb, var(--accent) 4%, transparent), color-mix(in srgb, var(--accent) 4%, transparent)); }");
-      setCss(rules.join("\n"));
+      table.querySelectorAll<HTMLTableRowElement>("tr").forEach((row) => {
+        Array.from(row.cells).forEach((cell, i) => {
+          const p = pos.get(i + 1);
+          cell.classList.toggle("evo-stick", !!p);
+          cell.classList.toggle("evo-stick-l", !!p && p.side === "left" && p.edge);
+          cell.classList.toggle("evo-stick-r", !!p && p.side === "right" && p.edge);
+          cell.style.left = p?.side === "left" ? `${p.at}px` : "";
+          cell.style.right = p?.side === "right" ? `${p.at}px` : "";
+        });
+      });
     };
-    measure();
-    const ro = new ResizeObserver(measure);
+    apply();
+    const ro = new ResizeObserver(apply);
     ro.observe(table);
     return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deps]);
-  return <style>{css}</style>;
+  });
+  void deps;
+  return null;
 }
 
 export default function Evolution() {
