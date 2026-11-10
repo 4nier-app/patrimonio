@@ -6,6 +6,13 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.30.2] - 2026-11-10
+
+### Alterado
+- Evolução: quando a tabela não cabe na tela, o nome, o 31/12, Hoje, Ontem,
+  No período e Desde o início ficam parados, e só os meses fechados rolam
+  para os lados.
+
 ## [0.30.1] - 2026-11-09
 
 ### Alterado
