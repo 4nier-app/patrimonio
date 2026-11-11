@@ -93,7 +93,7 @@ export default function Login({
   // Depois de criar o cofre: mostrar a chave de recuperação antes de entrar.
   if (newKey) {
     return (
-      <main className="center">
+      <main className="center login-page">
         <div className="card login">
           <RecoveryKeyCard recoveryKey={newKey} email={email} onDone={onUnlocked} doneLabel="Abrir minha carteira" />
         </div>
@@ -103,7 +103,7 @@ export default function Login({
 
   if (restored !== undefined) {
     return (
-      <main className="center">
+      <main className="center login-page">
         <div className="card login">
           <h3>Backup restaurado</h3>
           <p className="ok">Os dados do backup foram conferidos e já estão em uso.</p>
@@ -120,7 +120,7 @@ export default function Login({
 
   if (mode === "restaurar") {
     return (
-      <main className="center">
+      <main className="center login-page">
         <div className="card login">
           <div className="login-brand">
             <Logo size={48} />
@@ -133,7 +133,7 @@ export default function Login({
   }
 
   return (
-    <main className="center">
+    <main className="center login-page">
       <form className="card login" onSubmit={submit}>
         <div className="login-brand">
           <Logo size={48} />

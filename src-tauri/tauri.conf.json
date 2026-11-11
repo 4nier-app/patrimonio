@@ -14,10 +14,11 @@
       {
         "label": "main",
         "title": "4Nier · Patrimônio Auditável",
-        "width": 1100,
-        "height": 760,
-        "minWidth": 720,
-        "minHeight": 520
+        "width": 440,
+        "height": 470,
+        "minWidth": 400,
+        "minHeight": 420,
+        "center": true
       }
     ],
     "security": {

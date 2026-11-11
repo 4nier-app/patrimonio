@@ -12,6 +12,11 @@ export default function App() {
   }, []);
 
   useEffect(refresh, [refresh]);
+  // Tela de entrada numa janela pequena, só com o quadro da senha.
+  const unlocked = status?.unlocked;
+  useEffect(() => {
+    if (unlocked != null) api.windowLayout(!unlocked);
+  }, [unlocked]);
 
   if (error) return <main className="center"><p className="error">{error}</p></main>;
   if (!status) return <main className="center"><p className="muted">Carregando…</p></main>;

@@ -789,3 +789,6 @@ p.pos, strong.pos { color: var(--ok); }
 .evo-table .evo-stick-l { padding-right: 10px; border-right: 1px solid var(--border); box-shadow: 6px 0 6px -6px rgba(0, 0, 0, 0.35); }
 .evo-table .evo-stick-r { padding-left: 10px; box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.35); }
 .evo-table .evo-stick-r.today { box-shadow: inset 2px 0 var(--accent), inset -2px 0 var(--accent), -6px 0 6px -6px rgba(0, 0, 0, 0.35); }
+/* Tela de entrada: a janela fica do tamanho do quadro, sem moldura em volta. */
+.center.login-page { background: var(--surface); padding: 12px 20px; }
+.login-page .card.login { border: none; box-shadow: none; padding: 8px 0; width: min(400px, 100%); }

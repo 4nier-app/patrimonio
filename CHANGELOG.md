@@ -6,6 +6,13 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.30.3] - 2026-11-11
+
+### Alterado
+- Tela de entrada: a janela abre só do tamanho do quadro de login, sem a
+  área vazia em volta. Ao entrar, ela cresce para o tamanho normal; ao
+  bloquear, volta a ficar pequena.
+
 ## [0.30.2] - 2026-11-10
 
 ### Alterado

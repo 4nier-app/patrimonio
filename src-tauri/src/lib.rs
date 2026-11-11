@@ -150,6 +150,41 @@ fn print_page(webview: tauri::Webview) -> Result<(), String> {
     webview.print().map_err(|e| e.to_string())
 }
 
+/// Tamanho da janela: na tela de entrada, só o quadro da senha; depois de
+/// entrar, a janela grande de sempre.
+#[tauri::command]
+fn window_layout(login: bool, window: tauri::WebviewWindow) -> Result<(), String> {
+    use tauri::{LogicalSize, Size};
+    let e = |e: tauri::Error| e.to_string();
+    if login {
+        if window.is_maximized().map_err(e)? {
+            window.unmaximize().map_err(e)?;
+        }
+        window
+            .set_min_size(Some(Size::Logical(LogicalSize::new(400.0, 420.0))))
+            .map_err(e)?;
+        window
+            .set_size(Size::Logical(LogicalSize::new(440.0, 470.0)))
+            .map_err(e)?;
+    } else {
+        window
+            .set_min_size(Some(Size::Logical(LogicalSize::new(720.0, 520.0))))
+            .map_err(e)?;
+        let small = window
+            .inner_size()
+            .map_err(e)?
+            .to_logical::<f64>(window.scale_factor().map_err(e)?)
+            .width
+            < 720.0;
+        if small {
+            window
+                .set_size(Size::Logical(LogicalSize::new(1100.0, 760.0)))
+                .map_err(e)?;
+        }
+    }
+    window.center().map_err(e)
+}
+
 /// Como o app entendeu a taxa da renda fixa ("102% do CDI"); vazio quando
 /// não entendeu e o saldo fica só pelo informado.
 #[tauri::command]
@@ -1257,6 +1292,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             vault_status,
             print_page,
+            window_layout,
             describe_fixed_rate,
             backup_reminder,
             snooze_backup_reminder,
