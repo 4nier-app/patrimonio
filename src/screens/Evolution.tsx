@@ -1,10 +1,12 @@
 import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import YearPager from "../components/YearPager";
+import ExportButton from "../components/ExportButton";
 import { errorMessage, evolutionApi, savingsApi, type Dec, type EvolutionColumn, type EvolutionGain, type EvolutionView } from "../api";
 import CashInput from "../components/CashInput";
 import Intro from "../components/Intro";
 import { assetsLabel, heldCount, todayColumn } from "../allocation";
 import { cashZero, date, money, monthLabel, parseDecimalInput, percent, quantity, toCashMask, tone } from "../format";
+import { money as xMoney, pct as xPct, stamp, type XCell, type XRow, type XSheet } from "../planilha";
 
 // Na tabela, valores sem "R$" (o cabeçalho já diz) para caber o ano inteiro.
 const numFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -230,6 +232,76 @@ const incomes = (view: EvolutionView, pairs: Pair[]): (string | null)[] =>
     return (Number(d) - n).toFixed(2);
   });
 
+const gainCells = (g: EvolutionGain | null): XCell[] =>
+  g ? [xMoney(g.value), Number(g.base) > 0 ? xPct(Number(g.value) / Number(g.base)) : null] : [null, null];
+
+/**
+ * A tabela da Evolução como planilha: as mesmas colunas e linhas da tela,
+ * com todos os grupos abertos (sem as compras de cada ativo).
+ */
+export function evolutionSheet(view: EvolutionView, now = new Date()): XSheet {
+  const cols = view.columns;
+  const pairs = comparisons(cols);
+  const steps = consecutive(cols.length);
+  const order = displayOrder(cols);
+  const inOrder = <T,>(values: T[]): T[] => order.map((i) => values[i]);
+  const vals = (values: (Dec | null)[]): XCell[] => inOrder(values).map((v) => xMoney(v));
+  const sum = (values: (string | null)[]) => {
+    const known = values.filter((v): v is string => v != null);
+    return known.length ? xMoney(known.reduce((t, v) => t + Number(v), 0).toFixed(2)) : null;
+  };
+  const header: XRow = {
+    style: "head",
+    cells: [
+      "Em R$",
+      ...inOrder(cols).map((c) => {
+        const l = columnLabel(c);
+        return l.sub ? `${l.top.toUpperCase()} ${l.sub}` : l.top.toUpperCase();
+      }),
+      "No período R$",
+      "No período %",
+      "Desde o início R$",
+      "Desde o início %",
+    ],
+  };
+  const rows: XRow[] = [header];
+  for (const g of view.groups) {
+    const single = g.id === "fgts" && g.rows.length === 1;
+    if (!single) rows.push({ style: "group", cells: [g.label, ...vals(g.total), ...gainCells(g.gain), ...gainCells(g.since)] });
+    for (const r of g.rows) {
+      const name = [r.name, r.detail].filter(Boolean).join(" · ");
+      rows.push({
+        style: single ? "group" : "row",
+        cells: [single ? name : `   ${name}`, ...vals(r.values), ...gainCells(r.gain), ...gainCells(r.since)],
+      });
+    }
+  }
+  const flow = (label: string, values: (string | null)[], period: (string | null)[]): XRow => ({
+    style: "flow",
+    cells: [`   ${label}`, ...inOrder(values).map((v) => xMoney(v)), sum(period), null, null, null],
+  });
+  rows.push({ style: "total", cells: ["Total investimentos", ...vals(view.investments), ...gainCells(view.investments_gain), ...gainCells(view.investments_since)] });
+  rows.push(flow("Rendimento", incomes(view, pairs), incomes(view, steps)));
+  const noOwned = withoutOwned(view);
+  if (noOwned) {
+    rows.push({ style: "total", cells: ["Total sem bens", ...vals(noOwned.values), ...gainCells(noOwned.gain), null, null] });
+    rows.push(flow("Variação (R$)", diffs(noOwned.values, pairs), diffs(noOwned.values, steps)));
+    rows.push({ style: "grand", cells: ["Total geral (com bens)", ...vals(view.total), null, null, null, null] });
+  } else {
+    rows.push({ style: "grand", cells: ["Total geral", ...vals(view.total), ...gainCells(view.total_gain), null, null] });
+    rows.push(flow("Variação (R$)", diffs(view.total, pairs), diffs(view.total, steps)));
+  }
+  const period = view.year == null ? "todos os anos" : String(view.year);
+  return {
+    name: view.year == null ? "Evolução (todos os anos)" : `Evolução ${view.year}`,
+    title: `4Nier Patrimônio Auditável · Evolução do patrimônio · ${period}`,
+    note: `Valores em R$; o que está em dólar vai pela PTAX (corretora com custo para trazer ao Brasil, pelo valor de resgate). Exportado em ${stamp(now)}.`,
+    widths: [34, ...cols.map(() => 13), 14, 11, 16, 13],
+    rows,
+    freeze_cols: 1,
+  };
+}
+
 /**
  * Fixa colunas da tabela (posição sticky), medindo a largura de cada uma.
  * Aplica direto nas células (sem <style>), porque o app instalado só aceita
@@ -321,7 +393,8 @@ export default function Evolution() {
               vendas. Investimentos são ações, ETFs, criptomoedas, fundos e cofrinhos; FGTS, conta corrente e cartões benefício entram só no total
               geral. A rentabilidade, que desconta os aportes, fica em Carteira › Rentabilidade. Num ativo com mais de uma compra, clique na
               setinha ▸ para ver cada compra que ainda está na carteira, mês a mês; no mês da compra, a % compara com o preço pago. Nas vendas, as
-              compras mais antigas saem primeiro. É só informativo: o imposto de renda continua pelo preço médio.
+              compras mais antigas saem primeiro. É só informativo: o imposto de renda continua pelo preço médio. “Exportar para Excel” salva
+              esta tabela numa planilha (.xlsx), com todos os grupos abertos e os totais, gravada só no seu computador.
             </>
           }
         >
@@ -329,9 +402,14 @@ export default function Evolution() {
           conta, do FGTS, de um cofrinho ou cartão benefício num mês, clique na célula.
         </Intro>
       </div>
-      {view.years.length > 0 && year != null && (
-        <YearPager years={view.years} year={year} onChange={setYear} />
-      )}
+      <div className="head-actions">
+        {view.columns.length > 0 && (
+          <ExportButton build={() => ({ name: `4nier-evolucao-${view.year ?? "todos-os-anos"}.xlsx`, sheets: [evolutionSheet(view)] })} />
+        )}
+        {view.years.length > 0 && year != null && (
+          <YearPager years={view.years} year={year} onChange={setYear} />
+        )}
+      </div>
     </div>
   );
 

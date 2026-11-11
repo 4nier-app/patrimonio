@@ -6,6 +6,16 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.31.0] - 2026-11-11
+
+### Adicionado
+- Evolução e Lançamentos: botão "Exportar para Excel". A Evolução sai como
+  na tela, com todos os grupos abertos e as linhas de total (investimentos,
+  rendimento, sem bens, variação e total geral). Os Lançamentos saem com os
+  filtros escolhidos, com filtro no cabeçalho. Os valores são números de
+  verdade, para somar e filtrar no Excel, e o arquivo é gravado só no seu
+  computador, onde você escolher.
+
 ## [0.30.3] - 2026-11-11
 
 ### Alterado

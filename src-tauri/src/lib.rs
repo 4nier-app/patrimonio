@@ -5,6 +5,7 @@ mod asset;
 mod changelog;
 mod evolution;
 mod market;
+mod planilha;
 mod profiles;
 mod recovery;
 mod views;
@@ -532,6 +533,37 @@ async fn save_csv_template(app: tauri::AppHandle, content: String) -> Result<boo
     let path = path.into_path().map_err(|e| e.to_string())?;
     // Com a marca BOM, o Excel abre os acentos certos.
     std::fs::write(path, format!("\u{feff}{content}")).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+/// Pergunta onde salvar e grava a planilha do Excel. `false` se cancelar.
+#[tauri::command]
+async fn save_xlsx(
+    app: tauri::AppHandle,
+    name: String,
+    sheets: Vec<planilha::Sheet>,
+) -> Result<bool, String> {
+    let mut dialog = app
+        .dialog()
+        .file()
+        .set_title("Salvar planilha do Excel")
+        .set_file_name(&name)
+        .add_filter("Planilha do Excel", &["xlsx"]);
+    if let Ok(docs) = app.path().document_dir() {
+        dialog = dialog.set_directory(docs);
+    }
+    let Some(path) = dialog.blocking_save_file() else {
+        return Ok(false);
+    };
+    let mut path = path.into_path().map_err(|e| e.to_string())?;
+    if path
+        .extension()
+        .is_none_or(|e| !e.eq_ignore_ascii_case("xlsx"))
+    {
+        path.set_extension("xlsx");
+    }
+    planilha::write(&sheets, &path)
+        .map_err(|e| format!("Não foi possível salvar a planilha: {e}"))?;
     Ok(true)
 }
 
@@ -1396,6 +1428,7 @@ pub fn run() {
             backup_status,
             export_backup,
             save_csv_template,
+            save_xlsx,
             pick_backup,
             restore_backup,
             open_data_folder,

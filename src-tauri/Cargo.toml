@@ -24,6 +24,7 @@ serde_json.workspace = true
 rust_decimal.workspace = true
 chrono.workspace = true
 tauri-plugin-dialog = "2"
+rust_xlsxwriter = { version = "0.102", default-features = false }
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
