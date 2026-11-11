@@ -6,6 +6,24 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.31.0] - 2026-11-11
+
+### Adicionado
+- Evolução e Lançamentos: botão "Exportar para Excel". A Evolução sai como
+  na tela, com todos os grupos abertos e as linhas de total (investimentos,
+  rendimento, sem bens, variação e total geral). Os Lançamentos saem com os
+  filtros escolhidos, com filtro no cabeçalho. Os valores são números de
+  verdade, para somar e filtrar no Excel, e o arquivo é gravado só no seu
+  computador, onde você escolher.
+
+### Alterado
+- Evolução: nos investimentos (cada ativo, o grupo e o total dos
+  investimentos), a % embaixo de cada valor deixa de contar o dinheiro novo.
+  Agora é o que rendeu ÷ (valor anterior + compras), então uma compra não
+  aparece mais como alta (antes, comprar um ativo no mês podia mostrar
+  +125%) nem uma venda como queda. Os valores em R$ não mudam. Contas, FGTS
+  e os totais do patrimônio continuam com a variação simples.
+
 ## [0.30.3] - 2026-11-11
 
 ### Alterado

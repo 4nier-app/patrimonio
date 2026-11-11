@@ -21,6 +21,9 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   câmbio (PTAX), as taxas e a fórmula usada, com os valores substituídos.
   Cada lançamento diz de onde veio: da nota de corretagem (com o número), da
   planilha da B3 ou digitado, e se foi alterado depois.
+- **Exportar para Excel:** a Evolução (com os totais) e a lista de
+  Lançamentos (com os filtros escolhidos) viram uma planilha .xlsx, gravada
+  onde você escolher.
 - **Ganho de cada compra:** na página do ativo e na Evolução (na setinha ▸ de
   cada ativo), cada compra que ainda está na carteira mostra o custo com
   taxas, o valor e o ganho desde a compra (nas vendas, as compras mais antigas

@@ -35,6 +35,8 @@ import CashInput from "../components/CashInput";
 import { groupOrigin, originKind, originLabel, originTitle, ORIGIN_FILTERS, type OriginKind } from "../origin";
 import BrokerageBox from "../components/BrokerageBox";
 import ExitCostBox from "../components/ExitCostBox";
+import ExportButton from "../components/ExportButton";
+import { day, money as xMoney, qty as xQty, stamp, type XRow } from "../planilha";
 
 type Form = {
   id: string;
@@ -485,6 +487,58 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
     if (g) g.items.push(p);
     else groups.push({ key, items: [p] });
   }
+  // A lista com os filtros aplicados, como planilha (todas as linhas abertas).
+  function exportSheet() {
+    const assetName = (o: PricedOperation["operation"]) =>
+      isFund(o.asset) ? names[o.asset] || o.asset : isTesouro(o.asset) ? (titleName(o.asset) ?? o.asset).split(" · ")[0] : o.asset;
+    const sideName = (o: PricedOperation["operation"]) =>
+      isFund(o.asset) ? (o.note === COME_COTAS ? COME_COTAS : FUND_SIDE_LABEL[o.side]) : SIDE_LABEL[o.side];
+    const rows: XRow[] = [
+      { style: "head", cells: ["Data", "Corretora", "Ativo", "Operação", "Quantidade", "Preço", "Moeda", "Valor", "Taxas", "Origem", "Observação"] },
+      ...shown.map((p): XRow => {
+        const o = p.operation;
+        const transfer = o.side === "TRANSFERENCIA";
+        const origin = origins[o.id];
+        return {
+          style: "row",
+          cells: [
+            day(o.date),
+            o.from_account ? `${o.account} (vindo de ${o.from_account})` : o.account,
+            assetName(o),
+            sideName(o),
+            xQty(o.quantity),
+            transfer ? null : xQty(o.price),
+            o.currency,
+            transfer ? null : xMoney(p.gross),
+            xMoney(p.fees),
+            `${originLabel(origin)}${origin?.edited ? " · alterado depois" : ""}`,
+            [isFund(o.asset) && names[o.asset] ? o.asset : null, o.note && o.note !== COME_COTAS ? o.note : null].filter(Boolean).join(" · ") || null,
+          ],
+        };
+      }),
+    ];
+    const filters = [
+      fYear === "todos" || fYear == null ? "todos os anos" : `ano ${fYear}`,
+      fMonth ? `mês ${MONTH_NAMES[fMonth - 1].toLowerCase()}` : null,
+      fAccount ? `conta ${fAccount}` : null,
+      fOrigin ? `origem ${ORIGIN_FILTERS.find((f) => f.id === fOrigin)?.label ?? fOrigin}` : null,
+      fAsset.trim() ? `ativo "${fAsset.trim().toUpperCase()}"` : null,
+    ].filter(Boolean);
+    const suffix = fYear === "todos" || fYear == null ? "todos" : String(fYear);
+    return {
+      name: `4nier-lancamentos-${suffix}.xlsx`,
+      sheets: [
+        {
+          name: "Lançamentos",
+          title: "4Nier Patrimônio Auditável · Lançamentos",
+          note: `Filtros: ${filters.join(", ")}. ${shown.length} lançamento${shown.length === 1 ? "" : "s"}. Valores na moeda de cada conta. Exportado em ${stamp()}.`,
+          widths: [12, 24, 14, 12, 14, 14, 8, 15, 11, 20, 28],
+          rows,
+          filter: true,
+        },
+      ],
+    };
+  }
   function toggleNote(key: string) {
     setOpenNotes((s) => {
       const n = new Set(s);
@@ -594,7 +648,8 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
                 mesma corretora no mesmo dia, e divididas entre eles. Se a nota trouxer outro valor, informe a taxa à mão. No exterior os valores são em
                 dólar e a conversão para reais usa a PTAX do Banco Central. Fundos de investimento são lançados pelo extrato do banco, em cotas.
                 Abaixo de cada operação aparece de onde ela veio: da nota de corretagem, da planilha da B3 ou digitada; e se foi alterada depois
-                da importação (o antes e o depois ficam em Segurança › Auditoria).
+                da importação (o antes e o depois ficam em Segurança › Auditoria). “Exportar para Excel” salva a lista, com os filtros escolhidos,
+                numa planilha (.xlsx) onde você indicar; o arquivo é gravado só no seu computador.
               </>
             }
           >
@@ -1021,6 +1076,7 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
         <span className="muted small">
           {shown.length} lançamento{shown.length === 1 ? "" : "s"}
         </span>
+        <ExportButton build={exportSheet} disabled={shown.length === 0} />
       </div>
 
       <div className="scroll">

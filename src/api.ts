@@ -419,6 +419,10 @@ export type EvolutionRow = {
   lots: EvolutionLot[];
   /** Saldo em dólar: o valor em US$ em cada coluna (vazio nos outros). */
   usd: (Dec | null)[];
+  /** Investimento: compras − vendas − proventos desde a coluna anterior (vazio nos saldos). */
+  flows: (Dec | null)[];
+  /** Investimento: só as compras desde a coluna anterior. */
+  buys: (Dec | null)[];
 };
 /** Uma compra do ativo na Evolução; nas vendas, as compras mais antigas saem primeiro. */
 export type EvolutionLot = {
