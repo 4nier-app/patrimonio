@@ -10,7 +10,7 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
 ### Alterado
 - Tela de entrada: a janela abre só do tamanho do quadro de login, sem a
-  área vazia em volta. Ao entrar, ela cresce para o tamanho normal; ao
+  área vazia em volta. Ao entrar, ela ocupa a tela inteira (maximizada); ao
   bloquear, volta a ficar pequena.
 
 ## [0.30.2] - 2026-11-10

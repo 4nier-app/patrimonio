@@ -177,10 +177,20 @@ fn window_layout(login: bool, window: tauri::WebviewWindow) -> Result<(), String
             .width
             < 720.0;
         if small {
+            // Tamanho de quando o usuário sair do "maximizado": cabe na tela.
+            let (mut w, mut h) = (1100.0_f64, 760.0_f64);
+            if let Some(m) = window.current_monitor().map_err(e)? {
+                let tela = m.size().to_logical::<f64>(m.scale_factor());
+                w = w.min(tela.width * 0.9);
+                h = h.min(tela.height * 0.85);
+            }
             window
-                .set_size(Size::Logical(LogicalSize::new(1100.0, 760.0)))
+                .set_size(Size::Logical(LogicalSize::new(w, h)))
                 .map_err(e)?;
+            window.center().map_err(e)?;
+            window.maximize().map_err(e)?;
         }
+        return Ok(());
     }
     window.center().map_err(e)
 }
