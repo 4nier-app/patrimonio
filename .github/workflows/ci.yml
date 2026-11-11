@@ -17,9 +17,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Dependências do sistema (Tauri)
+        # Um espelho do Ubuntu lento já travou esta etapa por mais de 30 min.
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          sudo apt-get $APT update
+          sudo apt-get $APT install -y libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -65,9 +68,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Dependências do sistema (Tauri)
+        # Um espelho do Ubuntu lento já travou esta etapa por mais de 30 min.
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          sudo apt-get $APT update
+          sudo apt-get $APT install -y libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev
       - uses: actions/setup-node@v5
         with:
           node-version: 22

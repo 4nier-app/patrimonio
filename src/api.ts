@@ -56,6 +56,7 @@ export type IntegrityReport = { ok: boolean; events_checked: number; problem: st
 export type VersionEntry = { version: string; installed_at: string; changelog: string };
 
 export const api = {
+  windowLayout: (login: boolean) => invoke<void>("window_layout", { login }).catch(() => undefined),
   vaultStatus: () => invoke<VaultStatus>("vault_status"),
   selectProfile: (id: string) => invoke<void>("select_profile", { id }),
   createProfile: (name: string) => invoke<void>("create_profile", { name }),
