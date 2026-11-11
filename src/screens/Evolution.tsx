@@ -89,6 +89,44 @@ function change(values: (Dec | null)[], pair: Pair): string | null {
   return String(Number(cur) / Number(prev) - 1);
 }
 
+/** Dinheiro novo de um investimento (ou da soma deles), coluna a coluna. */
+export type Flows = { net: (Dec | null)[]; buys: (Dec | null)[] };
+
+/**
+ * % de um investimento entre duas colunas, sem contar o dinheiro novo:
+ * (valor final − valor inicial − compras + vendas + proventos) ÷
+ * (valor inicial + compras). Comprar não vira "alta" nem vender, "queda".
+ */
+export function flowChange(values: (Dec | null)[], flows: Flows, pair: Pair): string | null {
+  if (!pair || flows.net.length !== values.length) return null;
+  const [a, b] = pair;
+  const cur = values[b];
+  if (cur == null) return null;
+  const prev = Number(values[a] ?? 0);
+  let net = 0;
+  let buys = 0;
+  for (let k = a + 1; k <= b; k++) {
+    const n = flows.net[k];
+    if (n == null) return null;
+    net += Number(n);
+    buys += Number(flows.buys[k] ?? 0);
+  }
+  const base = prev + buys;
+  if (base <= 0) return null;
+  return String((Number(cur) - prev - net) / base);
+}
+
+/** Soma coluna a coluna o dinheiro novo das linhas (vazio se faltar em alguma). */
+export function sumFlows(rows: { flows: (Dec | null)[]; buys: (Dec | null)[] }[], n: number): Flows | undefined {
+  if (!rows.length || rows.some((r) => r.flows.length !== n)) return undefined;
+  const col = (pick: (r: (typeof rows)[number]) => (Dec | null)[]) =>
+    Array.from({ length: n }, (_, i) => {
+      const vals = rows.map((r) => pick(r)[i]).filter((v): v is Dec => v != null);
+      return vals.length ? String(vals.reduce((t, v) => t + Number(v), 0)) : null;
+    });
+  return { net: col((r) => r.flows), buys: col((r) => r.buys) };
+}
+
 function Cell({
   values,
   i,
@@ -98,9 +136,12 @@ function Cell({
   onEdit,
   note,
   costs,
+  flows,
 }: {
   values: (Dec | null)[];
   i: number;
+  /** Investimento: a % desconta compras, vendas e proventos. */
+  flows?: Flows;
   /** Compra: no mês da compra (sem valor anterior), a % compara com o custo. */
   costs?: (Dec | null)[];
   missing?: boolean;
@@ -125,7 +166,7 @@ function Cell({
       <td className={`num evo-cell${hl}`}>{missing && <span className="ret-missing">sem cotação</span>}</td>
     );
   const pair = pairs[i] ?? (i > 0 ? [i - 1, i] : null);
-  let pct = noRate ? null : change(values, pair);
+  let pct = noRate ? null : flows ? flowChange(values, flows, pair) : change(values, pair);
   const cost = costs?.[i];
   if (pct == null && pair && values[pair[0]] == null && cost != null && Number(cost) !== 0) pct = String(Number(v) / Number(cost) - 1);
   return (
@@ -386,10 +427,12 @@ export default function Evolution() {
           more={
             <>
               Cada coluna é o patrimônio no fim do mês, em reais; o que está em dólar é convertido pela PTAX do dia. Nas corretoras em dólar com o custo para trazer ao Brasil informado, vale o valor de resgate: dólar comercial do dia menos a taxa de conversão e o IOF (passe o mouse no ⓘ para ver a conta); as compras também entram pelo valor de resgate do dia da compra.
-              Abaixo de cada valor, a variação em relação à coluna anterior. Ativo vendido some das colunas seguintes, porque o dinheiro foi para
+              Abaixo de cada valor, a variação em relação à coluna anterior. Nos investimentos (cada ativo, o grupo e o total dos investimentos),
+              a % desconta o dinheiro novo: (valor final − valor anterior − compras + vendas + proventos) ÷ (valor anterior + compras). Assim uma
+              compra não aparece como alta nem uma venda como queda. Nas contas, no FGTS e nos totais do patrimônio, é a variação simples. Ativo vendido some das colunas seguintes, porque o dinheiro foi para
               outro lugar (outro ativo ou a conta corrente). A coluna “No período” mostra o resultado, descontando compras e vendas: um ativo
-              vendido no meio do ano mostra o que rendeu até a venda. “Desde o início” faz a mesma conta desde a primeira compra de cada investimento. No total geral, é a variação do patrimônio. É um retrato do patrimônio, não da rentabilidade: um aporte aparece como
-              alta e um saque como queda. Por isso, embaixo, a linha Rendimento mostra quanto os investimentos renderam sem contar compras e
+              vendido no meio do ano mostra o que rendeu até a venda. “Desde o início” faz a mesma conta desde a primeira compra de cada investimento. No total geral, é a variação do patrimônio. Os totais do patrimônio são um retrato, não a rentabilidade: dinheiro que entra
+              aparece como alta e o que sai como queda. Por isso, embaixo, a linha Rendimento mostra quanto os investimentos renderam sem contar compras e
               vendas. Investimentos são ações, ETFs, criptomoedas, fundos e cofrinhos; FGTS, conta corrente e cartões benefício entram só no total
               geral. A rentabilidade, que desconta os aportes, fica em Carteira › Rentabilidade. Num ativo com mais de uma compra, clique na
               setinha ▸ para ver cada compra que ainda está na carteira, mês a mês; no mês da compra, a % compara com o preço pago. Nas vendas, as
@@ -433,6 +476,7 @@ export default function Evolution() {
   const leftCols = [1, ...(shown[0]?.c.kind === "BASE" ? [2] : [])];
   const rightCols: number[] = [shown.length + 3, shown.length + 2];
   for (let k = shown.length - 1; k >= 0 && (shown[k].c.kind === "TODAY" || shown[k].c.kind === "YESTERDAY"); k--) rightCols.push(k + 2);
+  const investmentFlows = sumFlows(view.groups.flatMap((g) => g.rows.filter((r) => r.asset != null)), cols.length);
   const stickyKey = `${leftCols.join(",")}|${rightCols.join(",")}`;
 
   return (
@@ -485,7 +529,7 @@ export default function Evolution() {
                               {g.investment && <span className="evo-count">{assetsLabel(heldCount(g, todayColumn(view)))}</span>}
                             </th>
                             {shown.map(({ c, i }) => (
-                              <Cell key={c.date} values={g.total} i={i} strong />
+                              <Cell key={c.date} values={g.total} i={i} strong flows={g.investment ? sumFlows(g.rows, cols.length) : undefined} />
                             ))}
                             <Gain gain={g.gain} strong />
                             <Gain gain={g.since} strong plain />
@@ -519,6 +563,7 @@ export default function Evolution() {
                                   key={c.date}
                                   values={r.values}
                                   i={i}
+                                  flows={r.asset != null && r.flows.length ? { net: r.flows, buys: r.buys } : undefined}
                                   missing={r.missing[i]}
                                   note={r.notes?.[i]}
                                   onEdit={
@@ -574,7 +619,7 @@ export default function Evolution() {
                   <tr className="evo-total">
                     <th scope="row">Total investimentos</th>
                     {shown.map(({ c, i }) => (
-                      <Cell key={c.date} values={view.investments} i={i} strong />
+                      <Cell key={c.date} values={view.investments} i={i} strong flows={investmentFlows} />
                     ))}
                     <Gain gain={view.investments_gain} strong />
                     <Gain gain={view.investments_since} strong plain />

@@ -16,6 +16,14 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   verdade, para somar e filtrar no Excel, e o arquivo é gravado só no seu
   computador, onde você escolher.
 
+### Alterado
+- Evolução: nos investimentos (cada ativo, o grupo e o total dos
+  investimentos), a % embaixo de cada valor deixa de contar o dinheiro novo.
+  Agora é o que rendeu ÷ (valor anterior + compras), então uma compra não
+  aparece mais como alta (antes, comprar um ativo no mês podia mostrar
+  +125%) nem uma venda como queda. Os valores em R$ não mudam. Contas, FGTS
+  e os totais do patrimônio continuam com a variação simples.
+
 ## [0.30.3] - 2026-11-11
 
 ### Alterado

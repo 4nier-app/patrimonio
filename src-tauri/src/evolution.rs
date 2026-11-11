@@ -69,6 +69,12 @@ pub struct Row {
     pub lots: Vec<LotRow>,
     /// Saldo em dólar: o valor em US$ em cada coluna (vazio nos outros).
     pub usd: Vec<Option<Decimal>>,
+    /// Investimento: compras − vendas − proventos, em reais, entre a coluna
+    /// anterior e esta. Com `buys`, a % de cada coluna desconta o dinheiro
+    /// novo (vazio nos saldos sem código).
+    pub flows: Vec<Option<Decimal>>,
+    /// Investimento: só as compras, em reais, entre a coluna anterior e esta.
+    pub buys: Vec<Option<Decimal>>,
 }
 
 /// Uma compra do ativo, mês a mês. A soma das compras dá a linha do ativo.
@@ -313,6 +319,8 @@ fn build(
                 value_label: None,
                 lots: Vec::new(),
                 usd: Vec::new(),
+                flows: Vec::new(),
+                buys: Vec::new(),
             });
             match p.market_value_brl {
                 Some(val) => row.values[i] = Some(val),
@@ -360,6 +368,8 @@ fn build(
                 value_label: None,
                 lots: Vec::new(),
                 usd: Vec::new(),
+                flows: Vec::new(),
+                buys: Vec::new(),
             });
         }
     }
@@ -567,6 +577,8 @@ fn build(
             value_label: r.usd.map(|u| format!("US$ {} hoje", number(u, 2))),
             lots: Vec::new(),
             usd,
+            flows: Vec::new(),
+            buys: Vec::new(),
         });
     }
 
@@ -600,6 +612,8 @@ fn build(
                 value_label: None,
                 lots: Vec::new(),
                 usd: Vec::new(),
+                flows: Vec::new(),
+                buys: Vec::new(),
             });
     }
 
@@ -668,6 +682,31 @@ fn build(
             value: (last - first - net + paid).round_dp(2),
             base: (first + buys).round_dp(2),
         });
+    }
+    // Dinheiro novo de cada investimento entre uma coluna e a anterior, para
+    // a % de cada mês descontar compras, vendas e proventos.
+    for row in rows.values_mut().flatten() {
+        let Some(a) = row.asset.clone() else { continue };
+        let mut flows = vec![None; n];
+        let mut buys = vec![None; n];
+        for i in 1..n {
+            let (from, to) = (cols[i - 1].date, cols[i].date);
+            let (mut net, mut bought) = (Decimal::ZERO, Decimal::ZERO);
+            for p in inp.ops.iter().filter(|p| {
+                p.operation.date > from && p.operation.date <= to && p.operation.asset == a
+            }) {
+                let Some(f) = flow_brl(p) else { continue };
+                net += f;
+                if f > Decimal::ZERO {
+                    bought += f;
+                }
+            }
+            net -= paid_between(Some(&a), from, to);
+            flows[i] = Some(net.round_dp(2));
+            buys[i] = Some(bought.round_dp(2));
+        }
+        row.flows = flows;
+        row.buys = buys;
     }
     // Desde o início: valor final + todas as vendas − todas as compras até a
     // última coluna; a base é o total comprado.
@@ -913,6 +952,23 @@ fn lot_rows(
 /// Em "Todos os anos", os ativos que já não estão na carteira viram uma
 /// linha só por grupo: os totais dos anos passados continuam completos sem
 /// listar o que foi vendido.
+/// Soma coluna a coluna (vazio se alguma linha não tem a lista).
+fn sum_columns(
+    rows: &[Row],
+    n: usize,
+    pick: fn(&Row) -> &Vec<Option<Decimal>>,
+) -> Vec<Option<Decimal>> {
+    if rows.iter().any(|r| pick(r).len() != n) {
+        return Vec::new();
+    }
+    (0..n)
+        .map(|i| {
+            let vals: Vec<Decimal> = rows.iter().filter_map(|r| pick(r)[i]).collect();
+            (!vals.is_empty()).then(|| vals.iter().sum())
+        })
+        .collect()
+}
+
 fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
     let (held, sold): (Vec<Row>, Vec<Row>) = rows
         .into_iter()
@@ -943,6 +999,8 @@ fn merge_sold(rows: Vec<Row>, n: usize) -> Vec<Row> {
         value_label: None,
         lots: Vec::new(),
         usd: Vec::new(),
+        flows: sum_columns(&sold, n, |r| &r.flows),
+        buys: sum_columns(&sold, n, |r| &r.buys),
     };
     held.into_iter().chain(std::iter::once(merged)).collect()
 }
@@ -1310,6 +1368,12 @@ mod tests {
         // não uma queda de 100%.
         let g = outr.gain.unwrap();
         assert_eq!((g.value, g.base), (dec!(20), dec!(110)));
+        // Dinheiro novo de cada ativo, coluna a coluna: a venda de 130 da
+        // OUTR3 em fevereiro, e a soma dos ativos dá o dinheiro novo total.
+        assert_eq!((outr.flows[0], outr.flows[1]), (None, Some(dec!(-130))));
+        assert_eq!(outr.buys[1], Some(dec!(0)));
+        let soma: Decimal = rv.rows.iter().filter_map(|r| r.flows[1]).sum();
+        assert_eq!(soma, view.new_money[1].unwrap());
         // Desde o início: 130 recebidos − 100 pagos na compra.
         let since = outr.since.unwrap();
         assert_eq!((since.value, since.base), (dec!(30), dec!(100)));
@@ -1492,6 +1556,8 @@ mod tests {
             value_label: None,
             lots: Vec::new(),
             usd: Vec::new(),
+            flows: Vec::new(),
+            buys: Vec::new(),
         };
         let rows = vec![
             row("AAAA3", vec![Some(dec!(100)), Some(dec!(120))], dec!(20)),

@@ -5,7 +5,7 @@ import { stamp } from "./planilha";
 
 const row = (name: string, values: (string | null)[], extra: Partial<EvolutionRow> = {}): EvolutionRow => ({
   asset: null, savings_id: null, name, detail: null, values, missing: values.map(() => false), outside: values.map(() => false),
-  gain: null, since: null, notes: [], value_label: null, lots: [], usd: [], ...extra,
+  gain: null, since: null, notes: [], value_label: null, lots: [], usd: [], flows: [], buys: [], ...extra,
 });
 const group = (id: string, label: string, rows: EvolutionRow[], total: (string | null)[]): EvolutionGroup => ({
   id, label, investment: id !== "bens" && id !== "fgts", rows, total, gain: null, since: null,
@@ -55,5 +55,37 @@ describe("planilha da Evolução", () => {
   it("diz quando foi exportada", () => {
     expect(sheet.note).toContain("Exportado em 11/11/2026 15:45");
     expect(stamp(new Date(2026, 0, 2, 3, 4))).toBe("02/01/2026 03:04");
+  });
+});
+
+import { flowChange, sumFlows } from "./screens/Evolution";
+
+describe("% dos investimentos sem contar o dinheiro novo", () => {
+  // Fim de setembro, ontem e hoje; compra de R$ 239.706,08 hoje.
+  const values = ["197594.66", "200592.68", "446468.63"];
+  const flows = { net: [null, "0", "239706.08"], buys: [null, "0", "239706.08"] };
+
+  it("hoje contra setembro: o que rendeu ÷ (valor anterior + compras)", () => {
+    expect(Number(flowChange(values, flows, [0, 2])).toFixed(4)).toBe("0.0210");
+  });
+
+  it("de ontem para hoje", () => {
+    expect(Number(flowChange(values, flows, [1, 2])).toFixed(4)).toBe("0.0140");
+  });
+
+  it("venda não vira queda", () => {
+    // Tinha 1.000, vendeu 600 e sobrou 420: rendeu 20 sobre 1.000.
+    expect(Number(flowChange(["1000", "420"], { net: [null, "-600"], buys: [null, "0"] }, [0, 1])).toFixed(4)).toBe("0.0200");
+  });
+
+  it("compra no mês em que o ativo aparece: compara com o que pagou", () => {
+    expect(Number(flowChange([null, "1050"], { net: [null, "1000"], buys: [null, "1000"] }, [0, 1])).toFixed(4)).toBe("0.0500");
+  });
+
+  it("soma o dinheiro novo das linhas do grupo", () => {
+    const g = sumFlows([{ flows: [null, "10"], buys: [null, "10"] }, { flows: [null, "-5"], buys: [null, "0"] }], 2)!;
+    expect(g.net).toEqual([null, "5"]);
+    expect(g.buys).toEqual([null, "10"]);
+    expect(sumFlows([{ flows: [], buys: [] }], 2)).toBeUndefined();
   });
 });
