@@ -288,7 +288,7 @@ fn yahoo_interval<'a>(period: &str, interval: &'a str) -> &'a str {
     }
 }
 
-fn yahoo_symbol(detail: &AssetDetail) -> String {
+pub(crate) fn yahoo_symbol(detail: &AssetDetail) -> String {
     match detail.venue {
         Venue::B3 => yahoo::b3_symbol(&detail.ticker),
         Venue::Us | Venue::Lse => yahoo::us_symbol(&detail.ticker),

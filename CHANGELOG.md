@@ -6,6 +6,30 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.33.0] - 2026-11-12
+
+### Adicionado
+- Home broker: ao abrir um ativo, a tela mostra muito mais informações, com
+  cada número calculado na hora a partir de fontes gratuitas:
+  - Resumo: cotação, variação em 12 meses (nos ativos em dólar, também em
+    reais), proventos dos últimos 12 meses com o dividend yield e o último
+    provento.
+  - Rentabilidade em 1 mês, 3 meses, 1, 2, 5 e 10 anos, com os proventos
+    reinvestidos: na moeda do ativo, em reais (com o dólar do dia) e
+    descontada a inflação (IPCA). Clicando num número, aparece a conta com
+    os valores usados.
+  - "Se você tivesse investido": um valor em reais há 1, 2, 5 ou 10 anos,
+    comparado com CDI, Ibovespa, S&P 500 (IVVB11), dólar e IPCA.
+  - Proventos pagos nos últimos 5 anos, pela data ex.
+  - Sobre: texto em português dos ETFs mais conhecidos (escrito a partir do
+    documento de cada gestora) e a atividade principal e o setor das
+    empresas da B3 (do cadastro oficial da B3); nos ETFs do exterior, a
+    gestora, a taxa de administração, as 10 maiores posições (clicando,
+    abre o gráfico da empresa) e o peso de cada setor (do Yahoo Finance).
+    Nunca aparece texto em inglês: sem texto em português, a tela mostra
+    só os dados.
+  Cada parte busca a própria fonte e some sozinha quando ela não responde.
+
 ## [0.32.0] - 2026-11-12
 
 ### Adicionado

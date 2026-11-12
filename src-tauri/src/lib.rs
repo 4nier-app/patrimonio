@@ -4,6 +4,7 @@
 mod asset;
 mod changelog;
 mod evolution;
+mod insights;
 mod market;
 mod planilha;
 mod profiles;
@@ -744,6 +745,42 @@ async fn day_moves(app: tauri::AppHandle) -> Result<asset::DayView, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Informações do ativo no Home broker (rentabilidade, simulação, proventos e
+/// "Sobre"), buscadas na hora e guardadas na memória durante o dia. Lê o
+/// cofre, solta e só então vai à internet.
+#[tauri::command]
+async fn asset_insights(
+    ticker: String,
+    app: tauri::AppHandle,
+) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let detail = {
+            let guard = state
+                .vault
+                .lock()
+                .map_err(|_| "estado interno indisponível".to_string())?;
+            let v = guard
+                .as_ref()
+                .ok_or_else(|| "o cofre está bloqueado".to_string())?;
+            asset::detail(v, &ticker, today())?
+        };
+        let day = today();
+        if let Some(json) = insights::cached(&detail.ticker, day) {
+            return serde_json::from_str(&json).map_err(|e| e.to_string());
+        }
+        let data = insights::build(&detail, &insights::Internet, day);
+        let json = serde_json::to_string(&data).map_err(|e| e.to_string())?;
+        // Só guarda quando veio a cotação: sem internet, tenta de novo na próxima vez.
+        if data.price.is_some() {
+            insights::remember(&detail.ticker, day, json.clone());
+        }
+        serde_json::from_str(&json).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Proventos pelo histórico do mercado: o que cada ativo pagou por cota (no
 /// Yahoo), para a estimativa dos próximos 12 meses e para sugerir os
 /// proventos que faltam lançar. Lê o cofre, solta e só então vai à internet.
@@ -1360,6 +1397,7 @@ pub fn run() {
             search_funds,
             asset_detail,
             asset_chart,
+            asset_insights,
             market_incomes,
             day_moves,
             name_fund,

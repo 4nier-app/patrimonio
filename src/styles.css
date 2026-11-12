@@ -798,3 +798,33 @@ p.pos, strong.pos { color: var(--ok); }
 .section-head > .head-actions { flex: 0 1 auto; min-width: 0; }
 .export-xlsx { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .export-xlsx .ok, .export-xlsx .error { margin: 0; }
+
+/* Home broker: informações do ativo (rentabilidade, simulação, proventos, sobre) */
+.insights { display: grid; gap: 16px; margin-top: 16px; }
+.insights > .cards { margin-bottom: 0; }
+.insights h3 { margin: 0 0 10px; }
+.insights h4 { margin: 16px 0 8px; font-size: 0.95rem; }
+.insights-table { width: 100%; font-variant-numeric: tabular-nums; }
+.insights-table td, .insights-table th { white-space: nowrap; }
+.insights-table .num { text-align: right; }
+.link-cell { background: none; border: none; padding: 2px 4px; border-radius: 4px; font: inherit; color: inherit; cursor: pointer; font-variant-numeric: tabular-nums; }
+.link-cell.pos { color: var(--ok); }
+.link-cell.neg { color: var(--error); }
+.link-cell:hover, .link-cell.active { background: var(--border); }
+.explain { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; word-break: normal; white-space: normal; }
+.sim-controls { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 12px; }
+.sim-controls input { width: 9em; }
+.sim-bars, .sector-bars { display: grid; gap: 6px; }
+.sim-bar, .sector-bar { display: grid; grid-template-columns: minmax(90px, 160px) 1fr minmax(120px, auto); gap: 10px; align-items: center; text-align: left; font-variant-numeric: tabular-nums; }
+.sim-bar { background: none; border: 1px solid transparent; border-radius: 6px; padding: 4px 6px; color: var(--text); font: inherit; cursor: pointer; }
+.sim-bar:hover, .sim-bar.active { border-color: var(--border); }
+.sim-bar.muted { cursor: default; }
+.sim-bar .num, .sector-bar .num { text-align: right; }
+.track { display: block; height: 10px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.track .fill { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.sim-bar.me .fill { background: var(--text); }
+.about-text { margin: 0 0 6px; line-height: 1.55; max-width: 70ch; }
+.about-facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 12px 0 0; }
+.about-facts dt { color: var(--muted); }
+.about-facts dd { margin: 0; }
+@media (max-width: 560px) { .sim-bar, .sector-bar { grid-template-columns: 80px 1fr 110px; } }

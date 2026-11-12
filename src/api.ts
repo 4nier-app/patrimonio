@@ -653,6 +653,34 @@ export const assetApi = {
   dayMoves: () => invoke<DayView>("day_moves"),
   detail: (ticker: string) => invoke<AssetDetail>("asset_detail", { ticker }),
   chart: (ticker: string, period: ChartPeriod, interval: string) => invoke<ChartData>("asset_chart", { ticker, period, interval }),
+  insights: (ticker: string) => invoke<Insights>("asset_insights", { ticker }),
+};
+
+/** Um número com a conta que o produziu. */
+export type InsightFigure = { rate: string; explanation: string };
+export type Insights = {
+  ticker: string;
+  currency: string;
+  price: string | null;
+  price_date: string | null;
+  periods: string[];
+  returns: { label: string; cells: (InsightFigure | null)[] }[];
+  simulation: { years: number; start: string; items: { name: string; asset: boolean; figure: InsightFigure | null }[] }[];
+  dividends: { date: string; value: string }[];
+  dividends_12m: string | null;
+  yield_12m: string | null;
+  about: {
+    text: string | null;
+    text_source: string | null;
+    sector: string | null;
+    manager: string | null;
+    expense_ratio: string | null;
+    website: string | null;
+    holdings: { symbol: string; name: string; weight: string }[];
+    sectors: { name: string; weight: string }[];
+    data_source: string | null;
+  };
+  warnings: string[];
 };
 
 // ---------- proventos (etapa 9) ----------

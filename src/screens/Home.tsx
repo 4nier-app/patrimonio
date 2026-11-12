@@ -397,6 +397,7 @@ export default function Home({ status, onLocked, onChanged }: Props) {
               backLabel={tab === "homebroker" ? "Voltar ao Home broker" : tab === "carteira" ? "Voltar para a Carteira" : "Voltar"}
               onBack={closeAsset}
               onLoaded={(d) => rememberAsset(d.ticker, d.name)}
+              onOpen={openAsset}
             />
           )}
           {!asset && tab === "painel" && <Panel refresh={refresh} go={setTab} hasRecovery={status.has_recovery_key} darfs={darfs} simple={simple} />}
