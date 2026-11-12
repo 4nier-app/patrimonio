@@ -189,6 +189,24 @@ impl Vault {
         self.upsert_assets(&coins)
     }
 
+    /// Coloca no catálogo os ETFs de Londres cotados em dólar.
+    pub fn seed_london(&mut self) -> Result<usize> {
+        use carteira_core::london::{ETFS, MARKET};
+        let etfs: Vec<Asset> = ETFS
+            .iter()
+            .map(|e| Asset {
+                ticker: e.ticker.into(),
+                name: e.name.into(),
+                kind: "ETF".into(),
+                market: MARKET.into(),
+                currency: USD.into(),
+                isin: None,
+                source: MARKET.into(),
+            })
+            .collect();
+        self.upsert_assets(&etfs)
+    }
+
     /// Aplica a classe própria dos fundos listados que o catálogo da B3 não
     /// separa (FI-Infra e ETFs de renda fixa) aos ativos já guardados.
     pub fn reclassify_listed(&mut self) -> Result<usize> {
@@ -512,6 +530,13 @@ impl Vault {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(String::from);
+        // Por enquanto, os ETFs de Londres são só para consulta no Home broker.
+        if carteira_core::london::is_london(&op.asset) {
+            return Err(bad(format!(
+                "{} é um ETF de Londres: por enquanto, ele serve só para consulta no Home broker",
+                op.asset
+            )));
+        }
         let fund = carteira_core::fund::is_fund(&op.asset);
         if !fund && carteira_core::fund::cnpj_digits(&op.asset).is_some() {
             return Err(bad(format!(
@@ -1445,6 +1470,31 @@ mod tests {
             .collect();
         assert_eq!(found, vec!["ABCD3", "ABCD4", "XYZW3"]);
         assert_eq!(v.asset_count().unwrap(), 3);
+    }
+
+    #[test]
+    fn etfs_de_londres_no_catalogo() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = vault(tmp.path());
+        v.seed_london().unwrap();
+        v.seed_london().unwrap();
+        let found = v.search_assets("cspx", 10).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].ticker, "CSPX.L");
+        assert_eq!(found[0].currency, "USD");
+        assert_eq!(found[0].market, "LSE");
+    }
+
+    #[test]
+    fn etf_de_londres_nao_pode_ser_lancado() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = vault(tmp.path());
+        let mut op = Operation {
+            asset: "CSPX.L".into(),
+            ..sample()
+        };
+        let err = v.prepare_operation(&mut op).unwrap_err().to_string();
+        assert!(err.contains("só para consulta"), "{err}");
     }
 
     #[test]

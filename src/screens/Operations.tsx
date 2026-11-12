@@ -283,7 +283,9 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
       return;
     }
     const search = form.fund ? market.searchFunds : market.searchAssets;
-    const t = setTimeout(() => search(form.asset).then(setSuggestions).catch(() => {}), 150);
+    const t = setTimeout(() => search(form.asset)
+          // ETFs de Londres: por enquanto, só para consulta no Home broker.
+          .then((list) => setSuggestions(list.filter((a) => a.market !== "LSE"))).catch(() => {}), 150);
     return () => clearTimeout(t);
   }, [form.asset, form.fund, catalogReady]);
 

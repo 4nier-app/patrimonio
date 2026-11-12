@@ -18,8 +18,18 @@ pub fn b3_symbol(ticker: &str) -> String {
 }
 
 /// Ativos dos EUA usam o próprio código, com "-" no lugar de "." (BRK.B → BRK-B).
+/// ETFs de Londres já vêm com o sufixo do Yahoo (CSPX.L).
 pub fn us_symbol(ticker: &str) -> String {
-    ticker.replace('.', "-")
+    if is_london(ticker) {
+        ticker.to_string()
+    } else {
+        ticker.replace('.', "-")
+    }
+}
+
+/// Ticker da bolsa de Londres no Yahoo (ex.: CSPX.L).
+fn is_london(t: &str) -> bool {
+    t.len() > 2 && t.ends_with(".L")
 }
 
 pub fn chart_url(symbol: &str, from: NaiveDate, to: NaiveDate) -> String {
@@ -56,6 +66,10 @@ struct Chart {
 struct Meta {
     #[serde(default)]
     gmtoffset: i64,
+    #[serde(default)]
+    currency: Option<String>,
+    #[serde(default)]
+    symbol: Option<String>,
     regular_market_price: Option<f64>,
     regular_market_time: Option<i64>,
     #[serde(default)]
@@ -122,6 +136,16 @@ pub fn parse_chart_dp(json: &[u8], dp: u32) -> Result<Vec<(NaiveDate, Decimal)>>
         .result
         .and_then(|r| r.into_iter().next())
         .ok_or_else(|| ProviderError::Format("resposta sem resultado".into()))?;
+    // Em Londres, a mesma bolsa tem linhas em libra (pence) e em dólar: só a
+    // em dólar serve, porque o app converte pela PTAX do dólar.
+    if let Some(sym) = result.meta.symbol.as_deref().filter(|s| is_london(s)) {
+        let cur = result.meta.currency.as_deref().unwrap_or("");
+        if cur != "USD" {
+            return Err(ProviderError::Format(format!(
+                "{sym} é cotado em {cur}, não em dólar"
+            )));
+        }
+    }
     let offset = result.meta.gmtoffset;
     let closes = result
         .indicators
@@ -477,5 +501,19 @@ mod tests {
     fn ativo_inexistente() {
         let json = br#"{"chart":{"result":null,"error":{"code":"Not Found","description":"No data found"}}}"#;
         assert!(matches!(parse_chart(json), Err(ProviderError::NotFound(_))));
+    }
+
+    #[test]
+    fn etf_de_londres_so_em_dolar() {
+        assert_eq!(us_symbol("CSPX.L"), "CSPX.L");
+        assert_eq!(us_symbol("BRK.B"), "BRK-B");
+        let usd =
+            br#"{"chart":{"result":[{"meta":{"currency":"USD","symbol":"CSPX.L","gmtoffset":0},
+            "timestamp":[1772456400],"indicators":{"quote":[{"close":[700.5]}]}}],"error":null}}"#;
+        assert_eq!(parse_chart(usd).unwrap()[0].1, dec!(700.50));
+        let gbp =
+            br#"{"chart":{"result":[{"meta":{"currency":"GBp","symbol":"VUSA.L","gmtoffset":0},
+            "timestamp":[1772456400],"indicators":{"quote":[{"close":[9000.0]}]}}],"error":null}}"#;
+        assert!(parse_chart(gbp).is_err());
     }
 }

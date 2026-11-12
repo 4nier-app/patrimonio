@@ -24,6 +24,9 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Exportar para Excel:** a Evolução (com os totais) e a lista de
   Lançamentos (com os filtros escolhidos) viram uma planilha .xlsx, gravada
   onde você escolher.
+- **Home broker:** procure qualquer ativo da B3, dos EUA, cripto ou ETF de
+  Londres cotado em dólar (como o CSPX) e veja o gráfico, mesmo sem ter o
+  ativo. Os ETFs de Londres, por enquanto, são só para consulta.
 - **Ganho de cada compra:** na página do ativo e na Evolução (na setinha ▸ de
   cada ativo), cada compra que ainda está na carteira mostra o custo com
   taxas, o valor e o ganho desde a compra (nas vendas, as compras mais antigas

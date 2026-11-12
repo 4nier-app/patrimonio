@@ -45,6 +45,8 @@ function delayNote(d: AssetDetail): string {
       return "Cotação da B3 com cerca de 15 minutos de atraso (a cotação ao vivo da B3 é paga).";
     case "US":
       return "Cotação dos EUA quase em tempo real durante o pregão americano.";
+    case "LSE":
+      return "ETF da Bolsa de Londres, cotado em dólar, quase em tempo real durante o pregão de Londres (cerca de 5h às 13h30 no horário de Brasília). Por enquanto, só para consulta: ele ainda não pode ser lançado na carteira.";
     case "CRIPTO":
       return "Cotação em tempo real (Coinbase), em dólar.";
     case "TESOURO":

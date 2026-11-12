@@ -6,6 +6,15 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.32.0] - 2026-11-12
+
+### Adicionado
+- Home broker: ETFs da bolsa de Londres cotados em dólar (como CSPX, VUAA,
+  CNDX, IWDA, VWRA e EIMI) aparecem na busca, com o final ".L" (CSPX.L) e a
+  etiqueta "ETF Londres", e abrem o gráfico com a cotação em dólar. Por
+  enquanto, eles são só para consulta: ainda não podem ser lançados na
+  carteira.
+
 ## [0.31.0] - 2026-11-11
 
 ### Adicionado
