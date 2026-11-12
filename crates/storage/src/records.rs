@@ -530,13 +530,6 @@ impl Vault {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(String::from);
-        // Por enquanto, os ETFs de Londres são só para consulta no Home broker.
-        if carteira_core::london::is_london(&op.asset) {
-            return Err(bad(format!(
-                "{} é um ETF de Londres: por enquanto, ele serve só para consulta no Home broker",
-                op.asset
-            )));
-        }
         let fund = carteira_core::fund::is_fund(&op.asset);
         if !fund && carteira_core::fund::cnpj_digits(&op.asset).is_some() {
             return Err(bad(format!(
@@ -1483,18 +1476,6 @@ mod tests {
         assert_eq!(found[0].ticker, "CSPX.L");
         assert_eq!(found[0].currency, "USD");
         assert_eq!(found[0].market, "LSE");
-    }
-
-    #[test]
-    fn etf_de_londres_nao_pode_ser_lancado() {
-        let tmp = tempfile::tempdir().unwrap();
-        let mut v = vault(tmp.path());
-        let mut op = Operation {
-            asset: "CSPX.L".into(),
-            ..sample()
-        };
-        let err = v.prepare_operation(&mut op).unwrap_err().to_string();
-        assert!(err.contains("só para consulta"), "{err}");
     }
 
     #[test]

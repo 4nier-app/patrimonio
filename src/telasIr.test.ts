@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GroupMonth, IncomeRow, TaxMonth, TaxView } from "./api";
-import { bens, exclusivos, isentos, rendaVariavel } from "./telasIr";
+import { bens, countryOf, exclusivos, isentos, rendaVariavel } from "./telasIr";
 
 const g = (
   group: GroupMonth["group"],
@@ -175,5 +175,12 @@ describe("telas do IR: bens e direitos", () => {
     } as unknown as TaxView;
     const b = bens(view, {}, {}, 2026);
     expect(b.map((x) => x.key)).toEqual(["Conta corrente|Conta corrente|Banco A"]);
+  });
+});
+
+describe("telas do IR: país do bem no exterior", () => {
+  it("ETF de Londres é da Irlanda; o resto, dos EUA", () => {
+    expect(countryOf("CSPX.L")).toBe("375 - Irlanda");
+    expect(countryOf("VOO")).toBe("249 - Estados Unidos");
   });
 });

@@ -11,7 +11,9 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 ## O que faz
 
 - **Carteira consolidada em reais:** ações, FIIs, Fiagros, FI-Infra, ETFs e BDRs da B3, fundos,
-  Tesouro Direto, renda fixa, corretoras do exterior e cripto, com FGTS, conta
+  Tesouro Direto, renda fixa, corretoras do exterior (ações e ETFs dos EUA e
+  ETFs de Londres em dólar, como o CSPX, em qualquer corretora, como Nomad ou
+  Interactive Brokers) e cripto, com FGTS, conta
   corrente, saldos em dólar e bens no patrimônio.
 - **Rentabilidade pelo tempo real de exposição:** o capital conta a partir da
   data exata da compra e deixa de contar na data exata da venda (Modified Dietz
@@ -26,7 +28,7 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   onde você escolher.
 - **Home broker:** procure qualquer ativo da B3, dos EUA, cripto ou ETF de
   Londres cotado em dólar (como o CSPX) e veja o gráfico, mesmo sem ter o
-  ativo. Os ETFs de Londres, por enquanto, são só para consulta.
+  ativo.
 - **Ganho de cada compra:** na página do ativo e na Evolução (na setinha ▸ de
   cada ativo), cada compra que ainda está na carteira mostra o custo com
   taxas, o valor e o ganho desde a compra (nas vendas, as compras mais antigas

@@ -75,7 +75,7 @@ export default function IncomeForecast({
               Para cada ação, FII e ETF que você tem, a estimativa repete o que o ativo pagou por cota nos últimos 12 meses (pelo Yahoo
               Finance), vezes as cotas que você tem hoje, no mês da data ex. Quando você já lançou os proventos de um ativo nos últimos 12
               meses, valem os seus lançamentos, ajustados pelas cotas de hoje: se comprou mais, a estimativa sobe; se vendeu tudo, ele sai
-              da conta. Nos ativos dos EUA, como os ETFs da Nomad, já sai o imposto de 30% retido lá no pagamento, e o valor vai para reais
+              da conta. Nos ativos dos EUA, como os ETFs da Nomad, já sai o imposto de 30% retido lá no pagamento (nos ETFs de Londres não há essa retenção), e o valor vai para reais
               pela PTAX de hoje. Na B3, o Yahoo junta dividendos e JCP; o JCP tem 15% retido na fonte, então o líquido pode ser um pouco
               menor. É uma estimativa: as empresas e os fundos podem pagar mais, menos ou em outros meses.
             </>

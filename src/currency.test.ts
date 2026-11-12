@@ -19,6 +19,9 @@ describe("currencyOfAsset", () => {
   });
   it("deduz pelo formato do código", () => {
     expect(currencyOfAsset("ABCD11", [])).toBe("BRL");
+    // Bolsa de Londres: em dólar, mesmo fora do catálogo e com número no código.
+    expect(currencyOfAsset("cspx.l", [])).toBe("USD");
+    expect(currencyOfAsset("IB1T.L", [])).toBe("USD");
     expect(currencyOfAsset("XYZ.B", [])).toBe("USD");
     expect(currencyOfAsset("", [])).toBeNull();
   });

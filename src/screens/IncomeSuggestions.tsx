@@ -35,7 +35,7 @@ export default function IncomeSuggestions({
               sua primeira compra. Aparecem só os que ainda não estão lançados. O Yahoo informa a data ex; a data do pagamento é estimada. Nos EUA, o
               pagamento costuma cair 2 dias úteis depois da data ex; na B3, o prazo varia de dias a meses, então a lista mostra a data ex
               "a conferir". Ajuste a data do pagamento antes de salvar, porque ela define o ano da declaração. Na B3, o Yahoo junta
-              dividendos e JCP: se for JCP, troque o tipo e informe os 15% retidos. Nos EUA, já vem com os 30% retidos lá. Confira sempre
+              dividendos e JCP: se for JCP, troque o tipo e informe os 15% retidos. Nos EUA, já vem com os 30% retidos lá; nos ETFs de Londres, sem retenção. Confira sempre
               com o extrato ou o informe de rendimentos da corretora.
             </>
           }

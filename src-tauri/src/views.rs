@@ -2175,7 +2175,9 @@ pub fn market_incomes(
                 per_share,
                 quantity,
                 gross,
-                withheld: if usd {
+                // Os ETFs de Londres (fundos irlandeses) não retêm imposto
+                // na distribuição para quem mora no Brasil.
+                withheld: if usd && !carteira_core::london::is_london(&a.ticker) {
                     (gross * US_WITHHOLDING).round_dp(2)
                 } else {
                     Decimal::ZERO
