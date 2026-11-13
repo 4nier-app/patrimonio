@@ -89,6 +89,8 @@ pub struct AssetDetail {
     pub history: Vec<DailyClose>,
     /// Compras em aberto pelo FIFO, com o ganho de cada uma (informativo).
     pub lots: Vec<LotView>,
+    /// Ficha da lista oficial da Bolsa de Londres (ativos de Londres).
+    pub listing: Option<carteira_storage::LseListing>,
 }
 
 /// O que resta de uma compra e o ganho desde ela, pela cotação de hoje.
@@ -210,7 +212,13 @@ pub fn detail(v: &Vault, ticker: &str, as_of: NaiveDate) -> Result<AssetDetail, 
         .collect();
     let mut operations = mine;
     operations.reverse();
+    let listing = if carteira_core::london::is_london(&ticker) {
+        v.lse_listing(&ticker).map_err(s)?
+    } else {
+        None
+    };
     Ok(AssetDetail {
+        listing,
         venue: venue_of(&ticker, &currency),
         name: asset.as_ref().map(|a| a.name.clone()).unwrap_or_default(),
         kind: asset.map(|a| a.kind).unwrap_or_else(|| "OUTRO".into()),
@@ -694,6 +702,7 @@ mod tests {
             average_steps: vec![],
             history: vec![],
             lots: vec![],
+            listing: None,
         };
         let today = NaiveDate::from_ymd_opt(2026, 3, 10).unwrap();
         let c = chart(&d, &Net { up: true }, "1d", "1m", today);

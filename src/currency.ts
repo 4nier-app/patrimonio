@@ -18,7 +18,7 @@ export function currencyOfAsset(ticker: string, catalog: Asset[]): Currency | nu
   if (!t) return null;
   const found = catalog.find((a) => a.ticker === t);
   if (found) return found.currency === "USD" ? "USD" : "BRL";
-  // Bolsa de Londres (CSPX.L, IB1T.L): só as linhas em dólar.
+  // Bolsa de Londres (CSPX.L): o app registra só as linhas em dólar.
   if (/^[A-Z0-9]{2,6}\.L$/.test(t)) return "USD";
   if (/\d$/.test(t)) return "BRL";
   if (/^[A-Z][A-Z.-]*$/.test(t)) return "USD";

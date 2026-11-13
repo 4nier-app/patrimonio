@@ -23,7 +23,7 @@ pub const ETFS: &[Etf] = &[
     etf("VUSD.L", "Vanguard S&P 500 UCITS ETF USD (Dist)"),
     etf("CNDX.L", "iShares NASDAQ 100 UCITS ETF USD (Acc)"),
     etf("IWDA.L", "iShares Core MSCI World UCITS ETF USD (Acc)"),
-    etf("SSAC.L", "iShares MSCI ACWI UCITS ETF USD (Acc)"),
+    etf("ISAC.L", "iShares MSCI ACWI UCITS ETF USD (Acc)"),
     etf("VWRA.L", "Vanguard FTSE All-World UCITS ETF USD (Acc)"),
     etf("VWRD.L", "Vanguard FTSE All-World UCITS ETF USD (Dist)"),
     etf(
@@ -36,8 +36,30 @@ pub const ETFS: &[Etf] = &[
         "iShares $ Treasury Bond 0-1yr UCITS ETF USD (Acc)",
     ),
     etf("IGLN.L", "iShares Physical Gold ETC (USD)"),
-    etf("IB1T.L", "iShares Bitcoin ETP (USD)"),
 ];
+
+/// Códigos que versões anteriores tratavam como dólar, mas que em Londres são
+/// negociados em libra ou pence (a lista oficial da bolsa mostrou): o IB1T só
+/// tem linha em libra, e a linha em dólar do iShares MSCI ACWI é a ISAC.
+pub const NOT_USD: &[&str] = &["IB1T.L", "SSAC.L"];
+
+/// País para as telas do IR (código e nome da tabela da Receita), pelo país
+/// de constituição em inglês da lista da Bolsa de Londres. `None` para um país
+/// que o app não conhece: a tela pede para confirmar com o contador.
+pub fn pais_ir(country: &str) -> Option<&'static str> {
+    Some(match country.trim().to_lowercase().as_str() {
+        "ireland" => "375 - Irlanda",
+        "luxembourg" => "445 - Luxemburgo",
+        "jersey" => "393 - Jersey",
+        "france" => "275 - França",
+        "united kingdom" => "628 - Reino Unido",
+        "switzerland" => "767 - Suíça",
+        "germany" => "023 - Alemanha",
+        "netherlands" => "573 - Países Baixos (Holanda)",
+        "united states" => "249 - Estados Unidos",
+        _ => return None,
+    })
+}
 
 /// Código de Londres: termina em ".L".
 pub fn is_london(ticker: &str) -> bool {
@@ -54,5 +76,9 @@ mod tests {
         assert!(!is_london("VOO"));
         assert!(!is_london("BRK.B"));
         assert!(ETFS.iter().all(|e| is_london(e.ticker)));
+        assert!(ETFS.iter().all(|e| !NOT_USD.contains(&e.ticker)));
+        assert_eq!(pais_ir("Ireland"), Some("375 - Irlanda"));
+        assert_eq!(pais_ir(" luxembourg "), Some("445 - Luxemburgo"));
+        assert_eq!(pais_ir("Atlantis"), None);
     }
 }

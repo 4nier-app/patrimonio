@@ -47,7 +47,7 @@ function delayNote(d: AssetDetail): string {
     case "US":
       return "Cotação dos EUA quase em tempo real durante o pregão americano.";
     case "LSE":
-      return "ETF da Bolsa de Londres, cotado em dólar, quase em tempo real durante o pregão de Londres (cerca de 5h às 13h30 no horário de Brasília).";
+      return "Bolsa de Londres, linha em dólar, quase em tempo real durante o pregão de Londres (cerca de 5h às 13h30 no horário de Brasília).";
     case "CRIPTO":
       return "Cotação em tempo real (Coinbase), em dólar.";
     case "TESOURO":

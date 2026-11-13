@@ -20,6 +20,7 @@ import {
   type RvMonth,
 } from "../telasIr";
 import Intro from "../components/Intro";
+import { regrasRevisadas } from "../revisao";
 
 /**
  * Telas do IR: os valores do ano no mesmo formato das fichas do programa do
@@ -670,7 +671,7 @@ export default function TaxScreens({ refresh }: { refresh: number }) {
         copiar os valores. A Receita pode mudar as telas, os nomes e os códigos a cada ano,
         então no programa elas podem aparecer diferentes. Os valores são uma estimativa feita
         com o que você lançou no app: confira com um contador. O app não preenche a
-        declaração nem emite DARF.
+        declaração nem emite DARF. {regrasRevisadas()}
       </p>
 
       {error && <p className="error">{error}</p>}

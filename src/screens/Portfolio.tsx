@@ -5,6 +5,7 @@ import ExitCostBox, { pctText } from "../components/ExitCostBox";
 import { isFund, isSavings, byName } from "../currency";
 import { useSort } from "../components/useSort";
 import { averagePrice, date, formatDateTime, money, percent, price, quantity, tone } from "../format";
+import { REGRAS_REVISADAS } from "../revisao";
 
 /** Valor em reais embaixo do valor em dólar. */
 function Brl({ v }: { v: string | null }) {
@@ -112,7 +113,7 @@ function DollarAccounts({ rows, onSaved }: { rows: DollarAccount[]; onSaved: () 
         </table>
       </div>
       <p className="muted small" style={{ margin: "12px 0 0" }}>
-        Valor de resgate: o que chegaria na sua conta no Brasil, já descontadas a taxa de conversão da corretora e o IOF de 0,38%. É o valor usado no
+        Valor de resgate: o que chegaria na sua conta no Brasil, já descontadas a taxa de conversão da corretora e o IOF de 0,38% (regra revisada em {date(REGRAS_REVISADAS)}). É o valor usado no
         Painel, na Evolução, na Carteira e na Rentabilidade, no saldo e também no custo de cada compra (pelo valor de resgate do dia da compra). Nos
         impostos vale a PTAX, como manda a lei.
       </p>

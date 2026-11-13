@@ -303,11 +303,15 @@ export type Bem = {
   profit: number | null;
 };
 
-/** País do ativo no exterior: os ETFs de Londres (UCITS) são fundos da Irlanda. */
-export function countryOf(asset: string): string {
-  // O ETP de bitcoin da iShares negociado em Londres é emitido na Suíça.
-  if (asset.toUpperCase() === "IB1T.L") return "767 - Suíça";
-  return /\.L$/.test(asset) ? "375 - Irlanda" : "249 - Estados Unidos";
+/**
+ * País do ativo no exterior. Em Londres, o da lista oficial da bolsa (a maioria
+ * dos ETFs é da Irlanda, mas há de Luxemburgo, Jersey, Alemanha e outros);
+ * sem a lista baixada, Irlanda. Os demais são dos EUA.
+ */
+export function countryOf(asset: string, countries: Record<string, string | null> = {}): string {
+  if (!/\.L$/.test(asset)) return "249 - Estados Unidos";
+  if (asset in countries) return countries[asset] ?? "? confirme o país com o contador";
+  return "375 - Irlanda";
 }
 
 const B3_KINDS = ["ACAO", "FII", "ETF", "ETF_RF", "BDR", "FI_INFRA"];
@@ -348,7 +352,7 @@ export function bens(
       before: n(b?.cost_brl),
       after: n(a?.cost_brl),
       ticker: !usd && B3_KINDS.includes(kind ?? "") ? asset : null,
-      country: usd && kind !== "CRIPTO" ? countryOf(asset) : null,
+      country: usd && kind !== "CRIPTO" ? countryOf(asset, view.countries) : null,
       profit: profit.has(asset) ? profit.get(asset)! : usd && kind !== "CRIPTO" ? 0 : null,
     });
   }

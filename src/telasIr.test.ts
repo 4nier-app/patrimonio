@@ -182,6 +182,7 @@ describe("telas do IR: país do bem no exterior", () => {
   it("ETF de Londres é da Irlanda; o resto, dos EUA", () => {
     expect(countryOf("CSPX.L")).toBe("375 - Irlanda");
     expect(countryOf("VOO")).toBe("249 - Estados Unidos");
-    expect(countryOf("IB1T.L")).toBe("767 - Suíça");
+    expect(countryOf("XBTC.L", { "XBTC.L": "023 - Alemanha" })).toBe("023 - Alemanha");
+    expect(countryOf("XYZ.L", { "XYZ.L": null })).toContain("confirme");
   });
 });

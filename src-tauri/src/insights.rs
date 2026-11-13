@@ -154,6 +154,11 @@ pub struct About {
     /// Texto em português e de onde veio.
     pub text: Option<String>,
     pub text_source: Option<String>,
+    /// Data do texto: quando foi escrito (textos do app, que não vêm da
+    /// internet) ou quando foi buscado (cadastro da B3).
+    pub text_date: Option<NaiveDate>,
+    /// O texto é do app (escrito à mão), não buscado agora na internet.
+    pub text_fixed: bool,
     /// Setor / subsetor / segmento (B3) ou o setor traduzido (Yahoo).
     pub sector: Option<String>,
     pub manager: Option<String>,
@@ -162,8 +167,67 @@ pub struct About {
     pub website: Option<String>,
     pub holdings: Vec<HoldingRow>,
     pub sectors: Vec<SectorWeight>,
-    /// Fonte da composição, setores e taxa.
+    /// Fonte da composição, setores e taxa, e o dia em que foram buscados.
     pub data_source: Option<String>,
+    pub data_date: Option<NaiveDate>,
+    /// Ficha da lista oficial da Bolsa de Londres.
+    pub listing: Option<Ficha>,
+}
+
+/// Dados oficiais de um ativo de Londres, em português.
+#[derive(Debug, Default, Serialize)]
+pub struct Ficha {
+    pub name: String,
+    pub issuer: String,
+    pub isin: String,
+    /// Tipo explicado: "ETF (fundo de índice)" etc.
+    pub kind: String,
+    /// Código do tipo: ETF, ETC ou ETN.
+    pub kind_code: String,
+    /// País de constituição: o da tabela do IR quando o app conhece.
+    pub country: String,
+    pub start: Option<NaiveDate>,
+    /// "Acumula" ou "Distribui", quando o nome diz.
+    pub income: Option<String>,
+    /// Data dos dados da lista ("As at").
+    pub list_date: Option<NaiveDate>,
+}
+
+fn ficha(l: &carteira_storage::LseListing) -> Ficha {
+    let date = |d: &Option<String>| {
+        d.as_deref()
+            .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+    };
+    let n = l.name.to_uppercase();
+    let has = |w: &str| {
+        n.split(|c: char| !c.is_ascii_alphanumeric())
+            .any(|p| p == w)
+    };
+    let income = if has("ACC") || has("ACCUMULATING") {
+        Some("Acumula: reinveste os proventos no próprio fundo".into())
+    } else if has("DIST") || has("DISTRIBUTING") || has("INC") {
+        Some("Distribui: paga os proventos em dinheiro".into())
+    } else {
+        None
+    };
+    Ficha {
+        name: l.name.clone(),
+        issuer: l.issuer.clone(),
+        isin: l.isin.clone(),
+        kind: match l.kind.as_str() {
+            "ETC" => "ETC: título de dívida lastreado em mercadoria (como ouro)",
+            "ETN" => "ETN: nota do emissor, que promete pagar o retorno de um índice",
+            _ => "ETF: fundo de índice",
+        }
+        .into(),
+        kind_code: l.kind.clone(),
+        country: carteira_core::london::pais_ir(&l.country)
+            .map(|c| c.split(" - ").nth(1).unwrap_or(c).to_string())
+            .unwrap_or_else(|| l.country.clone()),
+        start: date(&l.start_date),
+        income,
+        list_date: date(&l.list_date),
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -475,14 +539,25 @@ pub fn dividend_rows(
     (rows, total, dy)
 }
 
-fn about(detail: &AssetDetail, profile: Option<Profile>, company: Option<Company>) -> About {
-    let mut a = About::default();
-    if let Some(text) = carteira_core::etf_textos::sobre(&detail.ticker) {
-        a.text = Some(text.into());
+fn about(
+    detail: &AssetDetail,
+    profile: Option<Profile>,
+    company: Option<Company>,
+    today: NaiveDate,
+) -> About {
+    let mut a = About {
+        listing: detail.listing.as_ref().map(ficha),
+        ..About::default()
+    };
+    if let Some(s) = carteira_core::etf_textos::sobre(&detail.ticker) {
+        a.text = Some(s.texto.into());
         a.text_source = Some("Texto do 4Nier, a partir do documento da gestora".into());
+        a.text_date = NaiveDate::parse_from_str(s.revisado, "%Y-%m-%d").ok();
+        a.text_fixed = true;
     }
     if let Some(c) = company {
         if a.text.is_none() {
+            a.text_date = c.activity.as_ref().map(|_| today);
             a.text = c.activity.clone();
             a.text_source = c.activity.as_ref().map(|_| {
                 format!(
@@ -533,6 +608,7 @@ fn about(detail: &AssetDetail, profile: Option<Profile>, company: Option<Company
         }
         if has_data || a.manager.is_some() || a.sector.is_some() {
             a.data_source = Some(yahoo_perfil::SOURCE.into());
+            a.data_date = Some(today);
         }
     }
     a
@@ -678,7 +754,7 @@ pub fn build(detail: &AssetDetail, net: &dyn InsightsNet, today: NaiveDate) -> I
     } else {
         None
     };
-    out.about = about(detail, profile, company);
+    out.about = about(detail, profile, company, today);
     out.warnings = warnings;
     out
 }
@@ -690,6 +766,33 @@ mod tests {
 
     fn d(y: i32, m: u32, day: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(y, m, day).unwrap()
+    }
+
+    #[test]
+    fn ficha_da_lista_de_londres() {
+        let l = carteira_storage::LseListing {
+            ticker: "XYZ.L".into(),
+            issuer: "EMISSORA TESTE".into(),
+            name: "FUNDO TESTE WORLD UCITS ETF USD (ACC)".into(),
+            isin: "LU0000000001".into(),
+            country: "Luxembourg".into(),
+            kind: "ETF".into(),
+            start_date: Some("2020-01-02".into()),
+            list_date: Some("2026-10-31".into()),
+        };
+        let f = ficha(&l);
+        assert_eq!(f.country, "Luxemburgo");
+        assert!(f.income.unwrap().starts_with("Acumula"));
+        assert_eq!(f.list_date, Some(d(2026, 10, 31)));
+        let n = ficha(&carteira_storage::LseListing {
+            kind: "ETN".into(),
+            name: "NOTA TESTE 3X".into(),
+            country: "Atlantis".into(),
+            ..l
+        });
+        assert!(n.kind.starts_with("ETN"));
+        assert_eq!(n.income, None);
+        assert_eq!(n.country, "Atlantis");
     }
 
     #[test]

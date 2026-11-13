@@ -21,6 +21,7 @@ import {
   type IncomeLine,
 } from "../declaracao";
 import { money, tone } from "../format";
+import { regrasRevisadas } from "../revisao";
 
 const MONTHS = [
   "Janeiro",
@@ -52,7 +53,7 @@ export const DISCLAIMER = (
     aplicativo a entende. Podem ter erros ou não considerar a sua situação. Não
     são orientação fiscal nem contábil. Antes de pagar um DARF ou entregar a
     declaração, confira com um contador. O uso das informações é de sua
-    responsabilidade.
+    responsabilidade. {regrasRevisadas()}
   </>
 );
 

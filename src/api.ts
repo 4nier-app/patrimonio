@@ -576,6 +576,8 @@ export type TaxView = {
   warnings: string[];
   darf_code: string;
   savings_year_end: { year: number; name: string; account: string; kind: string; value: Dec; usd: Dec | null }[];
+  /** País de cada ativo de Londres, pela lista da bolsa (null: confirmar com o contador). */
+  countries?: Record<string, string | null>;
 };
 
 export const taxApi = {
@@ -672,6 +674,8 @@ export type Insights = {
   about: {
     text: string | null;
     text_source: string | null;
+    text_date: string | null;
+    text_fixed: boolean;
     sector: string | null;
     manager: string | null;
     expense_ratio: string | null;
@@ -679,6 +683,18 @@ export type Insights = {
     holdings: { symbol: string; name: string; weight: string }[];
     sectors: { name: string; weight: string }[];
     data_source: string | null;
+    data_date: string | null;
+    listing: {
+      name: string;
+      issuer: string;
+      isin: string;
+      kind: string;
+      kind_code: string;
+      country: string;
+      start: string | null;
+      income: string | null;
+      list_date: string | null;
+    } | null;
   };
   warnings: string[];
 };
