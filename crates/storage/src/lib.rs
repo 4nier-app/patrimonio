@@ -592,6 +592,48 @@ mod tests {
     }
 
     #[test]
+    fn lista_de_londres_entra_no_catalogo_e_na_busca() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut v = create(tmp.path());
+        v.seed_london().unwrap();
+        let item = |t: &str| LseListing {
+            ticker: t.into(),
+            issuer: "EMISSORA TESTE".into(),
+            name: "FUNDO TESTE S&P 500 (ACC)".into(),
+            isin: "IE0000000001".into(),
+            country: "Ireland".into(),
+            kind: "ETF".into(),
+            start_date: None,
+            list_date: Some("2026-10-31".into()),
+        };
+        v.replace_lse_listings(&[item("SPYL.L"), item("CSPX.L")])
+            .unwrap();
+        let found: Vec<String> = v
+            .search_assets("SPYL", 20)
+            .unwrap()
+            .into_iter()
+            .map(|a| a.ticker)
+            .collect();
+        assert_eq!(found, vec!["SPYL.L"]);
+        assert_eq!(v.lse_count().unwrap(), 2);
+        assert_eq!(
+            v.lse_listing("cspx.l")
+                .unwrap()
+                .unwrap()
+                .list_date
+                .as_deref(),
+            Some("2026-10-31")
+        );
+        // Código de Londres fora da lista é recusado.
+        assert!(v
+            .get_asset("CSPX.L")
+            .unwrap()
+            .unwrap()
+            .name
+            .contains("iShares"));
+    }
+
+    #[test]
     fn apaga_o_cofre_so_com_a_senha() {
         let tmp = tempfile::tempdir().unwrap();
         let mut v = create(tmp.path());
