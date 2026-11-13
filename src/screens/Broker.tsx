@@ -171,7 +171,7 @@ const KIND: Record<string, string> = {
 
 function kindLabel(a: Asset): string {
   if (a.kind === "ACAO" && a.currency === "USD") return "Ação EUA";
-  if (a.market === "LSE") return "ETF Londres";
+  if (a.market === "LSE") return "Londres, em dólar";
   return KIND[a.kind] ?? a.kind;
 }
 
