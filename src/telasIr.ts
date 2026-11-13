@@ -305,6 +305,8 @@ export type Bem = {
 
 /** País do ativo no exterior: os ETFs de Londres (UCITS) são fundos da Irlanda. */
 export function countryOf(asset: string): string {
+  // O ETP de bitcoin da iShares negociado em Londres é emitido na Suíça.
+  if (asset.toUpperCase() === "IB1T.L") return "767 - Suíça";
   return /\.L$/.test(asset) ? "375 - Irlanda" : "249 - Estados Unidos";
 }
 

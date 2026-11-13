@@ -7,6 +7,7 @@ import Chart, { axisStyle, base, usePalette } from "../charts/Chart";
 import { averageLine, candleLabel, change, operationMarkers } from "../assetChart";
 import { averagePrice, date, money, percent, price, quantity, tone } from "../format";
 import { resgateNote } from "./Portfolio";
+import AssetInsights from "../components/AssetInsights";
 
 const PERIODS: { id: ChartPeriod; label: string }[] = [
   { id: "1d", label: "Dia" },
@@ -69,6 +70,7 @@ export default function AssetPage({
   onBack,
   backLabel = "Voltar",
   onLoaded,
+  onOpen,
 }: {
   ticker: string;
   refresh: number;
@@ -76,6 +78,8 @@ export default function AssetPage({
   backLabel?: string;
   /** Chamado quando os dados do ativo chegam (ex.: lista de vistos recentemente). */
   onLoaded?: (d: AssetDetail) => void;
+  /** Abre outro ativo (empresas da composição de um ETF). */
+  onOpen?: (ticker: string) => void;
 }) {
   const loaded = useRef(onLoaded);
   loaded.current = onLoaded;
@@ -530,6 +534,8 @@ export default function AssetPage({
           </div>
         </div>
       )}
+
+      {detail && !fund && !td && <AssetInsights ticker={detail.ticker} name={detail.name} onOpen={onOpen} />}
 
       {incomes.length > 0 && (
         <>

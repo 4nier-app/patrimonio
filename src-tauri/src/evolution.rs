@@ -464,7 +464,9 @@ fn build(
                         .iter()
                         .rev()
                         .find(|(d, _)| *d <= c.date && *d >= from)
-                        .map(|(_, u)| *u)
+                        // O saldo é informado em centavos; o rateio interno
+                        // das cotas pode deixar dízimas (368,6399999...).
+                        .map(|(_, u)| u.round_dp(2))
                 })
                 .collect()
         } else {

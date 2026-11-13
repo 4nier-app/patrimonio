@@ -1,11 +1,12 @@
 // Leitura de notas de corretagem: escolhe o leitor da corretora pelo conteúdo.
 // Para acrescentar uma corretora, crie um leitor em readers/ e inclua-o aqui.
 
+import { ibkr } from "./readers/ibkr";
 import { nomadApex, nomadDriveWealth } from "./readers/nomad";
 import { sinacor } from "./readers/sinacor";
 import type { ParsedNote, Reader } from "./types";
 
-export const READERS: Reader[] = [nomadDriveWealth, nomadApex, sinacor];
+export const READERS: Reader[] = [nomadDriveWealth, nomadApex, ibkr, sinacor];
 
 export class UnknownLayout extends Error {}
 

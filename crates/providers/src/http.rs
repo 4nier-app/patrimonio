@@ -40,3 +40,44 @@ pub fn get_bytes(url: &str) -> Result<Vec<u8>> {
         .map_err(|e| ProviderError::Network(e.to_string()))?;
     Ok(buf)
 }
+
+/// Resposta com o código HTTP e os cookies que o servidor mandou guardar.
+pub struct Reply {
+    pub status: u16,
+    pub cookies: Vec<String>,
+    pub body: Vec<u8>,
+}
+
+/// Download que envia um cookie e devolve os que o servidor criou (para
+/// serviços que pedem um cookie de sessão anônima). Não trata o código HTTP
+/// como erro: quem chama decide.
+pub fn get_reply(url: &str, cookie: Option<&str>) -> Result<Reply> {
+    let mut req = agent().get(url);
+    if let Some(c) = cookie {
+        req = req.header("Cookie", c);
+    }
+    let mut resp = req
+        .call()
+        .map_err(|e| ProviderError::Network(e.to_string()))?;
+    let status = resp.status().as_u16();
+    let cookies = resp
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .filter_map(|v| v.split(';').next())
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .collect();
+    let mut body = Vec::new();
+    resp.body_mut()
+        .as_reader()
+        .take(MAX_BYTES)
+        .read_to_end(&mut body)
+        .map_err(|e| ProviderError::Network(e.to_string()))?;
+    Ok(Reply {
+        status,
+        cookies,
+        body,
+    })
+}

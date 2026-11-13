@@ -89,6 +89,15 @@ struct ChartResult {
 #[derive(Deserialize)]
 struct Indicators {
     quote: Vec<QuoteSeries>,
+    /// Fechamento ajustado pelos proventos e desdobramentos (só no diário).
+    #[serde(default)]
+    adjclose: Vec<AdjSeries>,
+}
+
+#[derive(Deserialize)]
+struct AdjSeries {
+    #[serde(default)]
+    adjclose: Vec<Option<f64>>,
 }
 
 #[derive(Deserialize)]
@@ -126,6 +135,17 @@ pub fn parse_chart(json: &[u8]) -> Result<Vec<(NaiveDate, Decimal)>> {
 
 /// Como `parse_chart`, com `dp` casas decimais (câmbio usa 4).
 pub fn parse_chart_dp(json: &[u8], dp: u32) -> Result<Vec<(NaiveDate, Decimal)>> {
+    parse_series(json, dp, false)
+}
+
+/// Fechamentos ajustados pelos proventos e desdobramentos (para medir a
+/// rentabilidade com os proventos reinvestidos). Sem a série ajustada, usa o
+/// fechamento comum.
+pub fn parse_adjusted(json: &[u8]) -> Result<Vec<(NaiveDate, Decimal)>> {
+    parse_series(json, 6, true)
+}
+
+fn parse_series(json: &[u8], dp: u32, adjusted: bool) -> Result<Vec<(NaiveDate, Decimal)>> {
     let env: Envelope =
         serde_json::from_slice(json).map_err(|e| ProviderError::Format(e.to_string()))?;
     if let Some(err) = env.chart.error.filter(|e| !e.is_null()) {
@@ -147,13 +167,23 @@ pub fn parse_chart_dp(json: &[u8], dp: u32) -> Result<Vec<(NaiveDate, Decimal)>>
         }
     }
     let offset = result.meta.gmtoffset;
-    let closes = result
+    let adj = result
         .indicators
-        .quote
+        .adjclose
         .into_iter()
         .next()
-        .map(|q| q.close)
-        .unwrap_or_default();
+        .map(|a| a.adjclose)
+        .filter(|a| adjusted && !a.is_empty());
+    let closes = match adj {
+        Some(a) => a,
+        None => result
+            .indicators
+            .quote
+            .into_iter()
+            .next()
+            .map(|q| q.close)
+            .unwrap_or_default(),
+    };
     let mut out: Vec<(NaiveDate, Decimal)> = Vec::new();
     for (ts, close) in result.timestamp.iter().zip(closes) {
         if let Some(c) = close {
@@ -198,6 +228,23 @@ pub fn fetch_closes_dp(
     for host in HOSTS {
         match http::get_bytes(&template.replace("{host}", host)) {
             Ok(body) => return parse_chart_dp(&body, dp),
+            Err(e) => last = e,
+        }
+    }
+    Err(last)
+}
+
+/// Fechamentos ajustados (proventos reinvestidos) do período.
+pub fn fetch_adjusted(
+    symbol: &str,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> Result<Vec<(NaiveDate, Decimal)>> {
+    let template = chart_url(symbol, from, to);
+    let mut last = ProviderError::Network("Yahoo indisponível".into());
+    for host in HOSTS {
+        match http::get_bytes(&template.replace("{host}", host)) {
+            Ok(body) => return parse_adjusted(&body),
             Err(e) => last = e,
         }
     }
@@ -515,5 +562,15 @@ mod tests {
             br#"{"chart":{"result":[{"meta":{"currency":"GBp","symbol":"VUSA.L","gmtoffset":0},
             "timestamp":[1772456400],"indicators":{"quote":[{"close":[9000.0]}]}}],"error":null}}"#;
         assert!(parse_chart(gbp).is_err());
+    }
+
+    #[test]
+    fn fechamento_ajustado() {
+        let json = br#"{"chart":{"result":[{"meta":{"currency":"USD","symbol":"TEST","gmtoffset":-14400},
+            "timestamp":[1772456400,1772542800],
+            "indicators":{"quote":[{"close":[100.0,101.0]}],"adjclose":[{"adjclose":[98.5,101.0]}]}}],"error":null}}"#;
+        let adj = parse_adjusted(json).unwrap();
+        assert_eq!(adj[0].1, dec!(98.5));
+        assert_eq!(parse_chart(json).unwrap()[0].1, dec!(100));
     }
 }

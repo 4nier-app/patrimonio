@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Intro from "../components/Intro";
 import { errorMessage, market, notesApi, type Account, type Operation } from "../api";
-import { date, money, price, quantity } from "../format";
+import { cashMask, cashTyping, date, money, price, quantity, toCashMask } from "../format";
+import { brNumber, usNumber } from "../import/numbers";
 import { noteHash, readNotes, UnknownLayout } from "../import";
 import { PasswordNeeded, pdfPages } from "../import/pdf";
 import type { ParsedNote } from "../import/types";
@@ -14,6 +15,8 @@ type Item = {
   imported: boolean;
   include: boolean[];
   tickers: string[];
+  /** Taxa de cada linha, como digitada (só quando a nota deixa editar). */
+  fees: string[];
   result?: { ok: boolean; text: string };
 };
 
@@ -26,10 +29,26 @@ type FileState = {
   wrongPassword?: boolean;
 };
 
+/** Outros nomes com que a conta da corretora costuma ser cadastrada. */
+const ALIASES: Record<string, string[]> = { "interactive brokers": ["interactive", "ibkr"] };
+
 /** Conta já cadastrada com o nome da corretora, ou o nome da corretora. */
 function suggestAccount(broker: string, accounts: Account[]): string {
   const b = broker.toLowerCase();
-  return accounts.find((a) => a.name.toLowerCase() === b)?.name ?? accounts.find((a) => a.name.toLowerCase().includes(b))?.name ?? broker;
+  const names = [b, ...(ALIASES[b] ?? [])];
+  return (
+    accounts.find((a) => a.name.toLowerCase() === b)?.name ??
+    accounts.find((a) => names.some((n) => a.name.toLowerCase().includes(n)))?.name ??
+    broker
+  );
+}
+
+/** Taxa digitada ("10,69", "10.69", "US$ 10,69") → "10.69"; `null` se inválida. */
+function typedFee(text: string): string | null {
+  const s = text.replace(/US\$|\$|\s/g, "");
+  if (!s) return "0";
+  const v = s.includes(",") ? brNumber(s) : usNumber(s);
+  return v && !v.startsWith("-") ? v : null;
 }
 
 /** Motivo que impede a nota de ser importada; `null` quando pode. */
@@ -38,6 +57,7 @@ function blocker(it: Item): string | null {
   if (!it.note.check.ok) return "Os totais da nota não conferem.";
   if (!it.include.some(Boolean)) return "Nenhuma linha marcada.";
   if (it.include.some((inc, i) => inc && !it.tickers[i].trim())) return "Falta o código de algum ativo.";
+  if (it.note.feesEditable && it.include.some((inc, i) => inc && typedFee(it.fees[i]) === null)) return "Alguma taxa digitada não é um valor válido.";
   return null;
 }
 
@@ -81,6 +101,7 @@ export default function ImportNotes({ onImported }: { onImported: () => void }) 
           imported: status[i]?.imported ?? false,
           include: note.lines.map((l) => !l.skip),
           tickers,
+          fees: note.lines.map((l) => toCashMask(l.fees, 2, "USD").text),
         };
       });
       const account = suggestAccount(notes[0]?.broker ?? "", accounts);
@@ -132,7 +153,7 @@ export default function ImportNotes({ onImported }: { onImported: () => void }) 
           side: l.side,
           quantity: l.quantity,
           price: l.price,
-          manual_fees: l.fees,
+          manual_fees: it.note.feesEditable ? typedFee(it.fees[i]) ?? l.fees : l.fees,
           note: `${it.note.number ? `Nota ${it.note.number}` : "Confirmação"} de ${date(it.note.date)} (${it.note.broker}): ${l.title}`,
           currency: it.note.currency,
           from_account: null,
@@ -165,7 +186,7 @@ export default function ImportNotes({ onImported }: { onImported: () => void }) 
   return (
     <section className="import">
       <h2>Importar notas de corretagem</h2>
-      <Intro more="Aceita notas da Itaú, Nubank e outras no padrão da B3, e confirmações da Nomad. Antes de gravar, o aplicativo confere os totais de cada nota e não importa a mesma nota duas vezes.">
+      <Intro more="Aceita notas da Itaú, Nubank e outras no padrão da B3, e confirmações da Nomad e da Interactive Brokers. Antes de gravar, o aplicativo confere os totais de cada nota e não importa a mesma nota duas vezes.">
         Escolha um ou mais PDFs de notas. Eles são lidos aqui no computador e não vão para lugar nenhum.
       </Intro>
       <label className="file-pick">
@@ -301,14 +322,27 @@ function NoteCard({ it, onChange }: { it: Item; onChange: (fn: (it: Item) => Ite
                 </td>
                 <td className="muted small">
                   {l.title}
-                  {l.market === "FRACIONARIO" ? " · fracionário" : l.market !== "VISTA" && l.market !== "EUA" ? ` · ${l.market.toLowerCase()}` : ""}
+                  {l.market === "FRACIONARIO" ? " · fracionário" : l.market === "Londres" ? " · Bolsa de Londres" : l.market !== "VISTA" && l.market !== "EUA" ? ` · ${l.market.toLowerCase()}` : ""}
                   {l.dayTrade ? " · day trade" : ""}
                   {l.skip && <div className="warning-text">{l.skip}</div>}
                 </td>
                 <td className="num">{quantity(l.quantity)}</td>
                 <td className="num">{price(l.price, cur)}</td>
                 <td className="num">{money(l.value, cur)}</td>
-                <td className="num">{money(l.fees, cur)}</td>
+                <td className="num">
+                  {n.feesEditable && !it.imported ? (
+                    <input
+                      className={`fee-input${typedFee(it.fees[i]) === null ? " missing" : ""}`}
+                      inputMode="decimal"
+                      aria-label="Taxas desta ordem, em dólar"
+                      value={it.fees[i]}
+                      onChange={(e) => onChange((x) => ({ ...x, fees: x.fees.map((v, j) => (j === i ? cashTyping(e.target.value, v, 2, "USD") : v)) }))}
+                      onBlur={() => onChange((x) => ({ ...x, fees: x.fees.map((v, j) => (j === i ? cashMask(v, 2, "USD") : v)) }))}
+                    />
+                  ) : (
+                    money(it.note.feesEditable ? typedFee(it.fees[i]) ?? l.fees : l.fees, cur)
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

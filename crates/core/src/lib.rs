@@ -4,6 +4,7 @@
 pub mod benchmark;
 pub mod corporate;
 pub mod crypto;
+pub mod etf_textos;
 pub mod fees;
 pub mod fixed_curve;
 pub mod format;

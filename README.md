@@ -27,8 +27,12 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   Lançamentos (com os filtros escolhidos) viram uma planilha .xlsx, gravada
   onde você escolher.
 - **Home broker:** procure qualquer ativo da B3, dos EUA, cripto ou ETF de
-  Londres cotado em dólar (como o CSPX) e veja o gráfico, mesmo sem ter o
-  ativo.
+  Londres cotado em dólar (como o CSPX) e veja, mesmo sem ter o ativo, o
+  gráfico, a rentabilidade de 1 mês a 10 anos (em dólar, em reais e
+  descontada a inflação), quanto teria rendido um valor comparado com CDI,
+  Ibovespa, S&P 500, dólar e IPCA, os proventos pagos e o "Sobre": texto em
+  português, atividade e setor das empresas da B3, e a composição e a taxa
+  dos ETFs do exterior.
 - **Ganho de cada compra:** na página do ativo e na Evolução (na setinha ▸ de
   cada ativo), cada compra que ainda está na carteira mostra o custo com
   taxas, o valor e o ganho desde a compra (nas vendas, as compras mais antigas
@@ -88,7 +92,7 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Menos digitação:** importa os extratos da B3 (todas as corretoras de uma
   vez): o de negociação traz as compras e vendas, e o de movimentação traz os
   dividendos, JCP e rendimentos, as bonificações e os desdobramentos. Lê também
-  notas em PDF no padrão SINACOR e confirmações da Nomad, ou uma planilha CSV. Cotações, PTAX, cotas de fundos (CVM) e preços do
+  notas em PDF no padrão SINACOR e confirmações da Nomad e da Interactive Brokers, ou uma planilha CSV. Cotações, PTAX, cotas de fundos (CVM) e preços do
   Tesouro são buscados automaticamente.
 - **Seus dados ficam com você:** tudo roda localmente, num banco criptografado
   pela sua senha. Nenhum servidor, nenhuma conta, nenhum custo. O app faz um
