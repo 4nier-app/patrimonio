@@ -277,7 +277,7 @@ export default function AssetInsights({ ticker, name, onOpen }: { ticker: string
                   </>
                 )}
               </dl>
-              <p className="muted small">
+              <p className="muted small about-ficha">
                 Lista da Bolsa de Londres{a.listing.list_date ? ` de ${date(a.listing.list_date)}` : ""}. O app baixa a lista nova
                 uma vez por mês; o que mudou depois dessa data ainda não aparece aqui.
               </p>

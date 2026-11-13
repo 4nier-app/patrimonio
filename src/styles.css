@@ -826,7 +826,9 @@ p.pos, strong.pos { color: var(--ok); }
 .track .fill { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
 .sim-bar.me .fill { background: var(--text); }
 .about-text { margin: 0 0 6px; line-height: 1.55; max-width: 70ch; }
-.about-facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 12px 0 0; }
+.about-facts { display: grid; grid-template-columns: 11rem 1fr; gap: 4px 16px; margin: 12px 0 0; }
+.about-facts + .muted.small { margin-top: 8px; }
+.about-ficha { margin-bottom: 16px; }
 .about-facts dt { color: var(--muted); }
 .about-facts dd { margin: 0; }
-@media (max-width: 560px) { .sim-bar, .sector-bar { grid-template-columns: 80px 1fr 110px; } }
+@media (max-width: 560px) { .sim-bar, .sector-bar { grid-template-columns: 80px 1fr 110px; } .about-facts { grid-template-columns: 8rem 1fr; } }
