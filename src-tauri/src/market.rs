@@ -18,7 +18,7 @@ use carteira_core::crypto;
 use carteira_core::fund;
 use carteira_core::model::{Side, BRL};
 use carteira_core::operations::Operation;
-use carteira_providers::{cotahist, cvm, nasdaq, ptax, sgs, tesouro, yahoo, ProviderError};
+use carteira_providers::{cotahist, cvm, lse, nasdaq, ptax, sgs, tesouro, yahoo, ProviderError};
 use carteira_storage::{Asset, NewFxRate, NewQuote, Vault, USD_BRL_COMMERCIAL};
 use chrono::{Datelike, Duration, NaiveDate};
 use rust_decimal::Decimal;
@@ -26,7 +26,10 @@ use serde::Serialize;
 
 pub const CATALOG_SOURCE: &str = "B3-CATALOGO";
 pub const US_CATALOG_SOURCE: &str = "EUA-CATALOGO";
+pub const LSE_CATALOG_SOURCE: &str = "LSE-CATALOGO";
 const CATALOG_MAX_AGE_DAYS: i64 = 7;
+/// A Bolsa de Londres publica a lista uma vez por mês (planilha de ~9 MB).
+const LSE_MAX_AGE_DAYS: i64 = 15;
 
 /// Acesso à rede, substituível nos testes.
 pub trait Fetcher {
@@ -42,6 +45,10 @@ pub trait Fetcher {
         to: NaiveDate,
     ) -> Result<Vec<(NaiveDate, Decimal)>, ProviderError>;
     fn us_catalog(&self) -> Result<Vec<nasdaq::Listing>, ProviderError>;
+    /// Lista mensal da Bolsa de Londres (ETFs, ETCs e ETNs em dólar).
+    fn lse_catalog(&self) -> Result<lse::List, ProviderError> {
+        Err(ProviderError::NotFound("lista da Bolsa de Londres".into()))
+    }
     /// Dólar comercial (reais por dólar), para o valor de resgate.
     fn commercial_dollar(
         &self,
@@ -151,6 +158,9 @@ impl Fetcher for Internet {
     }
     fn us_catalog(&self) -> Result<Vec<nasdaq::Listing>, ProviderError> {
         nasdaq::fetch_all()
+    }
+    fn lse_catalog(&self) -> Result<lse::List, ProviderError> {
+        lse::fetch()
     }
     fn ptax(&self, from: NaiveDate, to: NaiveDate) -> Result<Vec<ptax::Ptax>, ProviderError> {
         ptax::fetch(from, to)
@@ -352,6 +362,113 @@ fn update_commercial_dollar(
     }
 }
 
+const LSE_LABEL: &str = "Lista da Bolsa de Londres (ETFs em dólar)";
+
+/// Baixa a lista da Bolsa de Londres quando falta ou passou de 15 dias.
+fn update_lse(
+    vault: Shared,
+    fetcher: &dyn Fetcher,
+    today: NaiveDate,
+) -> Result<UpdateLine, String> {
+    let (count, last) = with(vault, |v| {
+        let e = |e: carteira_storage::VaultError| e.to_string();
+        Ok((
+            v.lse_count().map_err(e)?,
+            v.last_successful_update(LSE_CATALOG_SOURCE, None)
+                .map_err(e)?,
+        ))
+    })?;
+    let last_date = last
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|d| d.date_naive());
+    let fresh = count > 0 && last_date.is_some_and(|d| (today - d).num_days() < LSE_MAX_AGE_DAYS);
+    if fresh {
+        let list_date = with(vault, |v| {
+            Ok(v.lse_listing("CSPX.L")
+                .map_err(|e| e.to_string())?
+                .and_then(|l| l.list_date))
+        })?;
+        return Ok(UpdateLine {
+            source: LSE_LABEL.into(),
+            ok: true,
+            message: format!(
+                "em dia: {count} ativos{}",
+                list_date
+                    .as_deref()
+                    .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+                    .map(|d| format!(", lista de {}", d.format("%d/%m/%Y")))
+                    .unwrap_or_default()
+            ),
+        });
+    }
+    match fetcher.lse_catalog() {
+        Ok(list) if !list.items.is_empty() => {
+            let as_of = list.as_of.map(|d| d.to_string());
+            let rows: Vec<carteira_storage::LseListing> = list
+                .items
+                .iter()
+                .map(|l| carteira_storage::LseListing {
+                    ticker: l.ticker.clone(),
+                    issuer: l.issuer.clone(),
+                    name: l.name.clone(),
+                    isin: l.isin.clone(),
+                    country: l.country.clone(),
+                    kind: l.kind.code().into(),
+                    start_date: l.start.map(|d| d.to_string()),
+                    list_date: as_of.clone(),
+                })
+                .collect();
+            let msg = format!(
+                "{} ETFs, ETCs e ETNs em dólar{}",
+                rows.len(),
+                list.as_of
+                    .map(|d| format!(", lista de {}", d.format("%d/%m/%Y")))
+                    .unwrap_or_default()
+            );
+            with(vault, |v| {
+                let e = |e: carteira_storage::VaultError| e.to_string();
+                v.replace_lse_listings(&rows).map_err(e)?;
+                v.record_quote_update(
+                    LSE_CATALOG_SOURCE,
+                    as_of.as_deref(),
+                    true,
+                    rows.len() as i64,
+                    &msg,
+                )
+                .map_err(e)
+            })?;
+            Ok(UpdateLine {
+                source: LSE_LABEL.into(),
+                ok: true,
+                message: msg,
+            })
+        }
+        Ok(_) => Ok(UpdateLine {
+            source: LSE_LABEL.into(),
+            ok: false,
+            message: "a lista veio sem nenhum ativo em dólar; o app segue com a lista anterior"
+                .into(),
+        }),
+        Err(e) => {
+            let msg = describe(&e);
+            with(vault, |v| {
+                v.record_quote_update(LSE_CATALOG_SOURCE, None, false, 0, &msg)
+                    .map_err(|e| e.to_string())
+            })?;
+            Ok(UpdateLine {
+                source: LSE_LABEL.into(),
+                ok: count > 0,
+                message: if count > 0 {
+                    format!("não deu para baixar a lista nova ({msg}); o app segue com a anterior")
+                } else {
+                    msg
+                },
+            })
+        }
+    }
+}
+
 pub fn update_all(
     vault: Shared,
     fetcher: &dyn Fetcher,
@@ -539,6 +656,9 @@ pub fn update_all(
             }
         }
     }
+
+    // 1c. Lista da Bolsa de Londres (ETFs, ETCs e ETNs em dólar).
+    report.push(update_lse(vault, fetcher, today)?);
 
     // 2. Meses encerrados: arquivo mensal oficial, uma vez por mês.
     let current = (today.year(), today.month());
@@ -1409,6 +1529,20 @@ mod tests {
                 })
                 .collect())
         }
+        fn lse_catalog(&self) -> Result<lse::List, ProviderError> {
+            Ok(lse::List {
+                as_of: NaiveDate::from_ymd_opt(2026, 10, 31),
+                items: vec![lse::Listing {
+                    ticker: "CSPX.L".into(),
+                    issuer: "EMISSORA TESTE".into(),
+                    name: "FUNDO TESTE S&P 500 (ACC)".into(),
+                    isin: "IE0000000001".into(),
+                    country: "Ireland".into(),
+                    kind: lse::Kind::Etf,
+                    start: None,
+                }],
+            })
+        }
         fn sgs(
             &self,
             _code: u32,
@@ -1756,7 +1890,11 @@ mod tests {
         };
         let line = fundos(NaiveDate::from_ymd_opt(2026, 11, 3).unwrap());
         assert!(line.ok, "{line:?}");
-        assert!(line.message.contains("11/2026 ainda não publicado pela CVM"), "{line:?}");
+        assert!(
+            line.message
+                .contains("11/2026 ainda não publicado pela CVM"),
+            "{line:?}"
+        );
         assert!(!line.message.contains("falhas"), "{line:?}");
         // Na metade do mês sem o arquivo, aí sim é falha.
         let line = fundos(NaiveDate::from_ymd_opt(2026, 11, 20).unwrap());

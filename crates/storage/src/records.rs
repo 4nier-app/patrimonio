@@ -22,6 +22,21 @@ use crate::{now_iso, Result, Vault, VaultError};
 pub const SOURCE_PRIORITY: &[&str] = &["B3-COTAHIST", "CVM", "MANUAL", "YAHOO"];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LseListing {
+    pub ticker: String,
+    pub issuer: String,
+    pub name: String,
+    pub isin: String,
+    /// País de constituição, em inglês, como na lista ("Ireland").
+    pub country: String,
+    /// ETF, ETC ou ETN.
+    pub kind: String,
+    pub start_date: Option<String>,
+    /// Data dos dados da lista ("As at"), AAAA-MM-DD.
+    pub list_date: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Asset {
     pub ticker: String,
     pub name: String,
@@ -189,8 +204,113 @@ impl Vault {
         self.upsert_assets(&coins)
     }
 
+    /// Troca a lista da Bolsa de Londres pela nova e põe os ativos no catálogo.
+    /// O nome do catálogo fica o da lista fixa do app quando o ativo está nela.
+    pub fn replace_lse_listings(&mut self, items: &[LseListing]) -> Result<usize> {
+        use carteira_core::london::{ETFS, MARKET};
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM lse_listings", [])?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT OR REPLACE INTO lse_listings
+                   (ticker, issuer, name, isin, country, kind, start_date, list_date)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            )?;
+            for l in items {
+                stmt.execute(params![
+                    l.ticker,
+                    l.issuer,
+                    l.name,
+                    l.isin,
+                    l.country,
+                    l.kind,
+                    l.start_date,
+                    l.list_date
+                ])?;
+            }
+        }
+        tx.commit()?;
+        let assets: Vec<Asset> = items
+            .iter()
+            .map(|l| Asset {
+                ticker: l.ticker.clone(),
+                name: ETFS
+                    .iter()
+                    .find(|e| e.ticker == l.ticker)
+                    .map(|e| e.name.to_string())
+                    .unwrap_or_else(|| l.name.clone()),
+                kind: "ETF".into(),
+                market: MARKET.into(),
+                currency: USD.into(),
+                isin: Some(l.isin.clone()),
+                source: MARKET.into(),
+            })
+            .collect();
+        self.upsert_assets(&assets)
+    }
+
+    /// Ficha de um ativo de Londres, se está na lista baixada.
+    pub fn lse_listing(&self, ticker: &str) -> Result<Option<LseListing>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT ticker, issuer, name, isin, country, kind, start_date, list_date
+                 FROM lse_listings WHERE ticker = ?1",
+                [ticker.trim().to_uppercase()],
+                |r| {
+                    Ok(LseListing {
+                        ticker: r.get(0)?,
+                        issuer: r.get(1)?,
+                        name: r.get(2)?,
+                        isin: r.get(3)?,
+                        country: r.get(4)?,
+                        kind: r.get(5)?,
+                        start_date: r.get(6)?,
+                        list_date: r.get(7)?,
+                    })
+                },
+            )
+            .optional()?)
+    }
+
+    /// País de constituição (em inglês) de cada ativo da lista de Londres.
+    pub fn lse_countries(&self) -> Result<std::collections::BTreeMap<String, String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT ticker, country FROM lse_listings")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Quantas linhas tem a lista de Londres guardada.
+    pub fn lse_count(&self) -> Result<i64> {
+        Ok(self
+            .conn
+            .query_row("SELECT count(*) FROM lse_listings", [], |r| r.get(0))?)
+    }
+
     /// Coloca no catálogo os ETFs de Londres cotados em dólar.
     pub fn seed_london(&mut self) -> Result<usize> {
+        // Códigos que o app pôs no catálogo como dólar, mas que em Londres são
+        // negociados em libra (a lista oficial da bolsa mostrou). Sai do
+        // catálogo se nada usa o código.
+        for t in carteira_core::london::NOT_USD {
+            let used: i64 = self.conn.query_row(
+                "SELECT (SELECT count(*) FROM operations WHERE ticker = ?1)
+                      + (SELECT count(*) FROM incomes WHERE ticker = ?1)
+                      + (SELECT count(*) FROM corporate_events WHERE ticker = ?1)",
+                [t],
+                |r| r.get(0),
+            )?;
+            if used == 0 {
+                self.conn
+                    .execute("DELETE FROM quotes WHERE ticker = ?1", [t])?;
+                self.conn.execute(
+                    "DELETE FROM assets WHERE ticker = ?1 AND source = 'LSE'",
+                    [t],
+                )?;
+            }
+        }
         use carteira_core::london::{ETFS, MARKET};
         let etfs: Vec<Asset> = ETFS
             .iter()
@@ -474,6 +594,26 @@ impl Vault {
                 currency_name(currency)
             ))),
             Some(_) => Ok(()),
+            None if carteira_core::london::is_london(ticker) => {
+                if carteira_core::london::NOT_USD.contains(&ticker) || self.lse_count()? > 0 {
+                    return Err(bad(format!(
+                        "{ticker} não está na lista da Bolsa de Londres de ativos negociados em dólar. \
+                         Em Londres ele pode ser negociado em libra, e o app registra só as linhas em dólar"
+                    )));
+                }
+                // Lista ainda não baixada: aceita como antes, em dólar.
+                if currency != USD {
+                    return Err(bad(format!(
+                        "{ticker} é da Bolsa de Londres e entra numa conta em dólar"
+                    )));
+                }
+                self.conn.execute(
+                    "INSERT INTO assets (ticker, name, kind, market, currency, source, updated_at)
+                     VALUES (?1, '', 'ETF', ?2, 'USD', 'MANUAL', ?3)",
+                    params![ticker, carteira_core::london::MARKET, now_iso()],
+                )?;
+                Ok(())
+            }
             None => {
                 let market = if currency == USD { "US" } else { "B3" };
                 self.conn.execute(

@@ -37,14 +37,13 @@ const TEXTOS: &[(&str, &str, &str)] = &[
     ("VUSD.L", "2026-11-12", texto!("Vanguard S&P 500, linha que distribui. Segue o S&P 500, as cerca de 500 maiores empresas dos EUA.", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Paga os proventos em dinheiro, sem o imposto de 30% retido nos EUA.")),
     ("CNDX.L", "2026-11-12", texto!("iShares Nasdaq 100, da BlackRock. Segue o Nasdaq-100, as 100 maiores empresas não financeiras da bolsa Nasdaq, com peso grande de tecnologia.", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Não paga proventos: reinveste tudo no próprio fundo.")),
     ("IWDA.L", "2026-11-12", texto!("iShares Core MSCI World, da BlackRock. Segue o MSCI World: grandes e médias empresas de países desenvolvidos (EUA, Europa, Japão e outros), sem os emergentes.", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Não paga proventos: reinveste tudo no próprio fundo.")),
-    ("SSAC.L", "2026-11-12", texto!("iShares MSCI ACWI, da BlackRock. Segue o MSCI ACWI: grandes e médias empresas de países desenvolvidos e emergentes.", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Não paga proventos: reinveste tudo no próprio fundo.")),
+    ("ISAC.L", "2026-11-12", texto!("iShares MSCI ACWI, da BlackRock. Segue o MSCI ACWI: grandes e médias empresas de países desenvolvidos e emergentes.", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Não paga proventos: reinveste tudo no próprio fundo.")),
     ("VWRA.L", "2026-11-12", texto!("Vanguard FTSE All-World, linha que acumula. Segue o FTSE All-World: grandes e médias empresas do mundo todo, desenvolvidos e emergentes.", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Não paga proventos: reinveste tudo no próprio fundo.")),
     ("VWRD.L", "2026-11-12", texto!("Vanguard FTSE All-World, linha que distribui. Segue o FTSE All-World: grandes e médias empresas do mundo todo, desenvolvidos e emergentes.", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Paga os proventos em dinheiro, sem o imposto de 30% retido nos EUA.")),
     ("VHVE.L", "2026-11-12", texto!("Vanguard FTSE Developed World, linha que acumula. Segue o FTSE Developed: grandes e médias empresas de países desenvolvidos.", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Não paga proventos: reinveste tudo no próprio fundo.")),
     ("EIMI.L", "2026-11-12", texto!("iShares Core MSCI Emerging Markets IMI, da BlackRock. Segue o MSCI Emerging Markets IMI: empresas grandes, médias e pequenas de países emergentes (China, Índia, Taiwan, Brasil e outros).", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Não paga proventos: reinveste tudo no próprio fundo.")),
     ("IB01.L", "2026-11-12", texto!("iShares $ Treasury Bond 0-1yr, da BlackRock. Compra títulos do Tesouro dos EUA que vencem em até 1 ano: rende perto dos juros de curto prazo americanos.", "É um fundo da Irlanda (UCITS), negociado na Bolsa de Londres em dólar. Não paga proventos: reinveste tudo no próprio fundo.")),
     ("IGLN.L", "2026-11-12", "iShares Physical Gold, da BlackRock. Acompanha o preço do ouro: cada cota é lastreada em ouro físico guardado em cofre. É um ETC (título lastreado), emitido na Irlanda e negociado na Bolsa de Londres em dólar. Não paga proventos."),
-    ("IB1T.L", "2026-11-13", "iShares Bitcoin ETP, da BlackRock. Acompanha o preço do bitcoin: cada cota é lastreada em bitcoins guardados com um custodiante. É um ETP (título lastreado) emitido na Suíça e negociado na Bolsa de Londres em dólar. Não paga proventos."),
     // EUA.
     ("VOO", "2026-11-12", texto!("Vanguard S&P 500. Segue o S&P 500, as cerca de 500 maiores empresas dos EUA.", "É um fundo dos EUA, negociado em dólar. Os proventos chegam com 30% de imposto retido lá.")),
     ("IVV", "2026-11-12", texto!("iShares Core S&P 500, da BlackRock. Segue o S&P 500, as cerca de 500 maiores empresas dos EUA.", "É um fundo dos EUA, negociado em dólar. Os proventos chegam com 30% de imposto retido lá.")),
@@ -109,7 +108,10 @@ mod tests {
         assert_eq!(setor("outro"), None);
         // Cada texto da lista está completo e cita o que o fundo faz.
         for (k, d, v) in TEXTOS {
-            assert!(chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok(), "{k}: data {d}");
+            assert!(
+                chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok(),
+                "{k}: data {d}"
+            );
             assert!(v.len() > 60, "{k}");
             assert!(v.ends_with('.'), "{k}");
         }

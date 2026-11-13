@@ -9,6 +9,7 @@
 //! - Yahoo Finance (perfil): maiores posições dos ETFs, setores e taxa.
 //! - B3 (cadastro das empresas listadas): atividade e setor das empresas.
 //! - Nasdaq Trader: catálogo de ações e ETFs dos EUA.
+//! - Bolsa de Londres: lista mensal de ETFs, ETCs e ETNs (só os em dólar).
 //! - CVM (dados abertos): cota diária e cadastro dos fundos de investimento.
 //! - Extrato de negociação da B3 (planilha que o usuário baixa da Área do
 //!   Investidor): lido localmente, sem rede.
@@ -21,6 +22,7 @@ pub mod cotahist;
 pub mod cvm;
 pub mod github;
 pub mod http;
+pub mod lse;
 pub mod nasdaq;
 pub mod ptax;
 pub mod sgs;

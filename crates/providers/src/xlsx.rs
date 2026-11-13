@@ -1,6 +1,6 @@
-//! Leitura mínima de planilha Excel (.xlsx): só os valores da primeira aba,
-//! como texto. Basta para os extratos da Área do Investidor da B3, sem
-//! depender de biblioteca de planilhas.
+//! Leitura mínima de planilha Excel (.xlsx): os valores das abas, como texto.
+//! Basta para os extratos da Área do Investidor da B3 e para a lista de ativos
+//! da Bolsa de Londres, sem depender de biblioteca de planilhas.
 
 use std::io::{Cursor, Read};
 
@@ -105,20 +105,19 @@ fn column(reference: &str) -> usize {
         .saturating_sub(1)
 }
 
-/// Linhas da primeira aba, cada célula como texto (números como gravados no
-/// arquivo, com ponto decimal). Células vazias viram "".
-pub fn first_sheet(bytes: &[u8]) -> Result<Vec<Vec<String>>> {
-    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(fmt)?;
-    let shared: Vec<String> = match read_entry(&mut zip, "xl/sharedStrings.xml")? {
+fn shared_strings(zip: &mut zip::ZipArchive<Cursor<&[u8]>>) -> Result<Vec<String>> {
+    Ok(match read_entry(zip, "xl/sharedStrings.xml")? {
         Some(xml) => xml
             .split("<si>")
             .skip(1)
             .map(|si| texts(si.split("</si>").next().unwrap_or("")))
             .collect(),
         None => Vec::new(),
-    };
-    let sheet = read_entry(&mut zip, "xl/worksheets/sheet1.xml")?
-        .ok_or_else(|| fmt("sem a primeira aba"))?;
+    })
+}
+
+/// Linhas de uma aba (o XML de xl/worksheets/sheetN.xml).
+fn rows_of(sheet: &str, shared: &[String]) -> Vec<Vec<String>> {
     let mut rows = Vec::new();
     for row in sheet.split("<row").skip(1) {
         let row = row.split("</row>").next().unwrap_or("");
@@ -159,7 +158,70 @@ pub fn first_sheet(bytes: &[u8]) -> Result<Vec<Vec<String>>> {
         }
         rows.push(cells);
     }
-    Ok(rows)
+    rows
+}
+
+/// Linhas da primeira aba, cada célula como texto (números como gravados no
+/// arquivo, com ponto decimal). Células vazias viram "".
+pub fn first_sheet(bytes: &[u8]) -> Result<Vec<Vec<String>>> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(fmt)?;
+    let shared = shared_strings(&mut zip)?;
+    let sheet = read_entry(&mut zip, "xl/worksheets/sheet1.xml")?
+        .ok_or_else(|| fmt("sem a primeira aba"))?;
+    Ok(rows_of(&sheet, &shared))
+}
+
+/// Abas pelo nome: só as que `wanted` aceita são lidas (as outras podem ser
+/// enormes). Volta o nome e as linhas de cada uma, na ordem da planilha.
+pub fn sheets(
+    bytes: &[u8],
+    wanted: impl Fn(&str) -> bool,
+) -> Result<Vec<(String, Vec<Vec<String>>)>> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(fmt)?;
+    let workbook =
+        read_entry(&mut zip, "xl/workbook.xml")?.ok_or_else(|| fmt("sem xl/workbook.xml"))?;
+    let rels = read_entry(&mut zip, "xl/_rels/workbook.xml.rels")?.unwrap_or_default();
+    let targets: Vec<(String, String)> = rels
+        .split("<Relationship ")
+        .skip(1)
+        .filter_map(|r| {
+            let tag = format!(" {}", r.split('>').next()?);
+            Some((
+                attr(&tag, "Id")?.to_string(),
+                attr(&tag, "Target")?.to_string(),
+            ))
+        })
+        .collect();
+    let mut picked = Vec::new();
+    for (i, sheet) in workbook.split("<sheet ").skip(1).enumerate() {
+        let tag = format!(" {}", sheet.split('>').next().unwrap_or(""));
+        let name = unescape(attr(&tag, "name").unwrap_or(""));
+        if !wanted(&name) {
+            continue;
+        }
+        let path = attr(&tag, "r:id")
+            .and_then(|id| targets.iter().find(|(k, _)| k == id))
+            .map(|(_, t)| {
+                let t = t.trim_start_matches('/');
+                if t.starts_with("xl/") {
+                    t.to_string()
+                } else {
+                    format!("xl/{t}")
+                }
+            })
+            .unwrap_or_else(|| format!("xl/worksheets/sheet{}.xml", i + 1));
+        picked.push((name, path));
+    }
+    if picked.is_empty() {
+        return Ok(Vec::new());
+    }
+    let shared = shared_strings(&mut zip)?;
+    let mut out = Vec::new();
+    for (name, path) in picked {
+        let xml = read_entry(&mut zip, &path)?.ok_or_else(|| fmt(format!("sem a aba {name}")))?;
+        out.push((name, rows_of(&xml, &shared)));
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

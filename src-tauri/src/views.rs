@@ -1055,6 +1055,10 @@ pub struct TaxView {
     pub darf_code: &'static str,
     /// Saldos em 31/12 (cofrinhos, FGTS, conta): Bens e Direitos.
     pub savings_year_end: Vec<SavingsYearEnd>,
+    /// País de cada ativo de Londres para Bens e Direitos ("375 - Irlanda"),
+    /// pela lista oficial da bolsa. Ausente quando o app não conhece o país:
+    /// a tela pede para confirmar com o contador.
+    pub countries: BTreeMap<String, Option<String>>,
 }
 
 #[derive(Serialize)]
@@ -1201,7 +1205,15 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
             }
         }
     }
+    let countries = v
+        .lse_countries()
+        .map_err(s)?
+        .into_iter()
+        .filter(|(t, _)| ops.iter().any(|o| &o.operation.asset == t))
+        .map(|(t, c)| (t, carteira_core::london::pais_ir(&c).map(String::from)))
+        .collect();
     Ok(TaxView {
+        countries,
         savings_year_end,
         months,
         annual,

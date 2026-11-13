@@ -66,7 +66,7 @@ export default function AssetInsights({ ticker, name, onOpen }: { ticker: string
   const maxSim = Math.max(1, ...simItems.map((i) => 1 + Number(i.figure!.rate)));
   const divs = allDivs ? data.dividends : data.dividends.slice(0, 8);
   const a = data.about;
-  const hasAbout = a.text || a.sector || a.manager || a.expense_ratio || a.holdings.length || a.sectors.length;
+  const hasAbout = a.text || a.listing || a.sector || a.manager || a.expense_ratio || a.holdings.length || a.sectors.length;
 
   return (
     <div className="insights">
@@ -249,6 +249,39 @@ export default function AssetInsights({ ticker, name, onOpen }: { ticker: string
                 ? `${a.text_source}, escrito em ${date(a.text_date)}. Este texto não é atualizado pela internet: o fundo pode ter mudado depois dessa data.`
                 : `Fonte do texto: ${a.text_source}${a.text_date ? `, buscado em ${date(a.text_date)}` : ""}.`}
             </p>
+          )}
+          {a.listing && (
+            <>
+              <h4>Dados oficiais da Bolsa de Londres</h4>
+              <dl className="about-facts">
+                <dt>Tipo</dt>
+                <dd>{a.listing.kind}</dd>
+                <dt>Emissor</dt>
+                <dd>{a.listing.issuer}</dd>
+                <dt>Nome na bolsa</dt>
+                <dd>{a.listing.name}</dd>
+                <dt>País</dt>
+                <dd>{a.listing.country}</dd>
+                <dt>ISIN</dt>
+                <dd>{a.listing.isin}</dd>
+                {a.listing.start && (
+                  <>
+                    <dt>Negociado desde</dt>
+                    <dd>{date(a.listing.start)}</dd>
+                  </>
+                )}
+                {a.listing.income && (
+                  <>
+                    <dt>Proventos</dt>
+                    <dd>{a.listing.income}</dd>
+                  </>
+                )}
+              </dl>
+              <p className="muted small">
+                Lista da Bolsa de Londres{a.listing.list_date ? ` de ${date(a.listing.list_date)}` : ""}. O app baixa a lista nova
+                uma vez por mês; o que mudou depois dessa data ainda não aparece aqui.
+              </p>
+            </>
           )}
           {(a.sector || a.manager || a.expense_ratio || a.website) && (
             <dl className="about-facts">

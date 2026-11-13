@@ -31,8 +31,8 @@ use kdf::DataKey;
 pub use kdf::KdfParams;
 pub use notes::{NoteImport, NoteStatus, OperationOrigin};
 pub use records::{
-    normalize_ticker, Account, Asset, DarfPayment, FxTable, NewFxRate, NewQuote, PriceTable,
-    QuoteUpdate, USD_BRL, USD_BRL_COMMERCIAL,
+    normalize_ticker, Account, Asset, DarfPayment, FxTable, LseListing, NewFxRate, NewQuote,
+    PriceTable, QuoteUpdate, USD_BRL, USD_BRL_COMMERCIAL,
 };
 pub use resgate::{explain_value, fee_breakdown, total_pct, ValueFx, IOF_PCT, RESGATE};
 
