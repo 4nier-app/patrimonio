@@ -27,12 +27,14 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   Lançamentos (com os filtros escolhidos) viram uma planilha .xlsx, gravada
   onde você escolher.
 - **Home broker:** procure qualquer ativo da B3, dos EUA, cripto ou ETF de
-  Londres cotado em dólar (como o CSPX) e veja, mesmo sem ter o ativo, o
+  Londres cotado em dólar (todos os da lista oficial da Bolsa de Londres,
+  baixada todo mês) e veja, mesmo sem ter o ativo, o
   gráfico, a rentabilidade de 1 mês a 10 anos (em dólar, em reais e
   descontada a inflação), quanto teria rendido um valor comparado com CDI,
   Ibovespa, S&P 500, dólar e IPCA, os proventos pagos e o "Sobre": texto em
-  português, atividade e setor das empresas da B3, e a composição e a taxa
-  dos ETFs do exterior.
+  português (com a data em que foi escrito), atividade e setor das empresas
+  da B3, a composição e a taxa dos ETFs do exterior (com o dia da busca) e a
+  ficha oficial dos ativos de Londres.
 - **Ganho de cada compra:** na página do ativo e na Evolução (na setinha ▸ de
   cada ativo), cada compra que ainda está na carteira mostra o custo com
   taxas, o valor e o ganho desde a compra (nas vendas, as compras mais antigas
@@ -175,7 +177,8 @@ pessoal, e o autor do projeto não recebe dado de ninguém.
 
 **O que o aplicativo acessa na internet:** só dados públicos de mercado, para
 cotações e índices: B3, Banco Central (PTAX e índices), CVM (cotas de fundos),
-Tesouro Transparente, Yahoo Finance, Coinbase e Nasdaq Trader. Os pedidos levam
+Tesouro Transparente, Yahoo Finance, Coinbase, Nasdaq Trader e Bolsa de Londres
+(lista mensal de ETFs). Os pedidos levam
 apenas códigos de ativos, CNPJ de fundos e datas, nunca nome, CPF, quantidades
 ou valores. Esses sites veem só o endereço de internet do computador, como em
 qualquer acesso. Ao abrir, o aplicativo também pergunta ao GitHub qual é a

@@ -220,7 +220,7 @@ export default function Broker({ refresh, onOpen }: { refresh: number; onOpen: (
         <div>
           <h2>Home broker</h2>
           <p className="muted">
-            Procure qualquer ação, FII, ETF, BDR, ação americana, ETF de Londres em dólar ou cripto pelo código ou pelo nome e veja o gráfico, a rentabilidade de 1 mês a 10 anos, quanto teria rendido comparado com CDI, Ibovespa, S&P 500, dólar e IPCA, os proventos pagos e o "Sobre" (atividade da empresa, composição e taxa dos ETFs), mesmo sem ter o ativo na carteira.
+            Procure qualquer ação, FII, ETF, BDR, ação americana, ETF de Londres em dólar (todos os da lista oficial da bolsa) ou cripto pelo código ou pelo nome e veja o gráfico, a rentabilidade de 1 mês a 10 anos, quanto teria rendido comparado com CDI, Ibovespa, S&P 500, dólar e IPCA, os proventos pagos e o "Sobre" (atividade da empresa, composição e taxa dos ETFs, ficha oficial dos ativos de Londres), mesmo sem ter o ativo na carteira. Textos escritos pelo app mostram a data em que foram escritos; dados buscados na internet, o dia da busca.
           </p>
         </div>
       </div>

@@ -6,6 +6,35 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.34.0] - 2026-11-13
+
+### Adicionado
+- ETFs de Londres pela lista oficial da Bolsa de Londres: o app baixa a
+  lista uma vez por mês e passa a reconhecer todos os ETFs, ETCs e ETNs
+  negociados em dólar (2.094 na lista de 31/10/2026), não só os 13 de
+  antes. Na tela do ativo aparece a ficha com os dados oficiais (tipo,
+  emissor, nome na bolsa, país, ISIN, desde quando é negociado e se
+  acumula ou distribui os proventos) e a data da lista.
+- Texto "Sobre" em português de mais 79 ETFs de Londres, entre eles SPYL,
+  SPXS, SWRD, os de títulos do Tesouro americano, os de ouro e prata e os
+  de bitcoin em dólar (FBTC, BTIC, BTCW, BITC, CBTU, BTC1 e outros).
+- Data nas informações que não vêm da internet: cada texto "Sobre" mostra
+  quando foi escrito; as telas de Impostos, Telas do IR e Resumo para o
+  contador e o IOF do valor de resgate mostram quando as regras foram
+  revisadas. A composição, os setores e a taxa dos ETFs mostram o dia em
+  que foram buscados.
+
+### Corrigido
+- iShares Bitcoin ETP (IB1T.L) saiu da lista: na Bolsa de Londres ele é
+  negociado só em libra, e o app registra só as linhas em dólar (a cotação
+  saía errada). Os produtos de bitcoin em dólar de Londres estão na lista.
+- iShares MSCI ACWI: a linha em dólar é ISAC.L; SSAC.L é a linha em pence.
+- Telas do IR: o país de cada ativo de Londres vem da lista oficial
+  (Irlanda, Luxemburgo, Jersey, Alemanha, Suíça e outros), e não mais
+  sempre Irlanda.
+- Um código de Londres que não está na lista em dólar é recusado no
+  lançamento, com a explicação.
+
 ## [0.33.0] - 2026-11-13
 
 ### Adicionado
