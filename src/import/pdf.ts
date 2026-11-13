@@ -3,7 +3,7 @@
 
 import { getDocument, GlobalWorkerOptions, PasswordResponses } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { buildLines, type TextPiece } from "./lines";
+import { buildLines, pieceOf, type TextPiece } from "./lines";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -32,7 +32,7 @@ export async function pdfPages(data: Uint8Array, password?: string): Promise<str
     const pieces: TextPiece[] = [];
     for (const it of content.items) {
       if (!("str" in it)) continue;
-      pieces.push({ str: it.str, x: it.transform[4], y: it.transform[5], width: it.width, height: it.height });
+      pieces.push(pieceOf(it.str, it.transform, it.width, it.height));
     }
     pages.push(buildLines(pieces));
   }

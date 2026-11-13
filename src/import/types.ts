@@ -42,6 +42,8 @@ export type ParsedNote = {
   fees: NoteFee[];
   /** Total de taxas e custos rateado entre as linhas. */
   totalFees: string;
+  /** A taxa de cada linha pode ser digitada antes de importar (IBKR, que às vezes cobra à parte). */
+  feesEditable?: boolean;
   /** Conferência dos totais da nota; `ok = false` impede a importação. */
   check: { ok: boolean; text: string };
   warnings: string[];

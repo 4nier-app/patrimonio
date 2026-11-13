@@ -6,9 +6,18 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.33.0] - 2026-11-12
+## [0.33.0] - 2026-11-13
 
 ### Adicionado
+- Importar notas: lê a confirmação de negociação da Interactive Brokers
+  (em português ou inglês). Os ETFs de Londres viram o código com ".L"
+  (CSPX.L) e o app confere quantidade × preço e o total de cada ativo.
+  Quando a corretagem vem zerada na confirmação (a IBKR às vezes cobra à
+  parte, no extrato do dia), o app avisa e deixa digitar a taxa de cada
+  ordem antes de importar. Gerar a mesma confirmação de novo, já com a
+  corretagem, não importa a nota duas vezes.
+- iShares Bitcoin ETP (IB1T.L) no catálogo dos ETFs de Londres, com o país
+  "767 - Suíça" nas Telas do IR, onde ele é emitido.
 - Home broker: ao abrir um ativo, a tela mostra muito mais informações, com
   cada número calculado na hora a partir de fontes gratuitas:
   - Resumo: cotação, variação em 12 meses (nos ativos em dólar, também em
@@ -39,8 +48,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   Lançamentos com o final ".L" (CSPX.L) e a etiqueta "ETF Londres", e podem
   ser lançados em qualquer conta em dólar, seja qual for a corretora. A
   cotação vem em dólar e vai para reais pela PTAX, como os ativos dos EUA.
-  Um ETF de Londres que não está na lista pode ser digitado com o ".L"
-  (ex.: IB1T.L), desde que a linha seja a cotada em dólar.
+  Um ETF de Londres que não está na lista pode ser digitado com o ".L",
+  desde que a linha seja a cotada em dólar.
 - Impostos › Telas do IR: em Bens e Direitos, o país dos ETFs de Londres é
   "375 - Irlanda", onde esses fundos ficam; os outros ativos do exterior
   continuam "249 - Estados Unidos".

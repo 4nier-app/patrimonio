@@ -92,7 +92,7 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Menos digitação:** importa os extratos da B3 (todas as corretoras de uma
   vez): o de negociação traz as compras e vendas, e o de movimentação traz os
   dividendos, JCP e rendimentos, as bonificações e os desdobramentos. Lê também
-  notas em PDF no padrão SINACOR e confirmações da Nomad, ou uma planilha CSV. Cotações, PTAX, cotas de fundos (CVM) e preços do
+  notas em PDF no padrão SINACOR e confirmações da Nomad e da Interactive Brokers, ou uma planilha CSV. Cotações, PTAX, cotas de fundos (CVM) e preços do
   Tesouro são buscados automaticamente.
 - **Seus dados ficam com você:** tudo roda localmente, num banco criptografado
   pela sua senha. Nenhum servidor, nenhuma conta, nenhum custo. O app faz um

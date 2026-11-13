@@ -251,3 +251,77 @@ describe("Nomad", () => {
     expect(() => readNotes([["Extrato mensal", "Saldo  R$ 10,00"]])).toThrow(/nota de corretagem/);
   });
 });
+
+// Confirmação da Interactive Brokers SINTÉTICA (conta, códigos e valores
+// inventados), no layout em português, já com as linhas na ordem de leitura.
+const ibkrPt = [
+  [
+    "Relatório de confirmação de negociação",
+    "January 5, 2026",
+    "Interactive Brokers LLC, Two Pickwick Plaza, Greenwich, CT 06830",
+    "Operações",
+    "ID da conta  Símbolo  Data de liquidação  Mercado  Tipo  Quantidade  Preço  Rendimentos  Corret.  Taxa  Código",
+    "Ações",
+    "USD",
+    "U0000001  ABCD  2026-01-05, 08:00:00  2026-01-07  -  BUY  10  100.5  -1,005.00  -1.50  0.00  LMT  O",
+    "U0000001  ABCD  2026-01-05, 08:00:00  2026-01-07  EXCHA  BUY  4  100.5  -402.00  -1.50  0.00  LMT  O",
+    "U0000001  ABCD  2026-01-05, 08:00:01  2026-01-07  EXCHB  BUY  6  100.5  -603.00  0.00  0.00  LMT  O",
+    "Total ABCD (Comprado)  10  100.5  -1,005.00  -1.50  0.00",
+    "U0000001  WXYZ  2026-01-05, 10:00:00  2026-01-06  NASDAQ  SELL  -3  50.25  150.75  -0.35  -0.01  MKT  C",
+    "Total WXYZ (Vendido)  -3  50.25  150.75  -0.35  -0.01",
+    "Total  -854.25  -1.86  -0.01",
+    "Informações sobre instrumento financeiro",
+    "Símbolo  Descrição  Conid  ID de segurança  Subjacente  Cotação da bolsa  Multiplicador  Tipo  Código",
+    "ABCD  FUNDO EXEMPLO UCITS  111  IE0000000001  ABCD  LSEETF  1  ETF",
+    "WXYZ  EMPRESA EXEMPLO INC  222  US0000000002  WXYZ  NASDAQ  1  COMMON",
+  ],
+];
+
+describe("Interactive Brokers", () => {
+  it("lê a ordem (não as execuções), o código de Londres e confere os totais", () => {
+    const [n] = readNotes(ibkrPt);
+    expect(n.reader).toBe("ibkr");
+    expect(n.broker).toBe("Interactive Brokers");
+    expect(n.date).toBe("2026-01-05");
+    expect(n.check.ok).toBe(true);
+    expect(n.feesEditable).toBe(true);
+    expect(n.lines).toHaveLength(2);
+    expect(n.lines[0]).toMatchObject({ side: "COMPRA", ticker: "ABCD.L", quantity: "10", price: "100.5", value: "1005.00", fees: "1.50", market: "Londres" });
+    expect(n.lines[1]).toMatchObject({ side: "VENDA", ticker: "WXYZ", quantity: "3", value: "150.75", fees: "0.36", market: "EUA" });
+    expect(n.warnings).toHaveLength(0);
+  });
+
+  it("avisa quando a corretagem vem zerada e a mesma confirmação refeita é a mesma nota", () => {
+    const zerada = [ibkrPt[0].map((l) => l.replace("-1.50  0.00  LMT", "0.00  0.00  LMT"))];
+    const [z] = readNotes(zerada);
+    expect(z.lines[0].fees).toBe("0.00");
+    expect(z.warnings[0]).toMatch(/corretagem veio zerada/);
+    expect(z.identity).toBe(readNotes(ibkrPt)[0].identity);
+  });
+
+  it("não confunde com outras confirmações e desmarca bolsas que o app não acompanha", () => {
+    const outra = [ibkrPt[0].map((l) => l.replace("LSEETF", "IBIS2"))];
+    const [o] = readNotes(outra);
+    expect(o.lines[0].skip).toMatch(/IBIS2/);
+    const gbp = [ibkrPt[0].map((l) => (l === "USD" ? "GBP" : l))];
+    expect(readNotes(gbp)[0].lines[0].skip).toMatch(/GBP/);
+  });
+
+  it("acusa diferença entre as ordens e o total do ativo", () => {
+    const errada = [ibkrPt[0].map((l) => l.replace("Total ABCD (Comprado)  10  100.5  -1,005.00", "Total ABCD (Comprado)  10  100.5  -1,006.00"))];
+    expect(readNotes(errada)[0].check.ok).toBe(false);
+  });
+});
+
+describe("texto girado (páginas deitadas)", () => {
+  it("põe o texto girado 90° na ordem de leitura", async () => {
+    const { pieceOf } = await import("./lines");
+    const pieces = [
+      pieceOf("Símbolo", [0, 7, -7, 0, 100, 40], 26, 7),
+      pieceOf("Preço", [0, 7, -7, 0, 100, 200], 18, 7),
+      pieceOf("ABCD", [0, 7, -7, 0, 111, 40], 19, 7),
+      pieceOf("10.5", [0, 7, -7, 0, 111, 200], 14, 7),
+    ];
+    expect(buildLines(pieces)).toEqual(["Símbolo  Preço", "ABCD  10.5"]);
+  });
+});

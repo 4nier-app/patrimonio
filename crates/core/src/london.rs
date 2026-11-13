@@ -36,6 +36,7 @@ pub const ETFS: &[Etf] = &[
         "iShares $ Treasury Bond 0-1yr UCITS ETF USD (Acc)",
     ),
     etf("IGLN.L", "iShares Physical Gold ETC (USD)"),
+    etf("IB1T.L", "iShares Bitcoin ETP (USD)"),
 ];
 
 /// Código de Londres: termina em ".L".

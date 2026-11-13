@@ -4,6 +4,20 @@
 
 export type TextPiece = { str: string; x: number; y: number; width: number; height: number };
 
+/**
+ * Pedaço de texto do pdf.js na orientação de leitura. Páginas deitadas (a
+ * confirmação da IBKR) escrevem o texto girado 90°: a linha avança no eixo y
+ * da página e as linhas se sucedem no eixo x.
+ */
+export function pieceOf(str: string, transform: number[], width: number, height: number): TextPiece {
+  const [a, b, , , e, f] = transform;
+  if (Math.abs(a) < 0.01 && Math.abs(b) > 0.01) {
+    const h = height || Math.abs(b);
+    return b > 0 ? { str, x: f, y: -e, width, height: h } : { str, x: -f, y: e, width, height: h };
+  }
+  return { str, x: e, y: f, width, height };
+}
+
 /** Linhas da página, de cima para baixo. */
 export function buildLines(pieces: TextPiece[]): string[] {
   const items = pieces.filter((p) => p.str.trim() !== "");
