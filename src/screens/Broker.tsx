@@ -171,6 +171,7 @@ const KIND: Record<string, string> = {
 
 function kindLabel(a: Asset): string {
   if (a.kind === "ACAO" && a.currency === "USD") return "Ação EUA";
+  if (a.market === "LSE") return "ETF Londres";
   return KIND[a.kind] ?? a.kind;
 }
 
@@ -219,7 +220,7 @@ export default function Broker({ refresh, onOpen }: { refresh: number; onOpen: (
         <div>
           <h2>Home broker</h2>
           <p className="muted">
-            Procure qualquer ação, FII, ETF, BDR, ação americana ou cripto pelo código ou pelo nome e veja o gráfico, mesmo sem ter o ativo na carteira.
+            Procure qualquer ação, FII, ETF, BDR, ação americana, ETF de Londres em dólar ou cripto pelo código ou pelo nome e veja o gráfico, mesmo sem ter o ativo na carteira.
           </p>
         </div>
       </div>
@@ -230,7 +231,7 @@ export default function Broker({ refresh, onOpen }: { refresh: number; onOpen: (
           <input
             autoFocus
             type="search"
-            placeholder="Ex.: PETR4, IVVB11, AAPL, BTC ou o nome da empresa"
+            placeholder="Ex.: PETR4, IVVB11, AAPL, CSPX, BTC ou o nome da empresa"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {

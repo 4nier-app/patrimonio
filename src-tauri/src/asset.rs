@@ -25,6 +25,8 @@ pub enum Venue {
     B3,
     /// Bolsas dos EUA: quase em tempo real no Yahoo.
     Us,
+    /// Bolsa de Londres (ETFs em dólar): pelo Yahoo, como os dos EUA.
+    Lse,
     /// Criptomoedas: tempo real pela Coinbase.
     Cripto,
     /// Fundos: uma cota por dia, pela CVM.
@@ -47,6 +49,8 @@ fn venue_of(ticker: &str, currency: &str) -> Venue {
         Venue::Tesouro
     } else if crypto::is_crypto(ticker) {
         Venue::Cripto
+    } else if carteira_core::london::is_london(ticker) {
+        Venue::Lse
     } else if currency == USD {
         Venue::Us
     } else {
@@ -287,7 +291,7 @@ fn yahoo_interval<'a>(period: &str, interval: &'a str) -> &'a str {
 fn yahoo_symbol(detail: &AssetDetail) -> String {
     match detail.venue {
         Venue::B3 => yahoo::b3_symbol(&detail.ticker),
-        Venue::Us => yahoo::us_symbol(&detail.ticker),
+        Venue::Us | Venue::Lse => yahoo::us_symbol(&detail.ticker),
         Venue::Cripto => crypto::yahoo_symbol(&detail.ticker),
         Venue::Fundo | Venue::Tesouro => detail.ticker.clone(),
     }

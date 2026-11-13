@@ -220,7 +220,9 @@ export function projection(
     let perShare = 0;
     for (const [d, ps] of list) {
       const gross = Number(ps) * h.quantity;
-      const v = h.currency === "USD" ? gross * (1 - US_WITHHOLDING) * (usdRate ?? 0) : gross;
+      // Os ETFs de Londres (fundos irlandeses) não retêm imposto na distribuição.
+      const tax = /\.L$/.test(h.asset) ? 0 : US_WITHHOLDING;
+      const v = h.currency === "USD" ? gross * (1 - tax) * (usdRate ?? 0) : gross;
       values[slot(d)] += v;
       projected += v;
       perShare += Number(ps);

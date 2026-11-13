@@ -303,6 +303,11 @@ export type Bem = {
   profit: number | null;
 };
 
+/** País do ativo no exterior: os ETFs de Londres (UCITS) são fundos da Irlanda. */
+export function countryOf(asset: string): string {
+  return /\.L$/.test(asset) ? "375 - Irlanda" : "249 - Estados Unidos";
+}
+
 const B3_KINDS = ["ACAO", "FII", "ETF", "ETF_RF", "BDR", "FI_INFRA"];
 
 export function bens(
@@ -341,7 +346,7 @@ export function bens(
       before: n(b?.cost_brl),
       after: n(a?.cost_brl),
       ticker: !usd && B3_KINDS.includes(kind ?? "") ? asset : null,
-      country: usd && kind !== "CRIPTO" ? "249 - Estados Unidos" : null,
+      country: usd && kind !== "CRIPTO" ? countryOf(asset) : null,
       profit: profit.has(asset) ? profit.get(asset)! : usd && kind !== "CRIPTO" ? 0 : null,
     });
   }

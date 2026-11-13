@@ -646,7 +646,8 @@ export default function Operations({ onChanged }: { onChanged: () => void }) {
               <>
                 Na B3, as taxas (liquidação, emolumentos e transferência) são calculadas sobre o total da nota, ou seja, de todos os lançamentos da
                 mesma corretora no mesmo dia, e divididas entre eles. Se a nota trouxer outro valor, informe a taxa à mão. No exterior os valores são em
-                dólar e a conversão para reais usa a PTAX do Banco Central. Fundos de investimento são lançados pelo extrato do banco, em cotas.
+                dólar e a conversão para reais usa a PTAX do Banco Central; isso vale também para os ETFs de Londres cotados em dólar (como o CSPX.L),
+                em qualquer corretora. A comissão da corretora (na Interactive Brokers, por exemplo) vai no campo de taxas, em dólar. Fundos de investimento são lançados pelo extrato do banco, em cotas.
                 Abaixo de cada operação aparece de onde ela veio: da nota de corretagem, da planilha da B3 ou digitada; e se foi alterada depois
                 da importação (o antes e o depois ficam em Segurança › Auditoria). “Exportar para Excel” salva a lista, com os filtros escolhidos,
                 numa planilha (.xlsx) onde você indicar; o arquivo é gravado só no seu computador.

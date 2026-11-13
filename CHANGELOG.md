@@ -6,6 +6,24 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.32.0] - 2026-11-12
+
+### Adicionado
+- ETFs da bolsa de Londres cotados em dólar (como CSPX, VUAA, CNDX, IWDA,
+  VWRA, EIMI e IGLN), os ETFs irlandeses vendidos em corretoras como a
+  Interactive Brokers. Eles aparecem no Home broker e na busca dos
+  Lançamentos com o final ".L" (CSPX.L) e a etiqueta "ETF Londres", e podem
+  ser lançados em qualquer conta em dólar, seja qual for a corretora. A
+  cotação vem em dólar e vai para reais pela PTAX, como os ativos dos EUA.
+  Um ETF de Londres que não está na lista pode ser digitado com o ".L"
+  (ex.: IB1T.L), desde que a linha seja a cotada em dólar.
+- Impostos › Telas do IR: em Bens e Direitos, o país dos ETFs de Londres é
+  "375 - Irlanda", onde esses fundos ficam; os outros ativos do exterior
+  continuam "249 - Estados Unidos".
+- Proventos: nos ETFs de Londres que distribuem, a previsão e as sugestões
+  não descontam os 30% retidos nos EUA, porque essa retenção não existe
+  neles.
+
 ## [0.31.0] - 2026-11-11
 
 ### Adicionado

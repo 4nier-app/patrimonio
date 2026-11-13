@@ -360,6 +360,7 @@ pub fn update_all(
     let mut report = Vec::new();
     with(vault, |v| {
         v.seed_crypto().map(|_| ()).map_err(|e| e.to_string())?;
+        v.seed_london().map(|_| ()).map_err(|e| e.to_string())?;
         v.reclassify_listed().map(|_| ()).map_err(|e| e.to_string())
     })?;
 

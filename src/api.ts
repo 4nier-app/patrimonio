@@ -588,7 +588,7 @@ export const taxApi = {
 
 // ---------- página do ativo ----------
 
-export type Venue = "B3" | "US" | "CRIPTO" | "FUNDO" | "TESOURO";
+export type Venue = "B3" | "US" | "LSE" | "CRIPTO" | "FUNDO" | "TESOURO";
 export type AverageStep = { date: string; quantity: Dec; average_price: Dec };
 export type DailyClose = { date: string; close: Dec; source: string };
 export type AssetDetail = {
