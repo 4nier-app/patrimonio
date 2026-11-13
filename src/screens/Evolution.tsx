@@ -580,7 +580,7 @@ export default function Evolution() {
                                               const usd = !!r.usd?.length;
                                               const v = usd ? r.usd[i] : r.values[i];
                                               const c = usd ? "USD" : "BRL";
-                                              return v == null ? "" : Number(v) === 0 ? cashZero(2, c) : toCashMask(v, 2, c).text;
+                                              return v == null ? "" : Number(v) === 0 ? cashZero(2, c) : toCashMask(Number(v).toFixed(2), 2, c).text;
                                             })(),
                                             month: c.kind === "MONTH",
                                             currency: r.usd?.length ? "USD" : "BRL",

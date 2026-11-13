@@ -39,6 +39,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
     só os dados.
   Cada parte busca a própria fonte e some sozinha quando ela não responde.
 
+### Corrigido
+- Evolução: ao reabrir o saldo de uma conta em dólar, o valor aparecia com
+  muitas casas (US$ 368,6399999...). Agora aparece com os centavos, como foi
+  digitado.
+
 ## [0.32.0] - 2026-11-12
 
 ### Adicionado
