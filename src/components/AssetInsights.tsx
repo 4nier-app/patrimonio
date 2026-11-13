@@ -243,7 +243,13 @@ export default function AssetInsights({ ticker, name, onOpen }: { ticker: string
         <div className="card">
           <h3>Sobre {name && name !== ticker ? name : ticker}</h3>
           {a.text && <p className="about-text">{a.text}</p>}
-          {a.text_source && <p className="muted small">Fonte do texto: {a.text_source}.</p>}
+          {a.text_source && (
+            <p className="muted small">
+              {a.text_fixed && a.text_date
+                ? `${a.text_source}, escrito em ${date(a.text_date)}. Este texto não é atualizado pela internet: o fundo pode ter mudado depois dessa data.`
+                : `Fonte do texto: ${a.text_source}${a.text_date ? `, buscado em ${date(a.text_date)}` : ""}.`}
+            </p>
+          )}
           {(a.sector || a.manager || a.expense_ratio || a.website) && (
             <dl className="about-facts">
               {a.sector && (
@@ -323,7 +329,8 @@ export default function AssetInsights({ ticker, name, onOpen }: { ticker: string
           )}
           {a.data_source && (
             <p className="muted small">
-              Composição, setores e taxa: {a.data_source}. O Yahoo informa só as maiores posições, não a lista completa.
+              Composição, setores e taxa: {a.data_source}{a.data_date ? `, buscados em ${date(a.data_date)}` : ""}. O Yahoo informa só as
+              maiores posições, não a lista completa.
             </p>
           )}
         </div>

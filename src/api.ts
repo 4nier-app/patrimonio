@@ -672,6 +672,8 @@ export type Insights = {
   about: {
     text: string | null;
     text_source: string | null;
+    text_date: string | null;
+    text_fixed: boolean;
     sector: string | null;
     manager: string | null;
     expense_ratio: string | null;
@@ -679,6 +681,7 @@ export type Insights = {
     holdings: { symbol: string; name: string; weight: string }[];
     sectors: { name: string; weight: string }[];
     data_source: string | null;
+    data_date: string | null;
   };
   warnings: string[];
 };

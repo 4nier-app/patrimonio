@@ -154,6 +154,11 @@ pub struct About {
     /// Texto em português e de onde veio.
     pub text: Option<String>,
     pub text_source: Option<String>,
+    /// Data do texto: quando foi escrito (textos do app, que não vêm da
+    /// internet) ou quando foi buscado (cadastro da B3).
+    pub text_date: Option<NaiveDate>,
+    /// O texto é do app (escrito à mão), não buscado agora na internet.
+    pub text_fixed: bool,
     /// Setor / subsetor / segmento (B3) ou o setor traduzido (Yahoo).
     pub sector: Option<String>,
     pub manager: Option<String>,
@@ -162,8 +167,9 @@ pub struct About {
     pub website: Option<String>,
     pub holdings: Vec<HoldingRow>,
     pub sectors: Vec<SectorWeight>,
-    /// Fonte da composição, setores e taxa.
+    /// Fonte da composição, setores e taxa, e o dia em que foram buscados.
     pub data_source: Option<String>,
+    pub data_date: Option<NaiveDate>,
 }
 
 #[derive(Debug, Serialize)]
@@ -475,14 +481,22 @@ pub fn dividend_rows(
     (rows, total, dy)
 }
 
-fn about(detail: &AssetDetail, profile: Option<Profile>, company: Option<Company>) -> About {
+fn about(
+    detail: &AssetDetail,
+    profile: Option<Profile>,
+    company: Option<Company>,
+    today: NaiveDate,
+) -> About {
     let mut a = About::default();
-    if let Some(text) = carteira_core::etf_textos::sobre(&detail.ticker) {
-        a.text = Some(text.into());
+    if let Some(s) = carteira_core::etf_textos::sobre(&detail.ticker) {
+        a.text = Some(s.texto.into());
         a.text_source = Some("Texto do 4Nier, a partir do documento da gestora".into());
+        a.text_date = NaiveDate::parse_from_str(s.revisado, "%Y-%m-%d").ok();
+        a.text_fixed = true;
     }
     if let Some(c) = company {
         if a.text.is_none() {
+            a.text_date = c.activity.as_ref().map(|_| today);
             a.text = c.activity.clone();
             a.text_source = c.activity.as_ref().map(|_| {
                 format!(
@@ -533,6 +547,7 @@ fn about(detail: &AssetDetail, profile: Option<Profile>, company: Option<Company
         }
         if has_data || a.manager.is_some() || a.sector.is_some() {
             a.data_source = Some(yahoo_perfil::SOURCE.into());
+            a.data_date = Some(today);
         }
     }
     a
@@ -678,7 +693,7 @@ pub fn build(detail: &AssetDetail, net: &dyn InsightsNet, today: NaiveDate) -> I
     } else {
         None
     };
-    out.about = about(detail, profile, company);
+    out.about = about(detail, profile, company, today);
     out.warnings = warnings;
     out
 }

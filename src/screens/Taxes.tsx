@@ -13,6 +13,7 @@ import {
   type YearEndPosition,
 } from "../api";
 import { cashMask, date, money, parseDecimalInput, percent, quantity, toCashMask, tone } from "../format";
+import { regrasRevisadas } from "../revisao";
 
 const MONTH_NAMES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
@@ -421,7 +422,7 @@ export default function Taxes({ refresh, onChanged }: { refresh: number; onChang
         <b>Estes valores são uma estimativa.</b> Eles são calculados a partir dos lançamentos que você digitou, seguindo a legislação
         como o autor do aplicativo a entende. Podem ter erros ou não considerar a sua situação. Não são orientação fiscal nem
         contábil. Antes de pagar um DARF ou entregar a declaração, confira com um contador. O uso das informações é de sua
-        responsabilidade.
+        responsabilidade. {regrasRevisadas()}
       </p>
 
       {error && <p className="error">{error}</p>}
