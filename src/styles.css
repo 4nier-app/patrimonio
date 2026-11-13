@@ -302,7 +302,7 @@ table.note-lines th, table.note-lines td { padding: 6px 8px; font-size: 0.85rem;
 table.note-lines tr.off td { opacity: 0.55; }
 .ticker-input { width: 7.5rem; text-transform: uppercase; }
 .ticker-input.missing { border-color: var(--error); }
-.fee-input { width: 6rem; text-align: right; }
+.fee-input { width: 7.5rem; text-align: right; }
 .fee-input.missing { border-color: var(--error); }
 
 /* Rentabilidade: meses em blocos que quebram linha, sem rolagem lateral. */

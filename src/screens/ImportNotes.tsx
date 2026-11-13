@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Intro from "../components/Intro";
 import { errorMessage, market, notesApi, type Account, type Operation } from "../api";
-import { date, money, price, quantity } from "../format";
+import { cashMask, cashTyping, date, money, price, quantity, toCashMask } from "../format";
 import { brNumber, usNumber } from "../import/numbers";
 import { noteHash, readNotes, UnknownLayout } from "../import";
 import { PasswordNeeded, pdfPages } from "../import/pdf";
@@ -101,7 +101,7 @@ export default function ImportNotes({ onImported }: { onImported: () => void }) 
           imported: status[i]?.imported ?? false,
           include: note.lines.map((l) => !l.skip),
           tickers,
-          fees: note.lines.map((l) => l.fees.replace(".", ",")),
+          fees: note.lines.map((l) => toCashMask(l.fees, 2, "USD").text),
         };
       });
       const account = suggestAccount(notes[0]?.broker ?? "", accounts);
@@ -322,7 +322,7 @@ function NoteCard({ it, onChange }: { it: Item; onChange: (fn: (it: Item) => Ite
                 </td>
                 <td className="muted small">
                   {l.title}
-                  {l.market === "FRACIONARIO" ? " · fracionário" : l.market !== "VISTA" && l.market !== "EUA" ? ` · ${l.market.toLowerCase()}` : ""}
+                  {l.market === "FRACIONARIO" ? " · fracionário" : l.market === "Londres" ? " · Bolsa de Londres" : l.market !== "VISTA" && l.market !== "EUA" ? ` · ${l.market.toLowerCase()}` : ""}
                   {l.dayTrade ? " · day trade" : ""}
                   {l.skip && <div className="warning-text">{l.skip}</div>}
                 </td>
@@ -336,7 +336,8 @@ function NoteCard({ it, onChange }: { it: Item; onChange: (fn: (it: Item) => Ite
                       inputMode="decimal"
                       aria-label="Taxas desta ordem, em dólar"
                       value={it.fees[i]}
-                      onChange={(e) => onChange((x) => ({ ...x, fees: x.fees.map((v, j) => (j === i ? e.target.value : v)) }))}
+                      onChange={(e) => onChange((x) => ({ ...x, fees: x.fees.map((v, j) => (j === i ? cashTyping(e.target.value, v, 2, "USD") : v)) }))}
+                      onBlur={() => onChange((x) => ({ ...x, fees: x.fees.map((v, j) => (j === i ? cashMask(v, 2, "USD") : v)) }))}
                     />
                   ) : (
                     money(it.note.feesEditable ? typedFee(it.fees[i]) ?? l.fees : l.fees, cur)
