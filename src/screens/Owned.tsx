@@ -232,7 +232,7 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
                   />
                 </label>
                 <label>
-                  Tipo no IR (Bens e Direitos)
+                  Tipo no IR
                   <select value={form.irCode} onChange={(e) => setForm({ ...form, irCode: e.target.value })}>
                     <option value="">Não sei / escolher depois</option>
                     {IR_TIPOS[form.kind].map((t) => (

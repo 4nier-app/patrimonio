@@ -28,6 +28,8 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 - Evolução: o rendimento do ano na linha Rendimento agora é exatamente o
   mesmo da linha Total investimentos e do Painel (antes podia diferir em
   centavos pelo arredondamento de cada mês).
+- Formulários: quando o nome de um campo ocupa duas linhas, as caixas
+  continuam alinhadas na mesma altura.
 
 ## [0.34.0] - 2026-11-13
 
