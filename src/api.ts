@@ -575,9 +575,20 @@ export type TaxView = {
   names: Record<string, string>;
   warnings: string[];
   darf_code: string;
-  savings_year_end: { year: number; name: string; account: string; kind: string; value: Dec; usd: Dec | null }[];
+  savings_year_end: {
+    year: number;
+    name: string;
+    account: string;
+    kind: string;
+    value: Dec;
+    usd: Dec | null;
+    /** Cofrinho ou renda fixa isento de IR (LCI, LCA). */
+    tax_free?: boolean;
+  }[];
   /** País de cada ativo de Londres, pela lista da bolsa (null: confirmar com o contador). */
   countries?: Record<string, string | null>;
+  /** Grupo e código de Bens e Direitos digitados pela pessoa ("07-99"), por bem. */
+  bens_codes?: Record<string, string>;
 };
 
 export const taxApi = {
@@ -586,6 +597,8 @@ export const taxApi = {
   load: () => invoke<TaxView>("taxes"),
   markPaid: (payment: DarfPayment) => invoke<void>("mark_darf_paid", { payment }),
   unmarkPaid: (month: string) => invoke<void>("unmark_darf_paid", { month }),
+  /** Grava o grupo e o código de um bem ("07-99"); null volta para a sugestão do app. */
+  saveBensCode: (key: string, code: string | null) => invoke<void>("save_bens_code", { key, code }),
 };
 
 // ---------- página do ativo ----------

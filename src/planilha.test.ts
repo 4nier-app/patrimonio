@@ -52,6 +52,12 @@ describe("planilha da Evolução", () => {
     expect(semBens.cells[6]).toEqual({ n: 0.21, f: "pct" });
   });
 
+  it("o rendimento do período é o mesmo da linha Total investimentos (sem centavos de arredondamento)", () => {
+    const v = { ...view, investments_gain: { value: "20.98", base: "100" } } as EvolutionView;
+    const rend = evolutionSheet(v, new Date(2026, 10, 11, 15, 45)).rows.find((r) => r.cells[0] === "   Rendimento")!;
+    expect(rend.cells[5]).toEqual({ n: 20.98, f: "money" });
+  });
+
   it("diz quando foi exportada", () => {
     expect(sheet.note).toContain("Exportado em 11/11/2026 15:45");
     expect(stamp(new Date(2026, 0, 2, 3, 4))).toBe("02/01/2026 03:04");

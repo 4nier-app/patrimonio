@@ -273,6 +273,14 @@ const incomes = (view: EvolutionView, pairs: Pair[]): (string | null)[] =>
     return (Number(d) - n).toFixed(2);
   });
 
+/**
+ * Rendimento do período inteiro: o mesmo resultado da linha Total
+ * investimentos e do Painel. Somar mês a mês daria centavos de diferença pelo
+ * arredondamento de cada mês.
+ */
+const periodIncome = (view: EvolutionView, steps: Pair[]): (string | null)[] =>
+  view.investments_gain ? [view.investments_gain.value] : incomes(view, steps);
+
 const gainCells = (g: EvolutionGain | null): XCell[] =>
   g ? [xMoney(g.value), Number(g.base) > 0 ? xPct(Number(g.value) / Number(g.base)) : null] : [null, null];
 
@@ -322,7 +330,7 @@ export function evolutionSheet(view: EvolutionView, now = new Date()): XSheet {
     cells: [`   ${label}`, ...inOrder(values).map((v) => xMoney(v)), sum(period), null, null, null],
   });
   rows.push({ style: "total", cells: ["Total investimentos", ...vals(view.investments), ...gainCells(view.investments_gain), ...gainCells(view.investments_since)] });
-  rows.push(flow("Rendimento", incomes(view, pairs), incomes(view, steps)));
+  rows.push(flow("Rendimento", incomes(view, pairs), periodIncome(view, steps)));
   const noOwned = withoutOwned(view);
   if (noOwned) {
     rows.push({ style: "total", cells: ["Total sem bens", ...vals(noOwned.values), ...gainCells(noOwned.gain), null, null] });
@@ -624,7 +632,7 @@ export default function Evolution() {
                     <Gain gain={view.investments_gain} strong />
                     <Gain gain={view.investments_since} strong plain />
                   </tr>
-                  <FlowRow highlight={order.findIndex((i) => cols[i].kind === "TODAY")} label="Rendimento" hint="Variação dos investimentos sem contar compras e vendas" values={inOrder(incomes(view, pairs))} total={incomes(view, steps)} />
+                  <FlowRow highlight={order.findIndex((i) => cols[i].kind === "TODAY")} label="Rendimento" hint="Variação dos investimentos sem contar compras e vendas" values={inOrder(incomes(view, pairs))} total={periodIncome(view, steps)} />
                   {noOwned ? (
                     <>
                       {/* Com bens, a variação vai no total sem eles: os bens entram pelo custo. */}

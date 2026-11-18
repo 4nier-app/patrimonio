@@ -161,8 +161,37 @@ describe("telas do IR: bens e direitos", () => {
       savings_year_end: [],
     } as unknown as TaxView;
     const b = bens(view, { TEST3: "ACAO", ETFX: "ETF" }, {}, 2026);
-    expect(b[0]).toMatchObject({ key: "ETFX", before: 1000, after: 0, country: "249 - Estados Unidos", profit: 150, group: null });
-    expect(b[1]).toMatchObject({ key: "TEST3", before: 100, after: 220, group: "03", code: "01", ticker: "TEST3", profit: null });
+    expect(b[0]).toMatchObject({ key: "ETFX", before: 1000, after: 0, country: "249 - Estados Unidos", profit: 150, group: "07", code: "99", source: "sugestao" });
+    expect(b[1]).toMatchObject({ key: "TEST3", before: 100, after: 220, group: "03", code: "01", source: "certo", ticker: "TEST3", profit: null });
+  });
+  it("o código digitado pela pessoa vale sobre a sugestão e o app guarda a sugestão", () => {
+    const view = {
+      annual: {
+        positions: { "2026": [{ asset: "ETFX", quantity: "2", cost_brl: "1000", cost_usd: "200" }] },
+        foreign: [],
+        warnings: [],
+      },
+      savings_year_end: [
+        { year: 2026, name: "Casa", account: "", kind: "Imóvel", value: "900" },
+        { year: 2026, name: "Cofrinho", account: "Banco A", kind: "Cofrinho", value: "50" },
+        { year: 2026, name: "Isento", account: "Banco A", kind: "Renda fixa", value: "70", tax_free: true },
+        { year: 2026, name: "Conta", account: "Corretora X", kind: "Saldo em dólar", value: "40", usd: "8" },
+      ],
+      bens_codes: { ETFX: "03-01", "Imóvel|Casa|": "01-12", lixo: "abc" },
+    } as unknown as TaxView;
+    const b = new Map(bens(view, { ETFX: "ETF" }, {}, 2026).map((x) => [x.key, x]));
+    expect(b.get("ETFX")).toMatchObject({ group: "03", code: "01", source: "digitado", suggested: { group: "07", code: "99" } });
+    expect(b.get("Imóvel|Casa|")).toMatchObject({ group: "01", code: "12", source: "digitado", suggested: null });
+    expect(b.get("Cofrinho|Cofrinho|Banco A")).toMatchObject({ group: "04", code: "02", source: "sugestao" });
+    expect(b.get("Renda fixa|Isento|Banco A")).toMatchObject({ group: "04", code: "03", source: "sugestao" });
+    expect(b.get("Saldo em dólar|Conta|Corretora X")).toMatchObject({ group: "06", code: "01", source: "sugestao" });
+  });
+  it("imóvel sem código digitado fica com ?", () => {
+    const view = {
+      annual: { positions: {}, foreign: [], warnings: [] },
+      savings_year_end: [{ year: 2026, name: "Casa", account: "", kind: "Imóvel", value: "900" }],
+    } as unknown as TaxView;
+    expect(bens(view, {}, {}, 2026)[0]).toMatchObject({ group: null, code: null, source: null });
   });
   it("deixa o FGTS e o cartão benefício de fora", () => {
     const view = {

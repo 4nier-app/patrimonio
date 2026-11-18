@@ -13,7 +13,6 @@ import {
   type TaxView,
 } from "../api";
 import {
-  bensCode,
   bonificacoes,
   discriminacao,
   incomeLines,
@@ -21,6 +20,7 @@ import {
   type IncomeLine,
 } from "../declaracao";
 import { money, tone } from "../format";
+import { bens } from "../telasIr";
 import { regrasRevisadas } from "../revisao";
 
 const MONTHS = [
@@ -120,6 +120,13 @@ function Body({
 
   const open = new Date() <= new Date(`${year}-12-31T23:59:59`);
   const end = open ? "hoje (prévia do fim do ano)" : `em 31/12/${year}`;
+  // Mesmo grupo e código da tela Telas do IR (certo, sugestão ou digitado).
+  const codes = new Map(bens(view, kinds, names, year).map((b) => [b.key, b]));
+  const codeText = (key: string) => {
+    const b = codes.get(key);
+    if (!b?.group) return null;
+    return `Grupo ${b.group} · Código ${b.code}${b.source === "sugestao" ? " (sugestão do app, confira)" : ""} · `;
+  };
 
   return (
     <div className="resumo-body">
@@ -136,13 +143,13 @@ function Body({
           <table className="resumo-table">
             <tbody>
               {positions.map((p) => {
-                const code = bensCode(p.asset, kinds[p.asset]);
+                const code = codeText(p.asset);
                 return (
                   <tr key={p.asset}>
                     <td>
                       {code ? (
                         <>
-                          Grupo {code.group} · Código {code.code} ·{" "}
+                          {code}
                           <b>{p.asset}</b>
                         </>
                       ) : (
@@ -171,9 +178,7 @@ function Body({
               {balances.map((b) => (
                 <tr key={`${b.kind}|${b.name}|${b.account}`}>
                   <td>
-                    {b.kind === "Conta corrente"
-                      ? "Grupo 06 · Código 01 · "
-                      : ""}
+                    {codeText(`${b.kind}|${b.name}|${b.account}`) ?? ""}
                     <b>{b.name}</b>
                     <div className="muted small">
                       {b.kind}
@@ -184,8 +189,7 @@ function Body({
                     <strong>{money(b.value)}</strong>
                     {b.usd != null && (
                       <div className="muted small">
-                        {money(b.usd, "USD")} × PTAX de {open ? "hoje" : "31/12"} · confirme o código
-                        com o contador
+                        {money(b.usd, "USD")} × PTAX de {open ? "hoje" : "31/12"}
                       </div>
                     )}
                   </td>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeKind, IncomeRow, SuggestedIncome, TaxMonth } from "./api";
-import { bensCode, discriminacao, incomeLines, pendencias } from "./declaracao";
+import { bensCode, bensCodeSaldo, discriminacao, incomeLines, pendencias, savedCode } from "./declaracao";
 
 const row = (
   asset: string,
@@ -56,6 +56,24 @@ describe("resumo para o contador", () => {
     });
     expect(bensCode("TEST11", "ETF")).toBeNull();
     expect(bensCode("XYZ", undefined)).toBeNull();
+  });
+  it("sugere códigos para conferir em fundos, ETFs no exterior e saldos", () => {
+    expect(bensCode("ETFX", "ETF", { usd: true })).toMatchObject({ group: "07", code: "99", sure: false });
+    expect(bensCode("12.345.678/0001-90", "FUNDO", { name: "FUNDO TESTE MULTIMERCADO" })).toMatchObject({
+      group: "07",
+      code: "01",
+      sure: false,
+    });
+    expect(bensCode("12.345.678/0001-90", "FUNDO", { name: "FUNDO MÚTUO DE PRIVATIZAÇÃO FGTS TESTE" })).toMatchObject({
+      group: "07",
+      code: "04",
+      sure: true,
+    });
+    expect(bensCodeSaldo("Conta corrente")).toMatchObject({ group: "06", code: "01", sure: true });
+    expect(bensCodeSaldo("Cofrinho", true)).toMatchObject({ group: "04", code: "03" });
+    expect(bensCodeSaldo("Imóvel")).toBeNull();
+    expect(savedCode("07-99")).toMatchObject({ group: "07", code: "99" });
+    expect(savedCode("7-99")).toBeNull();
   });
 
   it("escreve a discriminação com o custo médio", () => {

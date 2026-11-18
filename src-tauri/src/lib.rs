@@ -457,6 +457,43 @@ fn save_allocation_targets(
     with_vault(&state, |v| v.set_setting(ALLOCATION, &json))
 }
 
+/// Grupo e código de Bens e Direitos digitados para um bem ("07-99");
+/// `None` volta para a sugestão do app.
+#[tauri::command]
+fn save_bens_code(state: State<AppState>, key: String, code: Option<String>) -> Result<(), String> {
+    let code = match code.map(|c| c.trim().to_string()).filter(|c| !c.is_empty()) {
+        None => None,
+        Some(c) => {
+            let ok = c.len() == 5
+                && c.as_bytes()[2] == b'-'
+                && c.chars()
+                    .enumerate()
+                    .all(|(i, ch)| i == 2 || ch.is_ascii_digit());
+            if !ok {
+                return Err("digite o grupo e o código com dois números cada, como 07-99".into());
+            }
+            Some(c)
+        }
+    };
+    if key.trim().is_empty() {
+        return Err("bem não informado".into());
+    }
+    with_vault_str(&state, |v| {
+        let mut all: std::collections::BTreeMap<String, String> = v
+            .setting(views::BENS_CODES)
+            .map_err(|e| e.to_string())?
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default();
+        match code {
+            Some(c) => all.insert(key, c),
+            None => all.remove(&key),
+        };
+        let json = serde_json::to_string(&all).map_err(|e| e.to_string())?;
+        v.set_setting(views::BENS_CODES, &json)
+            .map_err(|e| e.to_string())
+    })
+}
+
 const GOAL: &str = "meta.patrimonio";
 
 /// Meta de patrimônio: quanto quer ter e até quando.
@@ -1379,6 +1416,7 @@ pub fn run() {
             finish_first_use,
             allocation_targets,
             save_allocation_targets,
+            save_bens_code,
             goal,
             save_goal,
             select_profile,

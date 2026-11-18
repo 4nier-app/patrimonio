@@ -9,6 +9,6 @@ describe("data de revisão das regras fixas", () => {
   });
 
   it("mostra a data no formato brasileiro", () => {
-    expect(regrasRevisadas()).toContain("13/11/2026");
+    expect(regrasRevisadas()).toMatch(/Regras revisadas em \d{2}\/\d{2}\/\d{4},/);
   });
 });

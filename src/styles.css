@@ -762,6 +762,10 @@ p.pos, strong.pos { color: var(--ok); }
 .irf-table td.in { background: var(--irf-in); }
 .irf-table td.na { color: var(--muted); font-style: italic; }
 .irf-table td.q { color: var(--muted); text-align: center; }
+.irf-table td.sug { font-style: italic; color: var(--muted); }
+.irf-code { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.irf-code-edit { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.irf-code-edit input { width: 5.5em; }
 .irf-table tr.click { cursor: pointer; }
 .irf-table tr.sel td:not(.mark) { background: var(--irf-sel); }
 .irf-table tr.sel td.calc { background: var(--irf-calc); }

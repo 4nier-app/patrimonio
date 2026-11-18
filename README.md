@@ -86,7 +86,10 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
 - **Telas do IR:** os mesmos valores no formato das telas do programa do IR
   (Renda Variável mês a mês, FIIs, rendimentos isentos, tributação exclusiva e
   Bens e Direitos), com o que você digita em branco e o que o programa calcula
-  em cinza. A Receita pode mudar as telas a cada ano; confira com um contador.
+  em cinza. Em Bens e Direitos, o grupo e o código de cada bem já vêm
+  preenchidos quando o app sabe (os sugeridos aparecem para conferir), e o que
+  você digitar fica guardado para os anos seguintes. A Receita pode mudar as
+  telas a cada ano; confira com um contador.
 - **CDB, LCI e LCA calculados sozinhos:** informe o valor aplicado, a data e a
   taxa (102% do CDI, 12% ao ano, IPCA + 6%) e o saldo cresce todo dia pelo CDI
   e pelo IPCA do Banco Central, com o valor já sem IR. No vencimento, o valor
