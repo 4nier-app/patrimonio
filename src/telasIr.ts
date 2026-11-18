@@ -391,7 +391,7 @@ export function bens(
     seen.add(k);
     const cur = balNow.find((y) => id(y) === k);
     const old = balPrev.get(k);
-    const suggested = bensCodeSaldo(x.kind, x.tax_free);
+    const suggested = bensCodeSaldo(x.kind, x.tax_free, x.ir_code);
     out.push({
       key: k,
       ...codeFields(suggested, saved[k]),
@@ -403,5 +403,7 @@ export function bens(
       profit: null,
     });
   }
-  return out;
+  // Na ordem da ficha: por grupo e código; sem código ("?") no fim.
+  const rank = (b: Bem) => (b.group ? `${b.group}-${b.code}` : "99-99~");
+  return out.sort((x, y) => rank(x).localeCompare(rank(y)) || x.discriminacao.localeCompare(y.discriminacao, "pt-BR"));
 }

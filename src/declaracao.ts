@@ -54,15 +54,48 @@ export function bensCode(
   return null;
 }
 
+/**
+ * Tipos de imóvel (grupo 01) e de veículo (grupo 02) do programa do IR. A
+ * mesma lista está no núcleo (OwnedKind::ir_codes), que confere o código.
+ */
+export const IR_TIPOS: Record<"IMOVEL" | "VEICULO", { code: string; label: string }[]> = {
+  IMOVEL: [
+    { code: "11", label: "Apartamento" },
+    { code: "12", label: "Casa" },
+    { code: "13", label: "Terreno" },
+    { code: "14", label: "Imóvel rural" },
+    { code: "15", label: "Sala ou conjunto" },
+    { code: "18", label: "Loja" },
+    { code: "01", label: "Prédio residencial" },
+    { code: "02", label: "Prédio comercial" },
+    { code: "03", label: "Galpão" },
+    { code: "16", label: "Construção" },
+    { code: "17", label: "Benfeitorias" },
+    { code: "99", label: "Outros bens imóveis" },
+  ],
+  VEICULO: [
+    { code: "01", label: "Veículo automotor terrestre (carro, moto, caminhão)" },
+    { code: "02", label: "Aeronave" },
+    { code: "03", label: "Embarcação" },
+  ],
+};
+
 /** Grupo e código de um saldo (conta, cofrinho, dólar) ou de um bem (imóvel, veículo). */
-export function bensCodeSaldo(kind: string, taxFree = false): BensCode | null {
+export function bensCodeSaldo(kind: string, taxFree = false, irCode?: string | null): BensCode | null {
+  const typed = irCode?.match(/^(0[12])-(\d{2})$/);
+  if (typed) {
+    const list = typed[1] === "01" ? IR_TIPOS.IMOVEL : IR_TIPOS.VEICULO;
+    const label = list.find((t) => t.code === typed[2])?.label ?? "Tipo escolhido no cadastro";
+    return sure(typed[1], typed[2], `${label} (tipo escolhido no cadastro do bem)`);
+  }
+  if (kind === "Veículo") return guess("02", "01", "Veículo automotor terrestre (carro, moto, caminhão)");
   if (kind === "Conta corrente") return sure("06", "01", "Depósito em conta corrente");
   if (kind === "Saldo em dólar") return guess("06", "01", "Depósito em conta corrente ou conta pagamento");
   if (kind === "Cofrinho" || kind === "Renda fixa")
     return taxFree
       ? guess("04", "03", "Títulos isentos de tributação (LCI, LCA e outros)")
       : guess("04", "02", "Títulos sujeitos à tributação (CDB, RDB, Tesouro e outros)");
-  // Imóvel e veículo: o código depende do tipo (apartamento, casa, terreno...).
+  // Imóvel sem tipo no cadastro: o código depende de ser apartamento, casa, terreno...
   return null;
 }
 

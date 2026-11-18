@@ -1479,6 +1479,7 @@ mod tests {
             sold_on,
             note: None,
             share: dec!(100),
+            ir_code: None,
         };
         let casa = v
             .create_owned(bem(

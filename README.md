@@ -87,7 +87,8 @@ Os dados ficam só no seu computador, sem nuvem e sem celular, por segurança.
   (Renda Variável mês a mês, FIIs, rendimentos isentos, tributação exclusiva e
   Bens e Direitos), com o que você digita em branco e o que o programa calcula
   em cinza. Em Bens e Direitos, o grupo e o código de cada bem já vêm
-  preenchidos quando o app sabe (os sugeridos aparecem para conferir), e o que
+  preenchidos quando o app sabe (os sugeridos aparecem para conferir; imóvel e
+  veículo pelo tipo escolhido no cadastro), na ordem de grupo e código, e o que
   você digitar fica guardado para os anos seguintes. A Receita pode mudar as
   telas a cada ano; confira com um contador.
 - **CDB, LCI e LCA calculados sozinhos:** informe o valor aplicado, a data e a

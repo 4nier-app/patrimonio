@@ -477,7 +477,7 @@ function CodeEditor({ b, onSave }: { b: Bem; onSave: (key: string, code: string 
             ? `Digitado por você. O app sugere ${sug.group} / ${sug.code}.`
             : "Digitado por você.")}
         {b.source === null &&
-          "O app não sabe o código deste bem. Copie da sua declaração passada (ex.: imóvel depende de ser apartamento, casa ou terreno)."}
+          "O app não sabe o código deste bem. No imóvel, escolha o tipo no cadastro (Evolução › Bens) ou copie o código da sua declaração passada."}
       </span>
       <span className="irf-code-edit">
         <input
@@ -724,8 +724,9 @@ export default function TaxScreens({ refresh }: { refresh: number }) {
                 pelo tipo do bem (ações, FIIs, cripto, conta corrente), sugeridos pelo app (em
                 itálico, tirados da tabela da Receita nos guias de IR dos bancos e corretoras:
                 confira na sua declaração passada) ou digitados por você, que o app guarda e
-                repete nos anos seguintes. Com "?", o app não sabe (o imóvel depende de ser
-                apartamento, casa ou terreno): copie da declaração passada. Em Bens e Direitos, enquanto o ano não termina, a
+                repete nos anos seguintes. O imóvel e o veículo usam o tipo escolhido no cadastro
+                do bem (Evolução › Bens). Com "?", o app não sabe: escolha o tipo no cadastro ou
+                copie o código da declaração passada. Os bens vêm na ordem de grupo e código. Em Bens e Direitos, enquanto o ano não termina, a
                 última coluna mostra a situação de hoje como prévia (saldos informados e dólar
                 pela PTAX de hoje); na declaração vai a de 31/12. Nada aqui é enviado para a
                 Receita.

@@ -36,6 +36,39 @@ impl OwnedKind {
             OwnedKind::Veiculo => "Veículo",
         }
     }
+
+    /// Grupo do bem na ficha Bens e Direitos.
+    pub fn ir_group(self) -> &'static str {
+        match self {
+            OwnedKind::Imovel => "01",
+            OwnedKind::Veiculo => "02",
+        }
+    }
+
+    /// Códigos do grupo no programa do IR (tabela da Receita, declaração 2026).
+    pub fn ir_codes(self) -> &'static [(&'static str, &'static str)] {
+        match self {
+            OwnedKind::Imovel => &[
+                ("11", "Apartamento"),
+                ("12", "Casa"),
+                ("13", "Terreno"),
+                ("14", "Imóvel rural"),
+                ("15", "Sala ou conjunto"),
+                ("18", "Loja"),
+                ("01", "Prédio residencial"),
+                ("02", "Prédio comercial"),
+                ("03", "Galpão"),
+                ("16", "Construção"),
+                ("17", "Benfeitorias"),
+                ("99", "Outros bens imóveis"),
+            ],
+            OwnedKind::Veiculo => &[
+                ("01", "Veículo automotor terrestre (carro, moto, caminhão)"),
+                ("02", "Aeronave"),
+                ("03", "Embarcação"),
+            ],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -55,6 +88,10 @@ pub struct OwnedAsset {
     /// porque normalmente um dos dois declara o bem inteiro.
     #[serde(default = "full_share")]
     pub share: Decimal,
+    /// Código do bem no grupo do IR: no imóvel, grupo 01 ("11" apartamento,
+    /// "12" casa...); no veículo, grupo 02 ("01" automotor terrestre...).
+    #[serde(default)]
+    pub ir_code: Option<String>,
 }
 
 pub fn full_share() -> Decimal {
@@ -84,6 +121,11 @@ impl OwnedAsset {
         }
         if self.share <= Decimal::ZERO || self.share > Decimal::ONE_HUNDRED {
             return Err("a sua parte do bem precisa ficar entre 1% e 100%".into());
+        }
+        if let Some(c) = &self.ir_code {
+            if !self.kind.ir_codes().iter().any(|(k, _)| k == c) {
+                return Err(format!("tipo do bem no IR desconhecido: {c}"));
+            }
         }
         Ok(())
     }
@@ -152,6 +194,7 @@ mod tests {
             sold_on: Some(d(2026, 6, 1)),
             note: None,
             share: dec!(100),
+            ir_code: None,
         };
         let obra = Improvement {
             id: "o1".into(),

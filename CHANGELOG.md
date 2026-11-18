@@ -18,6 +18,11 @@ as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
   imóvel, que depende de ser apartamento, casa ou terreno). O app guarda o
   código no seu arquivo e repete nos anos seguintes; "Voltar à sugestão"
   desfaz. O Resumo para o contador mostra os mesmos códigos.
+- Cadastro de imóvel e veículo (Evolução › Bens) com o tipo no IR:
+  apartamento (01-11), casa (01-12), terreno (01-13) e os outros tipos de
+  imóvel do programa; veículo terrestre (02-01), aeronave (02-02) ou
+  embarcação (02-03). Bens e Direitos já mostra o código do tipo escolhido.
+- Bens e Direitos vem na ordem de grupo e código, como na declaração.
 
 ### Corrigido
 - Evolução: o rendimento do ano na linha Rendimento agora é exatamente o

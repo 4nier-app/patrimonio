@@ -1078,6 +1078,8 @@ pub struct SavingsYearEnd {
     pub usd: Option<Decimal>,
     /// Cofrinho ou renda fixa isento de IR (LCI, LCA e afins).
     pub tax_free: bool,
+    /// Imóvel ou veículo com o tipo do IR escolhido: grupo e código ("01-12").
+    pub ir_code: Option<String>,
 }
 
 pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
@@ -1158,6 +1160,7 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                         r.units_on(NaiveDate::from_ymd_opt(*year, 12, 31).expect("31/12"))
                     }),
                     tax_free: r.savings.tax_free,
+                    ir_code: None,
                 })
                 .collect::<Vec<_>>()
         })
@@ -1187,6 +1190,7 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
             value,
             usd,
             tax_free: r.savings.tax_free,
+            ir_code: None,
         });
     }
     // Imóveis e veículos: custo em 31/12 (compra + obras até a data).
@@ -1212,6 +1216,10 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                     value,
                     usd: None,
                     tax_free: false,
+                    ir_code: item
+                        .ir_code
+                        .as_ref()
+                        .map(|c| format!("{}-{c}", item.kind.ir_group())),
                 });
             }
         }

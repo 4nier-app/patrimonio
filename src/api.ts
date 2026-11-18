@@ -584,6 +584,8 @@ export type TaxView = {
     usd: Dec | null;
     /** Cofrinho ou renda fixa isento de IR (LCI, LCA). */
     tax_free?: boolean;
+    /** Imóvel ou veículo com o tipo do IR escolhido: "01-12". */
+    ir_code?: string | null;
   }[];
   /** País de cada ativo de Londres, pela lista da bolsa (null: confirmar com o contador). */
   countries?: Record<string, string | null>;
@@ -897,6 +899,8 @@ export type OwnedAsset = {
   /** Parte do bem que é da pessoa, em % (100 = bem só dela). O patrimônio usa
    * esta parte; Impostos usa o valor total. */
   share: Dec;
+  /** Tipo do bem no IR: código do grupo 01 (imóvel) ou 02 (veículo), como "12" (casa). */
+  ir_code?: string | null;
 };
 
 /** Obra ou reforma do imóvel: soma ao custo. */
