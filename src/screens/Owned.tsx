@@ -3,6 +3,7 @@ import Intro from "../components/Intro";
 import CashInput from "../components/CashInput";
 import { pctTyping } from "../components/ExitCostBox";
 import { offerUndo } from "../undo";
+import { IR_TIPOS } from "../declaracao";
 import { errorMessage, ownedApi, type Improvement, type OwnedAsset, type OwnedKind, type OwnedRow } from "../api";
 import { date, money, parseDecimalInput, toCashMask } from "../format";
 
@@ -14,8 +15,8 @@ const KINDS: { id: OwnedKind; title: string; text: string }[] = [
   { id: "VEICULO", title: "Veículo", text: "Carro, moto. Entra pelo valor pago na compra." },
 ];
 
-type Form = { id: string; kind: OwnedKind | null; name: string; bought: string; price: string; sold: string; share: string };
-const EMPTY = (): Form => ({ id: "", kind: null, name: "", bought: today(), price: "", sold: "", share: "100,00" });
+type Form = { id: string; kind: OwnedKind | null; name: string; bought: string; price: string; sold: string; share: string; irCode: string };
+const EMPTY = (): Form => ({ id: "", kind: null, name: "", bought: today(), price: "", sold: "", share: "100,00", irCode: "" });
 
 /** Parte do bem em número (100 quando não informada). */
 const shareOf = (a: OwnedAsset) => (a.share == null ? 100 : Number(a.share));
@@ -80,6 +81,7 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
       sold_on: form.sold || null,
       note: null,
       share: String(share),
+      ir_code: form.irCode || null,
     };
     void run(async () => {
       if (form.id) await ownedApi.update(item);
@@ -125,7 +127,7 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
   }
 
   function editOwned(a: OwnedAsset) {
-    setForm({ id: a.id, kind: a.kind, name: a.name, bought: a.bought_on, price: cash(a.price), sold: a.sold_on ?? "", share: pctTyping(shareOf(a).toFixed(2), 5) });
+    setForm({ id: a.id, kind: a.kind, name: a.name, bought: a.bought_on, price: cash(a.price), sold: a.sold_on ?? "", share: pctTyping(shareOf(a).toFixed(2), 5), irCode: a.ir_code ?? "" });
     setSaved(null);
     setError(null);
     window.scrollTo({ top: 0 });
@@ -230,6 +232,17 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
                   />
                 </label>
                 <label>
+                  Tipo no IR
+                  <select value={form.irCode} onChange={(e) => setForm({ ...form, irCode: e.target.value })}>
+                    <option value="">Não sei / escolher depois</option>
+                    {IR_TIPOS[form.kind].map((t) => (
+                      <option key={t.code} value={t.code}>
+                        {form.kind === "IMOVEL" ? "01" : "02"}-{t.code} · {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
                   Data da compra
                   <input type="date" value={form.bought} max={today()} onChange={(e) => setForm({ ...form, bought: e.target.value })} required />
                 </label>
@@ -253,7 +266,8 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
                 </label>
               </div>
               <p className="muted small">
-                Bem em comum com o cônjuge? Coloque a sua parte, por exemplo 50%. O patrimônio soma só a sua parte; em Impostos o bem continua com o
+                O tipo no IR é o código do bem na ficha Bens e Direitos (confira na sua declaração passada); com ele, Impostos › Telas do IR já
+                mostra o grupo e o código. Bem em comum com o cônjuge? Coloque a sua parte, por exemplo 50%. O patrimônio soma só a sua parte; em Impostos o bem continua com o
                 valor total, porque normalmente um dos dois declara o bem inteiro.
               </p>
               {form.kind === "IMOVEL" && !form.id && (
@@ -307,6 +321,11 @@ export default function Owned({ onChanged }: { onChanged: () => void }) {
                 <div className="savings-head">
                   <div>
                     <span className="tag">{house ? "Imóvel" : "Veículo"}</span>
+                    {a.ir_code && (
+                      <span className="tag">
+                        IR {house ? "01" : "02"}-{a.ir_code} · {IR_TIPOS[a.kind].find((t) => t.code === a.ir_code)?.label}
+                      </span>
+                    )}
                     {shareOf(a) < 100 && <span className="tag">Em comum · sua parte {pct(shareOf(a))}</span>}
                     <h3>{a.name}</h3>
                     <p className="muted small">

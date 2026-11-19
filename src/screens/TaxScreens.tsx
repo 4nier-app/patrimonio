@@ -442,7 +442,74 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function BensDireitos({ data, year }: { data: Data; year: number }) {
+/** Grupo e código do bem selecionado: o do app (certo ou sugestão) ou o digitado. */
+function CodeEditor({ b, onSave }: { b: Bem; onSave: (key: string, code: string | null) => Promise<void> }) {
+  const current = b.group ? `${b.group}-${b.code}` : "";
+  const [text, setText] = useState(current);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    setText(current);
+    setError(null);
+  }, [b.key, current]);
+  const save = (code: string | null) => {
+    setBusy(true);
+    setError(null);
+    onSave(b.key, code)
+      .catch((e) => setError(errorMessage(e)))
+      .finally(() => setBusy(false));
+  };
+  const typed = text.trim().replace("/", "-").replace(/\s+/g, "");
+  const sug = b.suggested;
+  return (
+    <span className="irf-code">
+      {b.group ? (
+        <Box input text={`${b.group} / ${b.code}`} />
+      ) : (
+        <span className="irf-box in txt">? veja na sua declaração passada</span>
+      )}
+      <span className="muted small">
+        {b.source === "certo" && `${b.codeLabel}.`}
+        {b.source === "sugestao" &&
+          `Sugestão do app: ${b.codeLabel}. Confira na sua declaração passada ou com o contador.`}
+        {b.source === "digitado" &&
+          (sug
+            ? `Digitado por você. O app sugere ${sug.group} / ${sug.code}.`
+            : "Digitado por você.")}
+        {b.source === null &&
+          "O app não sabe o código deste bem. No imóvel, escolha o tipo no cadastro (Evolução › Bens) ou copie o código da sua declaração passada."}
+      </span>
+      <span className="irf-code-edit">
+        <input
+          aria-label="Grupo e código"
+          placeholder="07-99"
+          maxLength={5}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <button type="button" className="secondary small-btn" disabled={busy || !typed || typed === current} onClick={() => save(typed)}>
+          {b.group ? "Trocar" : "Salvar"}
+        </button>
+        {b.source === "digitado" && (
+          <button type="button" className="link" disabled={busy} onClick={() => save(null)}>
+            {sug ? "Voltar à sugestão" : "Apagar"}
+          </button>
+        )}
+      </span>
+      {error && <span className="error small">{error}</span>}
+    </span>
+  );
+}
+
+function BensDireitos({
+  data,
+  year,
+  onSaveCode,
+}: {
+  data: Data;
+  year: number;
+  onSaveCode: (key: string, code: string | null) => Promise<void>;
+}) {
   const list = useMemo(
     () => bens(data.view, data.kinds, { ...data.names, ...data.view.names }, year),
     [data, year],
@@ -450,6 +517,8 @@ function BensDireitos({ data, year }: { data: Data; year: number }) {
   const [sel, setSel] = useState<string | null>(null);
   const b: Bem | undefined = list.find((x) => x.key === sel) ?? list[0];
   const q = (v: string | null) => v ?? "?";
+  const cls = (x: Bem, v: string | null) =>
+    v ? `in mark${x.source === "sugestao" ? " sug" : ""}` : "q";
   const open = new Date() <= new Date(`${year}-12-31T23:59:59`);
   const end = open ? "hoje (prévia)" : `em 31/12/${year}`;
   return (
@@ -483,8 +552,12 @@ function BensDireitos({ data, year }: { data: Data; year: number }) {
                     className={`click${x.key === b?.key ? " sel" : ""}`}
                     onClick={() => setSel(x.key)}
                   >
-                    <td className={x.group ? "in mark" : "q"}>{q(x.group)}</td>
-                    <td className={x.code ? "in mark" : "q"}>{q(x.code)}</td>
+                    <td className={cls(x, x.group)} title={x.source === "sugestao" ? "Sugestão do app: confira" : undefined}>
+                      {q(x.group)}
+                    </td>
+                    <td className={cls(x, x.code)} title={x.source === "sugestao" ? "Sugestão do app: confira" : undefined}>
+                      {q(x.code)}
+                    </td>
                     <td className="in mark">
                       <button className="irf-link" aria-pressed={x.key === b?.key}>
                         {x.discriminacao}
@@ -507,11 +580,7 @@ function BensDireitos({ data, year }: { data: Data; year: number }) {
               <h5>Bem selecionado · o que digitar</h5>
               <div className="irf-form">
                 <Field label="Grupo / Código">
-                  {b.group ? (
-                    <Box input text={`${b.group} / ${b.code}`} />
-                  ) : (
-                    <span className="irf-box in txt">? confirme com o contador</span>
-                  )}
+                  <CodeEditor b={b} onSave={onSaveCode} />
                 </Field>
                 <Field label="Localização (País)">
                   <Box input text={b.country ?? "105 - Brasil"} />
@@ -550,7 +619,9 @@ function BensDireitos({ data, year }: { data: Data; year: number }) {
                 )}
               </div>
               <p className="irf-tip">
-                Clique em um bem da tabela para ver o que digitar nele.
+                Clique em um bem da tabela para ver o que digitar nele. Grupo e código em itálico são sugestões do
+                app, tiradas da tabela da Receita nos guias de IR dos bancos e corretoras: confira na sua declaração
+                passada. Se for diferente, digite o seu e o app lembra nos próximos anos; com "?", o app não sabe.
                 {b.profit != null &&
                   " Nas aplicações no exterior, o programa pede o lucro ou prejuízo das vendas do ano e calcula sozinho o imposto de 15%. Valores em reais pela PTAX de cada data."}
               </p>
@@ -558,7 +629,7 @@ function BensDireitos({ data, year }: { data: Data; year: number }) {
           )}
         </>
       )}
-      <Legend extra="? = grupo e código: confirme com o contador" />
+      <Legend extra="itálico = código sugerido pelo app, confira · ? = o app não sabe o código" />
     </>
   );
 }
@@ -570,6 +641,18 @@ export default function TaxScreens({ refresh }: { refresh: number }) {
   const [error, setError] = useState<string | null>(null);
   const [year, setYear] = useState<number | null>(null);
   const [ficha, setFicha] = useState<Ficha>("rv");
+
+  // Grava o código do bem no cofre e já mostra na tela, sem recarregar tudo.
+  const saveCode = async (key: string, code: string | null) => {
+    await taxApi.saveBensCode(key, code);
+    setData((d) => {
+      if (!d) return d;
+      const codes = { ...(d.view.bens_codes ?? {}) };
+      if (code) codes[key] = code;
+      else delete codes[key];
+      return { ...d, view: { ...d.view, bens_codes: codes } };
+    });
+  };
 
   useEffect(() => {
     Promise.all([
@@ -637,8 +720,13 @@ export default function TaxScreens({ refresh }: { refresh: number }) {
                 digitar. Em Renda Variável, ações, ETFs e BDRs entram em "Mercado à vista -
                 ações", e FIIs e Fiagros têm a sua aba. O CNPJ de quem pagou os proventos não
                 aparece porque não há fonte gratuita: veja no informe de rendimentos da
-                corretora. Quando o grupo e o código de um bem não são certos, aparece "?":
-                confirme com o contador. Em Bens e Direitos, enquanto o ano não termina, a
+                corretora. Em Bens e Direitos, o grupo e o código vêm de três jeitos: certos
+                pelo tipo do bem (ações, FIIs, cripto, conta corrente), sugeridos pelo app (em
+                itálico, tirados da tabela da Receita nos guias de IR dos bancos e corretoras:
+                confira na sua declaração passada) ou digitados por você, que o app guarda e
+                repete nos anos seguintes. O imóvel e o veículo usam o tipo escolhido no cadastro
+                do bem (Evolução › Bens). Com "?", o app não sabe: escolha o tipo no cadastro ou
+                copie o código da declaração passada. Os bens vêm na ordem de grupo e código. Em Bens e Direitos, enquanto o ano não termina, a
                 última coluna mostra a situação de hoje como prévia (saldos informados e dólar
                 pela PTAX de hoje); na declaração vai a de 31/12. Nada aqui é enviado para a
                 Receita.
@@ -710,7 +798,7 @@ export default function TaxScreens({ refresh }: { refresh: number }) {
                 note="Valor líquido, já descontado o imposto retido na fonte."
               />
             )}
-            {ficha === "bens" && <BensDireitos data={data} year={year} />}
+            {ficha === "bens" && <BensDireitos data={data} year={year} onSaveCode={saveCode} />}
           </div>
         </>
       )}

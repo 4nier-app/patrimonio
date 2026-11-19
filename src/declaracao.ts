@@ -9,31 +9,100 @@ import type {
 /**
  * Resumo para o contador: os dados do ano organizados na ordem das fichas
  * da declaração. Os cálculos são os mesmos das outras telas; aqui só se
- * agrupa. Grupo e código de Bens e Direitos aparecem só quando são certos
- * (ações, FIIs, criptomoedas); nos outros casos o contador confirma.
+ * agrupa. Grupo e código de Bens e Direitos: certos, sugeridos (para conferir)
+ * ou digitados pela pessoa, que valem sobre os outros.
  */
 
 const n = (v: string | null | undefined) => (v == null ? 0 : Number(v));
 const cents = (v: number) => Math.round(v * 100) / 100;
 
-export type BensCode = { group: string; code: string; label: string };
+/**
+ * Grupo e código de Bens e Direitos. `sure`: o tipo do ativo deixa claro
+ * (ações, FIIs, criptomoedas, FMP-FGTS, conta corrente). Sem `sure`, é uma
+ * sugestão tirada da tabela da Receita nos guias de IR dos bancos e
+ * corretoras: a tela pede para conferir.
+ */
+export type BensCode = { group: string; code: string; label: string; sure: boolean };
 
-/** Grupo e código de Bens e Direitos, quando o tipo do ativo deixa isso claro. */
+const sure = (group: string, code: string, label: string): BensCode => ({ group, code, label, sure: true });
+const guess = (group: string, code: string, label: string): BensCode => ({ group, code, label, sure: false });
+
+/** Grupo e código de um ativo: certo, sugestão ou null quando o app não sabe. */
 export function bensCode(
   asset: string,
   kind: string | undefined,
+  opt: { usd?: boolean; name?: string } = {},
 ): BensCode | null {
-  if (kind === "ACAO") return { group: "03", code: "01", label: "Ações" };
-  if (kind === "FII")
-    return { group: "07", code: "03", label: "Fundos imobiliários" };
   if (kind === "CRIPTO") {
     const a = asset.toUpperCase();
-    if (a === "BTC") return { group: "08", code: "01", label: "Bitcoin" };
-    if (a === "USDT" || a === "USDC" || a === "DAI")
-      return { group: "08", code: "03", label: "Stablecoins" };
-    return { group: "08", code: "02", label: "Outras criptomoedas" };
+    if (a === "BTC") return sure("08", "01", "Bitcoin");
+    if (a === "USDT" || a === "USDC" || a === "DAI") return sure("08", "03", "Stablecoins");
+    return sure("08", "02", "Outras criptomoedas");
   }
+  if (kind === "ACAO") return sure("03", "01", "Ações");
+  if (kind === "FII") return sure("07", "03", "Fundos imobiliários");
+  // No exterior (Lei 14.754): ETFs e fundos vão em "Fundos de investimento no exterior".
+  if (opt.usd && (kind === "ETF" || kind === "ETF_RF" || kind === undefined))
+    return guess("07", "99", "Fundos de investimento no exterior");
+  if (kind === "FUNDO") {
+    if (/PRIVATIZA/i.test(opt.name ?? "")) return sure("07", "04", "Fundos de ações e FMP-FGTS");
+    return guess("07", "01", "Fundos com come-cotas (renda fixa, multimercado, cambial)");
+  }
+  if (kind === "ETF_RF") return guess("07", "08", "Fundos de índice de renda fixa");
+  if (kind === "BDR") return guess("04", "04", "BDRs e outros ativos negociados em bolsa");
+  if (kind === "TESOURO") return guess("04", "02", "Títulos públicos e privados sujeitos à tributação");
   return null;
+}
+
+/**
+ * Tipos de imóvel (grupo 01) e de veículo (grupo 02) do programa do IR. A
+ * mesma lista está no núcleo (OwnedKind::ir_codes), que confere o código.
+ */
+export const IR_TIPOS: Record<"IMOVEL" | "VEICULO", { code: string; label: string }[]> = {
+  IMOVEL: [
+    { code: "11", label: "Apartamento" },
+    { code: "12", label: "Casa" },
+    { code: "13", label: "Terreno" },
+    { code: "14", label: "Imóvel rural" },
+    { code: "15", label: "Sala ou conjunto" },
+    { code: "18", label: "Loja" },
+    { code: "01", label: "Prédio residencial" },
+    { code: "02", label: "Prédio comercial" },
+    { code: "03", label: "Galpão" },
+    { code: "16", label: "Construção" },
+    { code: "17", label: "Benfeitorias" },
+    { code: "99", label: "Outros bens imóveis" },
+  ],
+  VEICULO: [
+    { code: "01", label: "Veículo automotor terrestre (carro, moto, caminhão)" },
+    { code: "02", label: "Aeronave" },
+    { code: "03", label: "Embarcação" },
+  ],
+};
+
+/** Grupo e código de um saldo (conta, cofrinho, dólar) ou de um bem (imóvel, veículo). */
+export function bensCodeSaldo(kind: string, taxFree = false, irCode?: string | null): BensCode | null {
+  const typed = irCode?.match(/^(0[12])-(\d{2})$/);
+  if (typed) {
+    const list = typed[1] === "01" ? IR_TIPOS.IMOVEL : IR_TIPOS.VEICULO;
+    const label = list.find((t) => t.code === typed[2])?.label ?? "Tipo escolhido no cadastro";
+    return sure(typed[1], typed[2], `${label} (tipo escolhido no cadastro do bem)`);
+  }
+  if (kind === "Veículo") return guess("02", "01", "Veículo automotor terrestre (carro, moto, caminhão)");
+  if (kind === "Conta corrente") return sure("06", "01", "Depósito em conta corrente");
+  if (kind === "Saldo em dólar") return guess("06", "01", "Depósito em conta corrente ou conta pagamento");
+  if (kind === "Cofrinho" || kind === "Renda fixa")
+    return taxFree
+      ? guess("04", "03", "Títulos isentos de tributação (LCI, LCA e outros)")
+      : guess("04", "02", "Títulos sujeitos à tributação (CDB, RDB, Tesouro e outros)");
+  // Imóvel sem tipo no cadastro: o código depende de ser apartamento, casa, terreno...
+  return null;
+}
+
+/** Código digitado pela pessoa ("07-99"), que vale sobre a sugestão do app. */
+export function savedCode(saved: string | undefined): BensCode | null {
+  const m = saved?.match(/^(\d{2})-(\d{2})$/);
+  return m ? { group: m[1], code: m[2], label: "Digitado por você", sure: true } : null;
 }
 
 /** Palavra para a quantidade: ações, cotas ou unidades. */

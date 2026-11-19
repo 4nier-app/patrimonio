@@ -6,6 +6,31 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.35.0] - 2026-11-19
+
+### Adicionado
+- Telas do IR › Bens e Direitos: grupo e código sugeridos para fundos
+  (07-01, com come-cotas), FMP-FGTS (07-04), ETFs e fundos no exterior
+  (07-99), cofrinhos e renda fixa (04-02, ou 04-03 quando isentos) e saldo
+  em dólar (06-01). As sugestões aparecem em itálico, para conferir com a
+  declaração passada ou com o contador.
+- Dá para digitar o grupo e o código de qualquer bem (por exemplo, o do
+  imóvel, que depende de ser apartamento, casa ou terreno). O app guarda o
+  código no seu arquivo e repete nos anos seguintes; "Voltar à sugestão"
+  desfaz. O Resumo para o contador mostra os mesmos códigos.
+- Cadastro de imóvel e veículo (Evolução › Bens) com o tipo no IR:
+  apartamento (01-11), casa (01-12), terreno (01-13) e os outros tipos de
+  imóvel do programa; veículo terrestre (02-01), aeronave (02-02) ou
+  embarcação (02-03). Bens e Direitos já mostra o código do tipo escolhido.
+- Bens e Direitos vem na ordem de grupo e código, como na declaração.
+
+### Corrigido
+- Evolução: o rendimento do ano na linha Rendimento agora é exatamente o
+  mesmo da linha Total investimentos e do Painel (antes podia diferir em
+  centavos pelo arredondamento de cada mês).
+- Formulários: quando o nome de um campo ocupa duas linhas, as caixas
+  continuam alinhadas na mesma altura.
+
 ## [0.34.0] - 2026-11-13
 
 ### Adicionado

@@ -1059,7 +1059,13 @@ pub struct TaxView {
     /// pela lista oficial da bolsa. Ausente quando o app não conhece o país:
     /// a tela pede para confirmar com o contador.
     pub countries: BTreeMap<String, Option<String>>,
+    /// Grupo e código de Bens e Direitos que a pessoa digitou ("07-99"), por
+    /// bem: o ticker do ativo ou "tipo|nome|banco" do saldo ou do bem.
+    pub bens_codes: BTreeMap<String, String>,
 }
+
+/// Onde ficam, no cofre, os códigos de Bens e Direitos digitados.
+pub const BENS_CODES: &str = "ir.bens.codigos";
 
 #[derive(Serialize)]
 pub struct SavingsYearEnd {
@@ -1070,6 +1076,10 @@ pub struct SavingsYearEnd {
     pub value: Decimal,
     /// Saldo em dólar: o valor em US$ em 31/12 (`value` é pela PTAX).
     pub usd: Option<Decimal>,
+    /// Cofrinho ou renda fixa isento de IR (LCI, LCA e afins).
+    pub tax_free: bool,
+    /// Imóvel ou veículo com o tipo do IR escolhido: grupo e código ("01-12").
+    pub ir_code: Option<String>,
 }
 
 pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
@@ -1149,6 +1159,8 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                     usd: r.savings.kind.in_dollars().then(|| {
                         r.units_on(NaiveDate::from_ymd_opt(*year, 12, 31).expect("31/12"))
                     }),
+                    tax_free: r.savings.tax_free,
+                    ir_code: None,
                 })
                 .collect::<Vec<_>>()
         })
@@ -1177,6 +1189,8 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
             kind: r.savings.kind.label(),
             value,
             usd,
+            tax_free: r.savings.tax_free,
+            ir_code: None,
         });
     }
     // Imóveis e veículos: custo em 31/12 (compra + obras até a data).
@@ -1201,6 +1215,11 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
                     kind: item.kind.label(),
                     value,
                     usd: None,
+                    tax_free: false,
+                    ir_code: item
+                        .ir_code
+                        .as_ref()
+                        .map(|c| format!("{}-{c}", item.kind.ir_group())),
                 });
             }
         }
@@ -1212,8 +1231,14 @@ pub fn taxes(v: &Vault, as_of: NaiveDate) -> Result<TaxView, String> {
         .filter(|(t, _)| ops.iter().any(|o| &o.operation.asset == t))
         .map(|(t, c)| (t, carteira_core::london::pais_ir(&c).map(String::from)))
         .collect();
+    let bens_codes = v
+        .setting(BENS_CODES)
+        .map_err(s)?
+        .and_then(|json| serde_json::from_str(&json).ok())
+        .unwrap_or_default();
     Ok(TaxView {
         countries,
+        bens_codes,
         savings_year_end,
         months,
         annual,

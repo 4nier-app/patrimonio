@@ -7,7 +7,7 @@ import { date } from "./format";
  * data. A cada versão as regras são revisadas e a data acompanha a da versão
  * no CHANGELOG (o teste em revisao.test.ts confere).
  */
-export const REGRAS_REVISADAS = "2026-11-13";
+export const REGRAS_REVISADAS = "2026-11-19";
 
 /** Frase curta para os avisos das telas. */
 export function regrasRevisadas(): string {

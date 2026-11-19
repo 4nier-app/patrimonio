@@ -13,7 +13,7 @@ use crate::records::{bad, date, dec, new_id};
 use crate::{now_iso, Result, Vault};
 
 const SELECT: &str =
-    "SELECT id, kind, name, bought_on, price, sold_on, note, share FROM assets_owned";
+    "SELECT id, kind, name, bought_on, price, sold_on, note, share, ir_code FROM assets_owned";
 const SELECT_WORK: &str =
     "SELECT id, owned_id, done_on, amount, description FROM asset_improvements";
 
@@ -35,6 +35,7 @@ fn row_to_owned(r: &rusqlite::Row<'_>) -> rusqlite::Result<OwnedAsset> {
             .transpose()?,
         note: r.get(6)?,
         share: dec(r.get(7)?, 7)?,
+        ir_code: r.get(8)?,
     })
 }
 
@@ -83,8 +84,8 @@ impl Vault {
         a.id = new_id()?.replacen("op-", "bm-", 1);
         let now = now_iso();
         self.conn.execute(
-            "INSERT INTO assets_owned (id, kind, name, bought_on, price, sold_on, note, share, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?9, ?8, ?8)",
+            "INSERT INTO assets_owned (id, kind, name, bought_on, price, sold_on, note, share, ir_code, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?9, ?10, ?8, ?8)",
             params![
                 a.id,
                 a.kind.as_str(),
@@ -94,7 +95,8 @@ impl Vault {
                 a.sold_on.map(|d| d.to_string()),
                 a.note,
                 now,
-                a.share.normalize().to_string()
+                a.share.normalize().to_string(),
+                a.ir_code
             ],
         )?;
         self.append_event(
@@ -128,7 +130,7 @@ impl Vault {
         }
         self.conn.execute(
             "UPDATE assets_owned SET name = ?2, bought_on = ?3, price = ?4, sold_on = ?5, note = ?6,
-               updated_at = ?7, share = ?8 WHERE id = ?1",
+               updated_at = ?7, share = ?8, ir_code = ?9 WHERE id = ?1",
             params![
                 a.id,
                 a.name,
@@ -137,7 +139,8 @@ impl Vault {
                 a.sold_on.map(|d| d.to_string()),
                 a.note,
                 now_iso(),
-                a.share.normalize().to_string()
+                a.share.normalize().to_string(),
+                a.ir_code
             ],
         )?;
         self.append_event(
@@ -373,16 +376,27 @@ mod tests {
                 sold_on: None,
                 note: None,
                 share: dec!(100),
+                ir_code: None,
             })
             .unwrap();
         assert_eq!(casa.name, "Casa");
-        // A parte do bem fica guardada.
+        // A parte do bem e o tipo no IR ficam guardados.
         v.update_owned(OwnedAsset {
             share: dec!(50),
+            ir_code: Some("12".into()),
             ..casa.clone()
         })
         .unwrap();
-        assert_eq!(v.get_owned(&casa.id).unwrap().unwrap().share, dec!(50));
+        let salvo = v.get_owned(&casa.id).unwrap().unwrap();
+        assert_eq!(salvo.share, dec!(50));
+        assert_eq!(salvo.ir_code.as_deref(), Some("12"));
+        // Tipo que não existe no grupo é recusado.
+        assert!(v
+            .update_owned(OwnedAsset {
+                ir_code: Some("77".into()),
+                ..salvo.clone()
+            })
+            .is_err());
         let obra = v
             .create_improvement(Improvement {
                 id: String::new(),

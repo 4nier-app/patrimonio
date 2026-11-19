@@ -5,7 +5,7 @@ import type {
   TaxView,
   YearEndPosition,
 } from "./api";
-import { bensCode, discriminacao } from "./declaracao";
+import { bensCode, bensCodeSaldo, discriminacao, savedCode, type BensCode } from "./declaracao";
 
 /**
  * Telas do IR: os mesmos valores das outras telas, arrumados como nas
@@ -288,10 +288,18 @@ export function exclusivos(
 
 // ---------- bens e direitos ----------
 
+/** De onde veio o grupo e código: certo pelo tipo, sugestão para conferir ou digitado. */
+export type CodeSource = "certo" | "sugestao" | "digitado";
+
 export type Bem = {
   key: string;
   group: string | null;
   code: string | null;
+  source: CodeSource | null;
+  /** O que o código quer dizer, para a pessoa conferir com a tabela da Receita. */
+  codeLabel: string | null;
+  /** Código que o app sugere, para voltar a ele depois de digitar outro. */
+  suggested: BensCode | null;
   discriminacao: string;
   before: number;
   after: number;
@@ -314,6 +322,18 @@ export function countryOf(asset: string, countries: Record<string, string | null
   return "375 - Irlanda";
 }
 
+function codeFields(suggested: BensCode | null, saved: string | undefined) {
+  const mine = savedCode(saved);
+  const c = mine ?? suggested;
+  return {
+    group: c?.group ?? null,
+    code: c?.code ?? null,
+    source: (mine ? "digitado" : c ? (c.sure ? "certo" : "sugestao") : null) as CodeSource | null,
+    codeLabel: c?.label ?? null,
+    suggested,
+  };
+}
+
 const B3_KINDS = ["ACAO", "FII", "ETF", "ETF_RF", "BDR", "FI_INFRA"];
 
 export function bens(
@@ -322,6 +342,7 @@ export function bens(
   names: Record<string, string>,
   year: number,
 ): Bem[] {
+  const saved = view.bens_codes ?? {};
   const now = view.annual.positions[String(year)] ?? [];
   const prev = view.annual.positions[String(year - 1)] ?? [];
   const foreign = view.annual.foreign.find((y) => y.year === year);
@@ -339,13 +360,12 @@ export function bens(
     x[0].localeCompare(y[0]),
   )) {
     const kind = kinds[asset];
-    const c = bensCode(asset, kind);
     const ref = a ?? b;
     const usd = ref?.cost_usd != null || profit.has(asset);
+    const suggested = bensCode(asset, kind, { usd, name: names[asset] });
     out.push({
       key: asset,
-      group: c?.group ?? null,
-      code: c?.code ?? null,
+      ...codeFields(suggested, saved[asset]),
       discriminacao: ref
         ? discriminacao(ref, kind, names[asset])
         : `${asset}${names[asset] && names[asset] !== asset ? ` (${names[asset]})` : ""}, vendido no ano`,
@@ -371,11 +391,10 @@ export function bens(
     seen.add(k);
     const cur = balNow.find((y) => id(y) === k);
     const old = balPrev.get(k);
-    const conta = x.kind === "Conta corrente";
+    const suggested = bensCodeSaldo(x.kind, x.tax_free, x.ir_code);
     out.push({
       key: k,
-      group: conta ? "06" : null,
-      code: conta ? "01" : null,
+      ...codeFields(suggested, saved[k]),
       discriminacao: `${x.kind}${x.name ? `: ${x.name}` : ""}${x.account ? ` · ${x.account}` : ""}`,
       before: n(old?.value),
       after: n(cur?.value),
@@ -384,5 +403,7 @@ export function bens(
       profit: null,
     });
   }
-  return out;
+  // Na ordem da ficha: por grupo e código; sem código ("?") no fim.
+  const rank = (b: Bem) => (b.group ? `${b.group}-${b.code}` : "99-99~");
+  return out.sort((x, y) => rank(x).localeCompare(rank(y)) || x.discriminacao.localeCompare(y.discriminacao, "pt-BR"));
 }
