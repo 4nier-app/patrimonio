@@ -120,7 +120,6 @@ fn lot_views(
     fx: &carteira_storage::ValueFx,
     as_of: NaiveDate,
 ) -> Vec<LotView> {
-    use carteira_core::model::FxSource;
     carteira_core::lots::open_lots(trades)
         .into_iter()
         .map(|l| {
