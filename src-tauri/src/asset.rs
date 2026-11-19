@@ -413,6 +413,10 @@ pub struct DayMove {
     /// Ganho ou perda do dia na moeda do ativo e em reais.
     pub result: Option<f64>,
     pub result_brl: Option<f64>,
+    /// Parte do ganho em reais que veio do preço (com o dólar de ontem) e
+    /// parte que veio do dólar (preço de agora × variação do dólar).
+    pub price_brl: Option<f64>,
+    pub fx_brl: Option<f64>,
     /// Valor da posição agora, em reais (para o peso de cada ativo).
     pub value_brl: Option<f64>,
     pub price_time: Option<i64>,
@@ -426,8 +430,13 @@ pub struct DayView {
     pub items: Vec<DayMove>,
     pub total_brl: Option<f64>,
     pub total_change: Option<f64>,
+    /// Quanto do total veio dos preços e quanto veio do dólar.
+    pub total_price_brl: Option<f64>,
+    pub total_fx_brl: Option<f64>,
     /// PTAX usada para converter os ativos em dólar (sem valor de resgate).
     pub fx: Option<f64>,
+    /// PTAX de ontem (para o fechamento de ontem dos ativos em dólar).
+    pub fx_prev: Option<f64>,
 }
 
 /// O que é preciso do cofre para buscar a variação do dia (sem segurar o
@@ -436,11 +445,29 @@ pub struct DayInput {
     detail: AssetDetail,
     quantity: Decimal,
     fx: Option<f64>,
+    /// Câmbio de ontem, para o fechamento de ontem: o mesmo valor de resgate
+    /// da conta, só que com a PTAX do dia útil anterior.
+    fx_prev: Option<f64>,
 }
 
 pub fn day_inputs(v: &Vault, today: NaiveDate) -> Result<Vec<DayInput>, String> {
     let view = crate::views::portfolio(v, today)?;
     let fx = view.fx.as_ref().and_then(|f| f.rate.to_f64());
+    // PTAX de ontem: último boletim antes de hoje (sexta, numa segunda).
+    let fx_prev = match today.pred_opt() {
+        Some(y) if view.fx.is_some() => v
+            .value_fx()
+            .map_err(|e| e.to_string())?
+            .usd_brl_on_or_before(y)
+            .and_then(|f| f.rate.to_f64()),
+        _ => None,
+    };
+    // Variação do dólar de ontem para hoje (1 = sem variação).
+    let ratio = fx
+        .zip(fx_prev)
+        .filter(|(t, _)| *t > 0.0)
+        .map(|(t, y)| y / t)
+        .unwrap_or(1.0);
     let mut out = Vec::new();
     for p in view.positions.iter().filter(|p| !p.quantity.is_zero()) {
         if carteira_core::savings::is_savings(&p.asset) {
@@ -450,13 +477,16 @@ pub fn day_inputs(v: &Vault, today: NaiveDate) -> Result<Vec<DayInput>, String> 
         if detail.name.is_empty() {
             detail.name = view.names.get(&p.asset).cloned().unwrap_or_default();
         }
+        // Mesmo câmbio da Carteira: PTAX ou valor de resgate da conta.
+        let (rate, rate_prev) = if detail.currency == USD {
+            let r = p.value_fx.as_ref().and_then(|f| f.rate.to_f64()).or(fx);
+            (r, r.map(|r| r * ratio))
+        } else {
+            (Some(1.0), Some(1.0))
+        };
         out.push(DayInput {
-            // Mesmo câmbio da Carteira: PTAX ou valor de resgate da conta.
-            fx: if detail.currency == USD {
-                p.value_fx.as_ref().and_then(|f| f.rate.to_f64()).or(fx)
-            } else {
-                Some(1.0)
-            },
+            fx: rate,
+            fx_prev: rate_prev,
             quantity: p.quantity,
             detail,
         });
@@ -491,6 +521,15 @@ pub fn day_moves(inputs: Vec<DayInput>, net: &(dyn ChartNet + Sync)) -> DayView 
             .filter(|(_, p)| *p > 0.0)
             .map(|(a, b)| a / b - 1.0);
         let result = price.zip(previous_close).map(|(a, b)| (a - b) * qty);
+        let fx_prev = i.fx_prev.or(i.fx);
+        // Em reais: posição agora pelo câmbio de hoje menos a posição no
+        // fechamento de ontem pelo câmbio de ontem.
+        let value_brl = price.zip(i.fx).map(|(p, f)| p * qty * f);
+        let prev_brl = previous_close.zip(fx_prev).map(|(p, f)| p * qty * f);
+        let price_brl = result.zip(fx_prev).map(|(r, f)| r * f);
+        let fx_brl = price
+            .zip(i.fx.zip(fx_prev))
+            .map(|(p, (t, y))| p * qty * (t - y));
         DayMove {
             asset: d.ticker.clone(),
             name: d.name.clone(),
@@ -501,8 +540,10 @@ pub fn day_moves(inputs: Vec<DayInput>, net: &(dyn ChartNet + Sync)) -> DayView 
             previous_close,
             change,
             result,
-            result_brl: result.zip(i.fx).map(|(r, f)| r * f),
-            value_brl: price.zip(i.fx).map(|(p, f)| p * qty * f),
+            result_brl: value_brl.zip(prev_brl).map(|(a, b)| a - b),
+            price_brl,
+            fx_brl,
+            value_brl,
             price_time,
             quote_date,
             offline,
@@ -525,6 +566,8 @@ pub fn day_moves(inputs: Vec<DayInput>, net: &(dyn ChartNet + Sync)) -> DayView 
                     change: None,
                     result: None,
                     result_brl: None,
+                    price_brl: None,
+                    fx_brl: None,
                     value_brl: None,
                     price_time: None,
                     quote_date: None,
@@ -539,15 +582,17 @@ pub fn day_moves(inputs: Vec<DayInput>, net: &(dyn ChartNet + Sync)) -> DayView 
         .iter()
         .filter_map(|m| m.value_brl.zip(m.result_brl).map(|(v, r)| v - r))
         .sum();
-    let fx = inputs
-        .iter()
-        .find(|i| i.detail.currency == USD)
-        .and_then(|i| i.fx);
+    let total_price_brl = total_brl.map(|_| known.iter().filter_map(|m| m.price_brl).sum());
+    let total_fx_brl = total_brl.map(|_| known.iter().filter_map(|m| m.fx_brl).sum());
+    let usd = inputs.iter().find(|i| i.detail.currency == USD);
     DayView {
+        total_price_brl,
+        total_fx_brl,
+        fx: usd.and_then(|i| i.fx),
+        fx_prev: usd.and_then(|i| i.fx_prev),
         total_change: total_brl.filter(|_| before > 0.0).map(|t: f64| t / before),
         total_brl,
         items,
-        fx,
     }
 }
 
@@ -719,5 +764,41 @@ mod tests {
             chart(&d, &Net { up: true }, "1y", "", today).source,
             "cofre"
         );
+    }
+    #[test]
+    fn no_dia_em_reais_inclui_a_variacao_do_dolar() {
+        let d = AssetDetail {
+            ticker: "VOO".into(),
+            name: "Vanguard S&P 500".into(),
+            kind: "ETF".into(),
+            currency: "USD".into(),
+            venue: venue_of("VOO", "USD"),
+            position: None,
+            operations: vec![],
+            average_steps: vec![],
+            history: vec![],
+            lots: vec![],
+            listing: None,
+        };
+        // Preço de 1,00 para 1,50; dólar de 5,00 para 6,00; 10 cotas.
+        let input = DayInput {
+            detail: d,
+            quantity: Decimal::from(10),
+            fx: Some(6.0),
+            fx_prev: Some(5.0),
+        };
+        let v = day_moves(vec![input], &Net { up: true });
+        let m = &v.items[0];
+        assert_eq!(m.result, Some(5.0), "em dólar só o preço");
+        assert_eq!(m.value_brl, Some(90.0));
+        // 90 hoje − 50 ontem (1,00 × 10 × 5,00).
+        assert_eq!(m.result_brl, Some(40.0));
+        assert_eq!(m.price_brl, Some(25.0));
+        assert_eq!(m.fx_brl, Some(15.0));
+        assert_eq!(v.total_brl, Some(40.0));
+        assert_eq!(v.total_price_brl, Some(25.0));
+        assert_eq!(v.total_fx_brl, Some(15.0));
+        assert_eq!(v.total_change, Some(0.8), "40 sobre 50 de ontem");
+        assert_eq!(v.fx_prev, Some(5.0));
     }
 }
