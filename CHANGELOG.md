@@ -6,7 +6,7 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [0.35.0] - 2026-11-18
+## [0.35.0] - 2026-11-19
 
 ### Adicionado
 - Telas do IR › Bens e Direitos: grupo e código sugeridos para fundos
