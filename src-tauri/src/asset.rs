@@ -5,7 +5,7 @@
 //! intradiário das criptomoedas) e não é gravado: serve só para olhar. Sem
 //! internet, ou para fundos, usa os fechamentos guardados no cofre.
 
-use carteira_core::model::USD;
+use carteira_core::model::{FxSource, USD};
 use carteira_core::operations::{trades_of, PricedOperation};
 use carteira_core::portfolio::{positions, positions_with_fx, Position};
 use carteira_core::{crypto, fund};
