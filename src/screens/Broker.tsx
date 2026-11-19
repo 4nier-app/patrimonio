@@ -17,6 +17,16 @@ function priceText(m: DayMove): string {
   return sym + m.price.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: digits });
 }
 
+/** Variação em reais: posição agora contra a posição no fechamento de ontem. */
+function changeBrl(m: DayMove): number | null {
+  if (m.result_brl == null || m.value_brl == null) return null;
+  const before = m.value_brl - m.result_brl;
+  return before > 0 ? m.result_brl / before : null;
+}
+
+const rate = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
+const someFx = (v: number | null) => v != null && Math.abs(v) >= 0.005;
+
 function when(m: DayMove): string {
   if (m.venue === "FUNDO") return m.quote_date ? `cota de ${date(m.quote_date)}` : "sem cota";
   if (m.venue === "TESOURO") return m.quote_date ? `preço de ${date(m.quote_date)}` : "sem preço";
@@ -61,7 +71,7 @@ function Today({ refresh, onOpen }: { refresh: number; onOpen: (asset: string) =
     items,
     {
       ativo: (m) => (byName(m.asset) && m.name ? m.name : m.asset),
-      variacao: (m) => m.change,
+      variacao: (m) => changeBrl(m),
       resultado: (m) => m.result_brl,
       posicao: (m) => m.value_brl,
     },
@@ -82,6 +92,12 @@ function Today({ refresh, onOpen }: { refresh: number; onOpen: (asset: string) =
         <p className="today-total">
           No dia: <strong className={sign(day.total_brl)}>{amount(day.total_brl)}</strong>{" "}
           <span className={sign(day.total_change)}>({pct(day.total_change)})</span>
+          {someFx(day.total_fx_brl) && (
+            <span className="muted small">
+              {" "}
+              · preços {amount(day.total_price_brl)} · dólar {amount(day.total_fx_brl)}
+            </span>
+          )}
         </p>
       )}
       <div className="scroll">
@@ -114,10 +130,18 @@ function Today({ refresh, onOpen }: { refresh: number; onOpen: (asset: string) =
                   {priceText(m)}
                   <div className="muted small">{when(m)}</div>
                 </td>
-                <td className={`num ${sign(m.change)}`}>{pct(m.change)}</td>
+                <td className={`num ${sign(changeBrl(m))}`}>
+                  {pct(changeBrl(m))}
+                  {m.currency === "USD" && m.change != null && <div className="muted small">em US$ {pct(m.change)}</div>}
+                </td>
                 <td className={`num ${sign(m.result_brl)}`}>
                   {amount(m.result_brl)}
-                  {m.currency === "USD" && m.result != null && <div className="muted small">{amount(m.result, "USD")}</div>}
+                  {m.currency === "USD" && m.result != null && (
+                    <div className="muted small">
+                      {amount(m.result, "USD")}
+                      {someFx(m.fx_brl) && ` · dólar ${amount(m.fx_brl)}`}
+                    </div>
+                  )}
                 </td>
                 <td className="num">{m.value_brl == null ? "—" : money(m.value_brl.toFixed(2))}</td>
               </tr>
@@ -126,8 +150,10 @@ function Today({ refresh, onOpen }: { refresh: number; onOpen: (asset: string) =
         </table>
       </div>
       <p className="muted small">
-        Ganho ou perda do dia = quantidade de hoje × (preço agora − fechamento de ontem). Ativos em dólar convertidos pela última PTAX
-        {day.fx ? ` (R$ ${day.fx.toLocaleString("pt-BR", { minimumFractionDigits: 4 })})` : ""}. Fundos mostram a última cota contra a anterior.
+        Ganho ou perda do dia = posição agora − posição no fechamento de ontem, com a quantidade de hoje. Nos ativos em dólar, o valor em reais
+        inclui a variação do dólar: agora pelo câmbio de hoje{day.fx ? ` (${rate(day.fx)})` : ""}, ontem pelo de ontem
+        {day.fx_prev ? ` (${rate(day.fx_prev)})` : ""}, os mesmos da Carteira. Embaixo aparecem a variação só em dólar e quanto veio do dólar.
+        Fundos mostram a última cota contra a anterior.
       </p>
     </>
   );

@@ -659,12 +659,22 @@ export type DayMove = {
   change: number | null;
   result: number | null;
   result_brl: number | null;
+  price_brl: number | null;
+  fx_brl: number | null;
   value_brl: number | null;
   price_time: number | null;
   quote_date: string | null;
   offline: string | null;
 };
-export type DayView = { items: DayMove[]; total_brl: number | null; total_change: number | null; fx: number | null };
+export type DayView = {
+  items: DayMove[];
+  total_brl: number | null;
+  total_change: number | null;
+  total_price_brl: number | null;
+  total_fx_brl: number | null;
+  fx: number | null;
+  fx_prev: number | null;
+};
 
 export const assetApi = {
   dayMoves: () => invoke<DayView>("day_moves"),

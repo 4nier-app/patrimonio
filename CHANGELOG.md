@@ -6,6 +6,17 @@ este histórico na tela "Histórico do sistema".
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e
 as versões seguem [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [0.35.1] - 2026-11-19
+
+### Corrigido
+- Home broker › Sua carteira hoje: o ganho ou perda do dia em reais dos
+  ativos em dólar agora inclui a variação do dólar (a posição de agora pelo
+  câmbio de hoje contra o fechamento de ontem pelo câmbio de ontem). Antes
+  o app usava o dólar de hoje nos dois, e o "No dia" podia mostrar perda
+  num dia em que o patrimônio subiu, diferente da Evolução. O total mostra
+  quanto veio dos preços e quanto veio do dólar; cada ativo mostra a
+  variação em reais e, embaixo, só em dólar.
+
 ## [0.35.0] - 2026-11-19
 
 ### Adicionado
